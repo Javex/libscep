@@ -69,6 +69,18 @@ be used from the outside.
     ``url``. Counterpart :func:`scep_cleanup_conf_url` used to free memory
     allocated here.
 
+.. function:: void scep_set_conf_encalg(SCEP* handle, SCEP_ENCRYPTION_ALG encalg)
+
+    Set encryption algorithm.
+
+.. function:: void scep_set_conf_sigalg(SCEP* handle, SCEP_SIGNATURE_ALG sigalg)
+
+    Set signature algorithm.
+
+.. function:: void scep_set_conf_verbosity(SCEP* handle, SCEP_VERBOSITY verbosity)
+
+    Set verbosity level.
+
 .. function:: void scep_cleanup_conf(SCEP_CONFIGURATION* conf)
 
     Cleans all resources that were allocated for the configuration.
@@ -100,10 +112,8 @@ This section lists the data types used within ``libscep``.
     :type:`SCEP_SIGNATURE_ALG` sigalg: The signature algorithm to use.
     For possible options see :type:`SCEP_SIGNATURE_ALG`.
 
-    :type:`bool` debug: If ``libscep`` should generate debug output. 
-    Includes ``verbose``.
-
-    :type:`bool` verbose: If ``libscep`` should generate verbose output.
+    :type:`SCEP_VERBOSITY` verbosity: How much information ``libscep`` should
+    put out.
 
     :type:`StrMap*` additional_query: An optional query that should be sent to 
     the server. Add and retrieve values with [...]
@@ -171,9 +181,25 @@ This section lists the data types used within ``libscep``.
 
     An ``enum``. Choose the scheme, either ``HTTP`` or ``HTTPS``.
 
-.. type:: bool
-    
-    An ``enum``. Implements ``true`` or ``false`` in C.
+.. type:: SCEP_VERBOSITY
+
+    An ``enum``. How much ``libscep`` "talks". The following levels are 
+    avaiable, ordered by level of output (higher == less output). Also every
+    element in the list includes the output from all above.
+
+    * ``FATAL``: Only give output on critical errors that prevent ``libscep``
+        from continuing.
+    * ``ERROR``: Only give output when an unexpected condition happens that
+        can not be corrected.
+    * ``WARN``: Give output if something happens that should be looked into.
+        Output on this level must not necessarily mean there is a problem, as
+        long as it is looked into and confirmed working.
+    * ``INFO``: Talk a lot. ``libscep`` gives detailed status information on
+        what it is currently doing. Useful to create extensive logging but can
+        generate a lot of output
+    * ``DEBUG``: ``libscep`` gives very detailed information, including 
+        printing certificates and other internal structures. Mostly useful for
+        developers and generally only activated upon developer request.
 
 .. type:: StrMap
     

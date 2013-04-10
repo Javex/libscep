@@ -2,12 +2,12 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ([2.69])
-AC_CONFIG_AUX_DIR([build-aux])
-AC_CONFIG_SRCDIR([src/scep.c])
-
-AC_INIT([libscep], [20121025], [https://github.com/javex/libscep/issues])
+AC_CONFIG_SRCDIR([src/scep.h])
+AC_INIT([libscep], [0.1], [https://github.com/javex/libscep/issues])
 AM_INIT_AUTOMAKE(foreign -Wall -Werror 1.9.6)
 
+AC_CONFIG_MACRO_DIR([m4])
+AM_PROG_AR
 LT_INIT
 
 # Checks for programs.
@@ -23,7 +23,7 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([strmap.h scep.h string.h stdlib.h openssl/*.h])
+AC_CHECK_HEADERS([strmap.h scep.h string.h stdlib.h stdarg.h openssl/*.h])
 
 
 m4_include([gcov.m4])
@@ -31,8 +31,6 @@ AC_TDD_GCOV
 AC_SUBST(COVERAGE_CFLAGS)
 AC_SUBST(COVERAGE_LDFLAGS)
 
-
-# Checks for typedefs, structures, and compiler characteristics.
 AC_TYPE_SIZE_T
 
 # Checks for library functions.

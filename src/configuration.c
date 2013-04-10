@@ -1,16 +1,35 @@
+/* src/configuration.c */
+
 #include "scep.h"
 #include <string.h>
+#include <stdarg.h>
 
 
-void scep_set_conf(SCEP *handle, SCEPCFG_TYPE type, void *cfg_value)
+void scep_set_conf(SCEP *handle, SCEPCFG_TYPE type, ...)
 {
+	va_list arg;
+
+	va_start(arg, type);
 	switch(type)
 	{
 		case SCEPCFG_URL:
 		case SCEPCFG_PROXY:
-			scep_set_conf_url(handle, type, (SCEP_URL *) cfg_value);
+			scep_set_conf_url(handle, type, va_arg(arg, SCEP_URL *));
+			break;
+		case SCEPCFG_ENCALG:
+			scep_set_conf_encalg(handle, va_arg(arg, SCEP_ENCRYPTION_ALG));
+			break;
+		case SCEPCFG_SIGALG:
+			scep_set_conf_sigalg(handle, va_arg(arg, SCEP_SIGNATURE_ALG));
+			break;
+		case SCEPCFG_VERBOSITY:
+			scep_set_conf_verbosity(handle, va_arg(arg, SCEP_VERBOSITY));
+			break;
+		default:
+			//TODO: throw error
 			break;
 	}
+	va_end(arg);
 }
 
 void scep_set_conf_url(SCEP *handle, SCEPCFG_TYPE type, SCEP_URL *url)
@@ -39,6 +58,22 @@ void scep_set_conf_url(SCEP *handle, SCEPCFG_TYPE type, SCEP_URL *url)
 	}
 
 }
+
+void scep_set_conf_encalg(SCEP *handle, SCEP_ENCRYPTION_ALG encalg)
+{
+	handle->configuration->encalg = encalg;
+}
+
+void scep_set_conf_sigalg(SCEP *handle, SCEP_SIGNATURE_ALG sigalg)
+{
+	handle->configuration->sigalg = sigalg;
+}
+
+void scep_set_conf_verbosity(SCEP *handle, SCEP_VERBOSITY verbosity)
+{
+	handle->configuration->verbosity = verbosity;
+}
+
 
 void scep_cleanup_conf(SCEP_CONFIGURATION *conf)
 {
