@@ -4,13 +4,14 @@
 #include <stdio.h>
 
 
-int scep_urlparse(char *url_str, SCEP_URL **url)
+SCEP_ERROR scep_urlparse(char *url_str, SCEP_URL **url)
 {
 	SCEP_URL *local_url;
+	SCEP_ERROR error = SCEPE_OK;
 	char *tmp, *url_cpy, *url_cpy2;
 	url_cpy = strdup(url_str);
+	// keep the original pointer around to call free on it at the end
 	url_cpy2 = url_cpy;
-	local_url = *url;
 	local_url = malloc(sizeof(SCEP_URL));
 	memset(local_url, 0, sizeof(SCEP_URL));
 
@@ -24,21 +25,25 @@ int scep_urlparse(char *url_str, SCEP_URL **url)
 			local_url->scheme = HTTP;
 		else if(strcmp(url_cpy2, "https") == 0)
 			local_url->scheme = HTTPS;
-		else {/* TODO: throw error */}
+		else {
+			error = SCEPE_UNKNOWN_SCHEME;
+			goto finally;
+		}
 
 	}
 
 	// find everything until the path
 	tmp = strchr(url_cpy, '/');
 	if(tmp) {
-		printf("Found a path in URL.\n"); fflush(stdout);
 		*tmp = '\0';
 		local_url->path = strdup(tmp + 1);
 	} else {
 		local_url->path = strdup("");
 	}
-	if(!local_url->path)
-		return SCEPE_MEMORY;
+	if(!local_url->path) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
 
 	tmp = strchr(url_cpy, ':');
 	if(tmp) {
@@ -50,9 +55,20 @@ int scep_urlparse(char *url_str, SCEP_URL **url)
 		else if(local_url->scheme == HTTPS)
 			local_url->port = 443;
 	}
-	local_url->hostname = strdup(url_cpy);
+	if(!(local_url->hostname = strdup(url_cpy)))
+	{
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
+
+	*url = local_url;
+finally:
 	free(url_cpy2);
-	return SCEPE_OK;
+	if(error != SCEPE_OK) {
+		scep_cleanup_conf_url(local_url);
+		*url = NULL;
+	}
+	return error;
 }
 
 StrMap *scep_queryparse(char *query_str)
@@ -68,9 +84,11 @@ char *scep_strerror(SCEP_ERROR err)
 			return "No error";
 		case SCEPE_MEMORY:
 			return "Not enough memory available!";
+		case SCEPE_UNKNOWN_SCHEME:
+			return "The provided scheme was unknown. Please specify HTTP or HTTPS";
 	}
 	/**
-	 * Nifty little trick stolen from libcurl: If there an error is defined in
+	 * Nifty little trick stolen from libcurl: If an error is defined in
 	 * an enum but not handled by switch, gcc will complain.
 	 */
 	return "Unknown error";

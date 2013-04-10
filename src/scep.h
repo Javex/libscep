@@ -34,7 +34,8 @@ typedef enum {
 
 typedef enum {
 	SCEPE_OK,
-	SCEPE_MEMORY
+	SCEPE_MEMORY,
+	SCEPE_UNKNOWN_SCHEME
 } SCEP_ERROR;
 
 
@@ -72,7 +73,7 @@ void scep_set_conf_encalg(SCEP *handle, SCEP_ENCRYPTION_ALG encalg);
 void scep_set_conf_sigalg(SCEP *handle, SCEP_SIGNATURE_ALG sigalg);
 void scep_set_conf_verbosity(SCEP *handle, SCEP_VERBOSITY verbosity);
 
-int scep_urlparse(char *url_str, SCEP_URL **url);
+SCEP_ERROR scep_urlparse(char *url_str, SCEP_URL **url);
 StrMap *scep_queryparse(char *query_str);
 char *scep_strerror(SCEP_ERROR err);
 #endif /* SCEP_H_ */

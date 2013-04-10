@@ -36,6 +36,7 @@ void scep_set_conf_url(SCEP *handle, SCEPCFG_TYPE type, SCEP_URL *url)
 {
 	SCEP_URL *local_url;
 
+
 	local_url = malloc(sizeof(SCEP_URL));
 	memcpy(local_url, url, sizeof(SCEP_URL));
 	local_url->hostname = strdup(url->hostname);
@@ -45,6 +46,8 @@ void scep_set_conf_url(SCEP *handle, SCEPCFG_TYPE type, SCEP_URL *url)
 		case SCEPCFG_URL:
 			// first free possible, already allocated memory, then set new.
 			scep_cleanup_conf_url(handle->configuration->url);
+			if(handle->configuration->url)
+				scep_cleanup_conf_url(handle->configuration->url);
 			handle->configuration->url = local_url;
 			break;
 		case SCEPCFG_PROXY:
@@ -53,6 +56,7 @@ void scep_set_conf_url(SCEP *handle, SCEPCFG_TYPE type, SCEP_URL *url)
 			handle->configuration->proxy = local_url;
 			break;
 		default:
+			scep_cleanup_conf_url(local_url);
 			//TODO: throw error
 			break;
 	}
@@ -79,6 +83,7 @@ void scep_cleanup_conf(SCEP_CONFIGURATION *conf)
 {
 	scep_cleanup_conf_url(conf->url);
 	scep_cleanup_conf_url(conf->proxy);
+	free(conf);
 }
 
 

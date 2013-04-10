@@ -9,19 +9,12 @@ START_TEST(test_scep_urlparse)
 	SCEP_URL *url;
 	int ret;
 
-	mark_point();
 	ret = scep_urlparse("http://example.com:81/cgi-bin/scep/scep", &url);
-	mark_point();
 	ck_assert_str_eq(url->hostname, "example.com");
-	mark_point();
 	ck_assert_str_eq(url->path, "cgi-bin/scep/scep");
-	mark_point();
 	ck_assert(url->port == 81);
-	mark_point();
 	ck_assert(url->scheme == HTTP);
-	mark_point();
 	scep_cleanup_conf_url(url);
-	mark_point();
 
 	ret = scep_urlparse("https://example.com", &url);
 	ck_assert(ret == SCEPE_OK);
@@ -29,6 +22,11 @@ START_TEST(test_scep_urlparse)
 	ck_assert_str_eq(url->path, "");
 	ck_assert(url->port == 443);
 	ck_assert(url->scheme == HTTPS);
+	scep_cleanup_conf_url(url);
+
+	ret = scep_urlparse("ftp://example.com", &url);
+	ck_assert(ret == SCEPE_UNKNOWN_SCHEME);
+	ck_assert(url == NULL);
 	scep_cleanup_conf_url(url);
 }
 END_TEST

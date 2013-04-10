@@ -15,4 +15,5 @@ SCEP *scep_init()
 void scep_cleanup(SCEP *handle)
 {
 	scep_cleanup_conf(handle->configuration);
+	free(handle);
 }

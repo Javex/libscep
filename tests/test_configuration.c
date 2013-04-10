@@ -71,7 +71,6 @@ START_TEST(test_scep_conf_url)
 	// and now lets hit the default branch
 	// TODO: check error reporting once its implemented
 	scep_set_conf_url(handle, -1, &url);
-
 }
 END_TEST
 
