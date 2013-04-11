@@ -98,3 +98,11 @@ void scep_cleanup_conf_url(SCEP_URL *url)
 		free(url);
 	}
 }
+
+void scep_cleanup_conf_query(StrMap *query)
+{
+	if(query)
+	{
+		sm_delete(query);
+	}
+}

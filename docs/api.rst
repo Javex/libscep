@@ -42,19 +42,63 @@ General functions
 Utility functions
 -----------------
 
-.. function:: SCEP_URL* scep_urlparse(char* url)
+.. function:: SCEP_ERROR scep_urlparse(const char* url_str, SCEP_URL** url)
 
-    Parse a string into an :type:`SCEP_URL` struct. The returned struct needs
-    to be deallocated after it has been used. If passing this in as an option,
-    it can be cleared after the option is set, as ``libscep`` makes a copy of
-    it.
+    Parse a string into an :type:`SCEP_URL` struct. As a second paremter, pass
+    in the target struct. It does not need to be prepared, but after you are
+    done using it, you should call :func:`scep_cleanup_conf_url` on it.
 
-.. function:: StrMap* scep_queryparse(char* query)
+    The function has several defaults, if no value is given for that parameter
+    in ``url_str``: If no scheme is provided (e.g. ``example.com:80``), then
+    it is assumed based on the port given: Port 80 means ``HTTP`` and port
+    443 means ``HTTPS``. If no port is given, it is inferred the other way
+    around from the scheme. If neither port nor scheme are defined then HTTP is
+    assumed. If an ambigous port is specified, HTTP is assumed as well.
 
-    Parse a string into a :type:`StrMap`. The string should be a typical GET
-    query, e.g. ``key1=value1&key2=value2``. Do not start the string with a
-    ``?``. The memory needs to be deallocated by the caller. See
-    :func:`scep_urlparse` for details.
+
+    Example usage:
+
+    .. code-block:: c
+
+        SCEP_URL* url;
+        scep_urlparse("http://example.com", &url);
+        scep_cleanup_conf_url(url);
+
+    If an error occurs, the function returns a value different from
+    ``SCEPE_OK``. You should always check this, because ``url`` will be
+    freed and set to ``NULL`` in case of error. Use :func:`scep_strerror` to
+    find the cause of the error.
+
+.. function:: SCEP_ERROR scep_queryparse(const char* query_str, StrMap** query)
+
+    Parse the query part of a URL into a :type:`StrMap`. The ``query_str`` is a
+    query, e.g. ``key1=value1&key2=value2``. It can handle empty values, e.g.
+    ``key1=&key2=value2`` in which case the corresponding value will be
+    ``NULL``. The memory allocated for the :type:`StrMap` object must be freed
+    by calling :func:`scep_cleanup_conf_query`. An empty ``query_str`` yields a
+    ``query`` that is ``NULL``.
+
+    Example usage:
+
+    .. code-block:: c
+
+        StrMap* query;
+        scep_queryparse("key1=value1&key2=value2", &query);
+        scep_cleanup_conf_query(query);
+
+    For more information look at :func:`scep_urlparse`.
+
+.. function:: char* scep_strerror(SCEP_ERROR err)
+
+    Turns an internal error code into a human-readable string explaining the
+    error code.
+
+    Example usage:
+
+    .. code-block:: c
+
+        printf("Error message: %s\n", strerror(SCEPE_MEMORY));
+
 
 Internal functions
 ------------------
@@ -88,6 +132,10 @@ be used from the outside.
 .. function:: void scep_cleanup_conf_url(SCEP_URL* url)
 
     Frees all memory used by the ``url`` if it was allocated.
+
+.. function:: void scep_cleanup_conf_query(StrMap* query)
+
+    Frees all memory used by ``query`` if it was allocated.
 
 Data Types
 ==========
