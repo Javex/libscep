@@ -3,17 +3,12 @@
 #ifndef SCEP_H_
 #define SCEP_H_
 
-#include "strmap.h"
+#include <stdarg.h>
+#include <string.h>
+#include <uriparser/Uri.h>
 
-typedef enum { HTTP = 1, HTTPS } SCEP_SCHEME;
-
-typedef enum {
-	DES,
-	TRIPLE_DES,
-	BLOWFISH
-} SCEP_ENCRYPTION_ALG;
-
-typedef enum { MD5, SHA1 } SCEP_SIGNATURE_ALG;
+#include <openssl/x509.h>
+#include <openssl/evp.h>
 
 typedef enum {
 	FATAL,
@@ -24,38 +19,92 @@ typedef enum {
 } SCEP_VERBOSITY;
 
 typedef enum {
+	/* Global options */
 	SCEPCFG_URL,
 	SCEPCFG_PROXY,
-	SCEPCFG_ENCALG,
-	SCEPCFG_SIGALG,
 	SCEPCFG_VERBOSITY,
-	SCEPCFG_ADDQUERY
+	SCEPCFG_SIGALG,
+	SCEPCFG_ENCALG,
+
+	/* GetCACert options */
+	SCEPCFG_GETCACERT_ISSUER,
+	SCEPCFG_GETCACERT_CACERT_TARGET,
+
+	/* PKCSReq options */
+	SCEPCFG_PKCSREQ_CSR,
+	SCEPCFG_PKCSREQ_KEY,
+	SCEPCFG_PKCSREQ_CACERT,
+	SCEPCFG_PKCSREQ_CHALL_PASSWD,
+	SCEPCFG_PKCSREQ_SIGKEY,
+	SCEPCFG_PKCSREQ_SIGCERT,
+	SCEPCFG_PKCSREQ_CERT_TARGET,
+	SCEPCFG_PKCSREQ_POLL_INTERVAL,
+	SCEPCFG_PKCSREQ_POLL_TIME,
+	SCEPCFG_PKCSREQ_POLL_COUNT,
+
+	/* GetCert options */
+	SCEPCFG_GETCERT_KEY,
+	SCEPCFG_GETCERT_CACERT,
+	SCEPCFG_GETCERT_CERT_TARGET,
+
+	/* GetCRL */
+	SCEPCFG_GETCRL_CERT,
+	SCEPCFG_GETCRL_CRL_TARGET,
+
+	/* GetNextCACert */
+	SCEPCFG_GETNEXTCACERT_ISSUER,
+	SCEPCFG_GETNEXTCACERT_CACERT_TARGET,
 } SCEPCFG_TYPE;
 
 typedef enum {
 	SCEPE_OK,
 	SCEPE_MEMORY,
-	SCEPE_UNKNOWN_SCHEME,
-	SCEPE_INVALID_PORT,
 	SCEPE_INVALID_URL,
-	SCEPE_QUERY_PARSE
+	SCEPE_UNKNOWN_CONFIGURATION,
+	SCEPE_UNKNOWN_SIGALG,
+	SCEPE_UNKNOWN_ENCALG,
 } SCEP_ERROR;
 
+struct scep_configuration_getcacert_t {
+	char *issuer;
+	X509 *ca_cert_target;
+};
+
+struct scep_configuration_pkcsreq_t {
+	X509_REQ *request;
+	EVP_PKEY *request_key;
+	X509 *cert_target;
+	X509 *ca_cert;
+	char *challenge_password;
+	EVP_PKEY *signature_key;
+	X509 *signature_cert;
+	int polling_interval;
+	int maximum_poll_time;
+	int maximum_poll_count;
+};
+
+struct scep_configuration_getcert_t {
+	EVP_PKEY *request_key;
+	X509 *cert_target;
+	X509 *ca_cert;
+};
+
+struct scep_configuration_getcrl_t {
+	X509 *cert;
+	X509_CRL *crl_target;
+};
 
 typedef struct {
-	SCEP_SCHEME scheme;
-	char *hostname;
-	int port;
-	char *path;
-} SCEP_URL;
-
-typedef struct {
-	SCEP_URL *url;
-	SCEP_URL *proxy;
-	SCEP_ENCRYPTION_ALG encalg;
-	SCEP_SIGNATURE_ALG sigalg;
+	UriUriA *url;
+	UriUriA *proxy;
 	SCEP_VERBOSITY verbosity;
-	StrMap *additional_query;
+	EVP_MD *sigalg;
+	EVP_CIPHER *encalg;
+	struct scep_configuration_getcacert_t *getcacert;
+	struct scep_configuration_pkcsreq_t *pkcsreq;
+	struct scep_configuration_getcert_t *getcert;
+	struct scep_configuration_getcrl_t *getcrl;
+	struct scep_configuration_getcacert_t *getnextcacert;
 } SCEP_CONFIGURATION;
 
 typedef struct {
@@ -65,19 +114,23 @@ typedef struct {
 /* External functions */
 SCEP *scep_init();
 void scep_cleanup(SCEP *handle);
-void scep_set_conf(SCEP *handle, SCEPCFG_TYPE type, ...);
+SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
+char *scep_strerror(SCEP_ERROR err);
 
 /* Internal functions */
-void scep_set_conf_url(SCEP *handle, SCEPCFG_TYPE type, SCEP_URL *url);
+SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str);
+SCEP_ERROR scep_conf_set_sigalg(SCEP *handle, char *sigalg_str);
+SCEP_ERROR scep_conf_set_encalg(SCEP *handle, char *encalg_str);
+SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
+SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
+SCEP_ERROR scep_conf_set_getcert(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
+SCEP_ERROR scep_conf_set_getcrl(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
+SCEP_ERROR scep_conf_set_getnextcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
 
 void scep_cleanup_conf(SCEP_CONFIGURATION *conf);
-void scep_cleanup_conf_url(SCEP_URL *url);
-void scep_cleanup_conf_query(StrMap *query);
-void scep_set_conf_encalg(SCEP *handle, SCEP_ENCRYPTION_ALG encalg);
-void scep_set_conf_sigalg(SCEP *handle, SCEP_SIGNATURE_ALG sigalg);
-void scep_set_conf_verbosity(SCEP *handle, SCEP_VERBOSITY verbosity);
+void scep_cleanup_conf_getcacert(struct scep_configuration_getcacert_t *getcacert);
+void scep_cleanup_conf_pkcsreq(struct scep_configuration_pkcsreq_t *pkcsreq);
+void scep_cleanup_conf_getcert(struct scep_configuration_getcert_t *getcert);
+void scep_cleanup_conf_getcrl(struct scep_configuration_getcrl_t *getcrl);
 
-SCEP_ERROR scep_urlparse(const char *url_str, SCEP_URL **url);
-SCEP_ERROR scep_queryparse(const char *query_str, StrMap** query);
-char *scep_strerror(SCEP_ERROR err);
 #endif /* SCEP_H_ */

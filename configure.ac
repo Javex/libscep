@@ -19,11 +19,22 @@ PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lcrypto':
-#AC_CHECK_LIB([crypto], [main])
+#AC_CHECK_LIB([crypto], [main]) 
+
+# ===================
+# Check for uriparser
+
+URIPARSER_MISSING="Please install uriparser 0.6.4 or later.
+   On a Debian-based system enter 'sudo apt-get install liburiparser-dev'."
+AC_CHECK_LIB(uriparser, uriParseUriA,, AC_MSG_ERROR(${URIPARSER_MISSING}))
+AC_CHECK_HEADER(uriparser/Uri.h,, AC_MSG_ERROR(${URIPARSER_MISSING}))
+
+# uriparser OK
+# ============
 
 # Checks for header files.
 AC_HEADER_STDC
-AC_CHECK_HEADERS([strmap.h scep.h string.h stdlib.h stdarg.h openssl/*.h])
+AC_CHECK_HEADERS([scep.h string.h stdlib.h stdarg.h openssl/*.h])
 
 
 m4_include([gcov.m4])

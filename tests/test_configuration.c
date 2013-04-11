@@ -24,7 +24,13 @@ START_TEST(test_scep_set_conf)
 	url.scheme = HTTP;
 	url.port = 1337;
 
-	scep_set_conf(handle, SCEPCFG_URL, &url);
+	/* TODO: test all paths:
+	 * URL, PROXY, VERBOSITY, SIGALG, ENCALG,
+	 * GETCACERT_*, PKCSREQ_*, GETCERT_*,
+	 * GETCRL_*, GETNEXTCACERT_*
+	 */
+
+	scep_conf_set(handle, SCEPCFG_URL, &url);
 	ck_assert_str_eq(handle->configuration->url->hostname, "example.com");
 	ck_assert_str_eq(handle->configuration->url->path, "/path/to/scep");
 	ck_assert(handle->configuration->url->scheme == HTTP);
@@ -34,22 +40,22 @@ START_TEST(test_scep_set_conf)
 	url.path = "";
 	url.scheme = HTTPS;
 	url.port = 8080;
-	scep_set_conf(handle, SCEPCFG_PROXY, &url);
+	scep_conf_set(handle, SCEPCFG_PROXY, &url);
 	ck_assert_str_eq(handle->configuration->proxy->hostname, "test.com");
 	ck_assert_str_eq(handle->configuration->proxy->path, "");
 	ck_assert(handle->configuration->proxy->scheme == HTTPS);
 	ck_assert(handle->configuration->proxy->port == 8080);
 
-	scep_set_conf(handle, SCEPCFG_ENCALG, TRIPLE_DES);
+	scep_conf_set(handle, SCEPCFG_ENCALG, TRIPLE_DES);
 	ck_assert(handle->configuration->encalg == TRIPLE_DES);
 
-	scep_set_conf(handle, SCEPCFG_SIGALG, MD5);
+	scep_conf_set(handle, SCEPCFG_SIGALG, MD5);
 	ck_assert(handle->configuration->sigalg == MD5);
 
-	scep_set_conf(handle, SCEPCFG_VERBOSITY, DEBUG);
+	scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
 	ck_assert(handle->configuration->verbosity == DEBUG);
 
-	scep_set_conf(handle, -1, NULL);
+	scep_conf_set(handle, -1, NULL);
 	//TODO: check error reporting once its implemented
 }
 END_TEST
