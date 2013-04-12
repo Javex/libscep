@@ -3,7 +3,7 @@
 #include <check.h>
 #include <stdlib.h>
 #include "../src/scep.h"
-
+/*
 START_TEST(test_scep_urlparse)
 {
 	SCEP_URL *url;
@@ -175,10 +175,11 @@ START_TEST(test_scep_queryparse)
 	scep_cleanup_conf_query(query);
 }
 END_TEST
+*/
 
-Suite * scep_conf_suite(void)
+Suite * scep_util_suite(void)
 {
-	Suite *s = suite_create("General");
+	Suite *s = suite_create("Util");
 
 	/* Core test case */
 	TCase *tc_core = tcase_create("Core");
@@ -193,7 +194,7 @@ Suite * scep_conf_suite(void)
 int main(void)
 {
 	int number_failed;
-	Suite *s = scep_conf_suite();
+	Suite *s = scep_util_suite();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr, CK_NORMAL);
 	srunner_set_fork_status(sr, CK_NOFORK);

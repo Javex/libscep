@@ -10,6 +10,14 @@
 #include <openssl/x509.h>
 #include <openssl/evp.h>
 
+/* macro to free any openssl structure if it exists and dynamically load
+ * a new value from a var arg. Massively used in configuration.c
+ */
+#define OSSL_CONDITIONAL_FREE(item, type) \
+	if(item) \
+		type ## _free(item); \
+	item = va_arg(arg, type *)
+
 typedef enum {
 	FATAL,
 	ERROR,
@@ -119,8 +127,6 @@ char *scep_strerror(SCEP_ERROR err);
 
 /* Internal functions */
 SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str);
-SCEP_ERROR scep_conf_set_sigalg(SCEP *handle, char *sigalg_str);
-SCEP_ERROR scep_conf_set_encalg(SCEP *handle, char *encalg_str);
 SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
 SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
 SCEP_ERROR scep_conf_set_getcert(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
