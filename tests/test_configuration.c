@@ -6,6 +6,16 @@
 
 SCEP *handle;
 
+#define OSSL_TEST_TYPE_ONCE(var, cfg_enum, cfg_var, type) \
+	var = type ## _new(); \
+	error = scep_conf_set(handle, cfg_enum, var); \
+	ck_assert(error == SCEPE_OK); \
+	ck_assert(cfg_var == var);
+
+#define OSSL_TEST_TYPE(var, cfg_enum, cfg_var, type) \
+		OSSL_TEST_TYPE_ONCE(var, cfg_enum, cfg_var, type) \
+		OSSL_TEST_TYPE_ONCE(var, cfg_enum, cfg_var, type)
+
 void setup()
 {
 	handle = scep_init();
@@ -216,6 +226,62 @@ END_TEST
 
 START_TEST(test_scep_conf_pkcsreq)
 {
+	int error;
+	X509_REQ *test_req;
+	EVP_PKEY *test_key;
+	X509 *test_cert;
+	char *test_str;
+
+	OSSL_TEST_TYPE(test_req, SCEPCFG_PKCSREQ_CSR,
+		handle->configuration->pkcsreq->request, X509_REQ)
+
+	OSSL_TEST_TYPE(test_req, SCEPCFG_PKCSREQ_CSR,
+		handle->configuration->pkcsreq->request, X509_REQ)
+
+	OSSL_TEST_TYPE(test_key, SCEPCFG_PKCSREQ_KEY,
+		handle->configuration->pkcsreq->request_key, EVP_PKEY)
+
+	OSSL_TEST_TYPE(test_key, SCEPCFG_PKCSREQ_KEY,
+		handle->configuration->pkcsreq->request_key, EVP_PKEY)
+
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_PKCSREQ_CACERT,
+		handle->configuration->pkcsreq->ca_cert, X509)
+
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_PKCSREQ_CACERT,
+		handle->configuration->pkcsreq->ca_cert, X509)
+
+	test_str = "Some Test String";
+	error = scep_conf_set(handle, SCEPCFG_PKCSREQ_CHALL_PASSWD, test_str);
+	ck_assert(error == SCEPE_OK);
+	ck_assert_str_eq(handle->configuration->pkcsreq->challenge_password, test_str);
+
+	error = scep_conf_set(handle, SCEPCFG_PKCSREQ_CHALL_PASSWD, test_str);
+	ck_assert(error == SCEPE_OK);
+	ck_assert_str_eq(handle->configuration->pkcsreq->challenge_password, test_str);
+
+	OSSL_TEST_TYPE(test_key, SCEPCFG_PKCSREQ_SIGKEY,
+			handle->configuration->pkcsreq->signature_key, EVP_PKEY)
+
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_PKCSREQ_SIGCERT,
+			handle->configuration->pkcsreq->signature_cert, X509)
+
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_PKCSREQ_CERT_TARGET,
+			handle->configuration->pkcsreq->cert_target, X509)
+
+	error = scep_conf_set(handle, SCEPCFG_PKCSREQ_POLL_INTERVAL, 5);
+	ck_assert(error == SCEPE_OK);
+	ck_assert(handle->configuration->pkcsreq->polling_interval == 5);
+
+	error = scep_conf_set(handle, SCEPCFG_PKCSREQ_POLL_TIME, 7);
+	ck_assert(error == SCEPE_OK);
+	ck_assert(handle->configuration->pkcsreq->maximum_poll_time == 7);
+
+	error = scep_conf_set(handle, SCEPCFG_PKCSREQ_POLL_COUNT, 9);
+	ck_assert(error == SCEPE_OK);
+	ck_assert(handle->configuration->pkcsreq->maximum_poll_count == 9);
+
+	error = scep_conf_set_pkcsreq(handle, -1, NULL);
+	ck_assert(error == SCEPE_UNKNOWN_CONFIGURATION);
 }
 END_TEST
 
@@ -225,35 +291,23 @@ START_TEST(test_scep_conf_getcert)
 	EVP_PKEY *test_key;
 	X509 *test_cert;
 
-	test_key = EVP_PKEY_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCERT_KEY, test_key);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcert->request_key == test_key);
+	OSSL_TEST_TYPE(test_key, SCEPCFG_GETCERT_KEY,
+			handle->configuration->getcert->request_key, EVP_PKEY)
 
-	test_key = EVP_PKEY_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCERT_KEY, test_key);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcert->request_key == test_key);
+	OSSL_TEST_TYPE(test_key, SCEPCFG_GETCERT_KEY,
+			handle->configuration->getcert->request_key, EVP_PKEY)
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCERT_CACERT, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcert->ca_cert == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETCERT_CACERT,
+			handle->configuration->getcert->ca_cert, X509)
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCERT_CACERT, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcert->ca_cert == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETCERT_CACERT,
+			handle->configuration->getcert->ca_cert, X509)
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCERT_CERT_TARGET, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcert->cert_target == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETCERT_CERT_TARGET,
+		handle->configuration->getcert->cert_target, X509)
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCERT_CERT_TARGET, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcert->cert_target == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETCERT_CERT_TARGET,
+		handle->configuration->getcert->cert_target, X509)
 
 	error = scep_conf_set_getcert(handle, -1, NULL);
 	ck_assert(error = SCEPE_UNKNOWN_CONFIGURATION);
@@ -266,25 +320,17 @@ START_TEST(test_scep_conf_getcrl)
 	X509 *test_cert;
 	X509_CRL *test_crl;
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCRL_CERT, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcrl->cert == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETCRL_CERT,
+		handle->configuration->getcrl->cert, X509)
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCRL_CERT, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcrl->cert == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETCRL_CERT,
+		handle->configuration->getcrl->cert, X509)
 
-	test_crl = X509_CRL_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCRL_CRL_TARGET, test_crl);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcrl->crl_target == test_crl);
+	OSSL_TEST_TYPE(test_crl, SCEPCFG_GETCRL_CRL_TARGET,
+		handle->configuration->getcrl->crl_target, X509_CRL)
 
-	test_crl = X509_CRL_new();
-	error = scep_conf_set(handle, SCEPCFG_GETCRL_CRL_TARGET, test_crl);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getcrl->crl_target == test_crl);
+	OSSL_TEST_TYPE(test_crl, SCEPCFG_GETCRL_CRL_TARGET,
+		handle->configuration->getcrl->crl_target, X509_CRL)
 
 	error = scep_conf_set_getcrl(handle, -1, NULL);
 	ck_assert(error == SCEPE_UNKNOWN_CONFIGURATION);
@@ -304,15 +350,11 @@ START_TEST(test_scep_conf_getnextcacert)
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(handle->configuration->getnextcacert->issuer, "test2");
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETNEXTCACERT_CACERT_TARGET, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getnextcacert->ca_cert_target == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETNEXTCACERT_CACERT_TARGET,
+		handle->configuration->getnextcacert->ca_cert_target, X509)
 
-	test_cert = X509_new();
-	error = scep_conf_set(handle, SCEPCFG_GETNEXTCACERT_CACERT_TARGET, test_cert);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(handle->configuration->getnextcacert->ca_cert_target == test_cert);
+	OSSL_TEST_TYPE(test_cert, SCEPCFG_GETNEXTCACERT_CACERT_TARGET,
+		handle->configuration->getnextcacert->ca_cert_target, X509)
 
 	error = scep_conf_set_getnextcacert(handle, -1, NULL);
 	ck_assert(error == SCEPE_UNKNOWN_CONFIGURATION);
