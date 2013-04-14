@@ -86,6 +86,13 @@ it should be taken care which functions are actually made available.
 Mandatory public options are *initialization*, *desctruction*, *configuration*
 and one function for each *operation*.
 
+
+General Specification
+---------------------
+
+Each function that is in the public interface *must* return an error code if it
+can have errors or return ``void`` if it does not handle any error.
+
 Initialization
 --------------
 
@@ -140,3 +147,9 @@ The following configuration options are required (by opertaion/global):
 * GetNextCACert
     - Issuer of the certificate. *Optional*.
     - CA certificate target.
+
+Layer IV - The Internals
+========================
+
+With a public, consistent interface it is now possible to design the internals
+after it. 
