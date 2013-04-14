@@ -69,8 +69,6 @@ typedef enum {
 	SCEPE_MEMORY,
 	SCEPE_INVALID_URL,
 	SCEPE_UNKNOWN_CONFIGURATION,
-	SCEPE_UNKNOWN_SIGALG,
-	SCEPE_UNKNOWN_ENCALG,
 } SCEP_ERROR;
 
 struct scep_configuration_getcacert_t {
