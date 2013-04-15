@@ -342,6 +342,8 @@ void scep_conf_pkcsreq_free(struct scep_configuration_pkcsreq_t *pkcsreq)
 			EVP_PKEY_free(pkcsreq->signature_key);
 		if(pkcsreq->signature_cert)
 			X509_free(pkcsreq->signature_cert);
+		if(pkcsreq->ca_cert)
+			X509_free(pkcsreq->ca_cert);
 		free(pkcsreq);
 	}
 }
