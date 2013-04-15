@@ -2,18 +2,24 @@
 
 #include "scep.h"
 
-SCEP *scep_init()
+SCEP_ERROR scep_init(SCEP **handle)
 {
-	SCEP *handle;
-	handle = malloc(sizeof(SCEP));
-	memset(handle, 0, sizeof(SCEP));
-	handle->configuration = malloc(sizeof(SCEP_CONFIGURATION));
-	memset(handle->configuration, 0, sizeof(SCEP_CONFIGURATION));
-	return handle;
+	SCEP *local_handle;
+	int error;
+	if(!(local_handle = malloc(sizeof(SCEP))))
+		return SCEPE_MEMORY;
+	memset(local_handle, 0, sizeof(SCEP));
+	if((error = scep_conf_init(local_handle)) != SCEPE_OK)
+	{
+		scep_cleanup(local_handle);
+		return error;
+	}
+	*handle = local_handle;
+	return SCEPE_OK;
 }
 
 void scep_cleanup(SCEP *handle)
 {
-	scep_cleanup_conf(handle->configuration);
+	scep_conf_free(handle->configuration);
 	free(handle);
 }

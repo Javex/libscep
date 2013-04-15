@@ -1,0 +1,7 @@
+
+sphinx:
+	mkdir docs/_static
+	$(MAKE) -C docs html
+
+sphinx-clean:
+	$(MAKE) -C docs clean

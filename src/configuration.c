@@ -2,6 +2,25 @@
 
 #include "scep.h"
 
+SCEP_ERROR scep_conf_init(SCEP *handle)
+{
+	int error;
+
+	if(!(handle->configuration = malloc(sizeof(SCEP_CONFIGURATION))))
+		return SCEPE_MEMORY;
+	memset(handle->configuration, 0, sizeof(SCEP_CONFIGURATION));
+
+	if((error = scep_conf_set(handle, SCEPCFG_VERBOSITY, DEFAULT_VERBOSITY)) != SCEPE_OK)
+		return error;
+
+	if((error = scep_conf_set(handle, SCEPCFG_SIGALG, DEFAULT_SIGALG)) != SCEPE_OK)
+		return error;
+
+	if((error = scep_conf_set(handle, SCEPCFG_ENCALG, DEFAULT_ENCALG)) != SCEPE_OK)
+		return error;
+
+	return SCEPE_OK;
+}
 
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 {
@@ -28,7 +47,6 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 
 			/* GetCACert options */
 		case SCEPCFG_GETCACERT_ISSUER:
-		case SCEPCFG_GETCACERT_CACERT_TARGET:
 			error = scep_conf_set_getcacert(handle, type, arg);
 			break;
 
@@ -39,7 +57,6 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 		case SCEPCFG_PKCSREQ_CHALL_PASSWD:
 		case SCEPCFG_PKCSREQ_SIGKEY:
 		case SCEPCFG_PKCSREQ_SIGCERT:
-		case SCEPCFG_PKCSREQ_CERT_TARGET:
 		case SCEPCFG_PKCSREQ_POLL_INTERVAL:
 		case SCEPCFG_PKCSREQ_POLL_TIME:
 		case SCEPCFG_PKCSREQ_POLL_COUNT:
@@ -49,19 +66,16 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 		/* GetCert options */
 		case SCEPCFG_GETCERT_KEY:
 		case SCEPCFG_GETCERT_CACERT:
-		case SCEPCFG_GETCERT_CERT_TARGET:
 			error = scep_conf_set_getcert(handle, type, arg);
 			break;
 
 		/* GetCRL */
 		case SCEPCFG_GETCRL_CERT:
-		case SCEPCFG_GETCRL_CRL_TARGET:
 			error = scep_conf_set_getcrl(handle, type, arg);
 			break;
 
 		/* GetNextCACert */
 		case SCEPCFG_GETNEXTCACERT_ISSUER:
-		case SCEPCFG_GETNEXTCACERT_CACERT_TARGET:
 			error = scep_conf_set_getnextcacert(handle, type, arg);
 			break;
 		default:
@@ -139,9 +153,6 @@ SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 					strdup(va_arg(arg, char *))))
 				return SCEPE_MEMORY;
 			break;
-		case SCEPCFG_GETCACERT_CACERT_TARGET:
-			OSSL_CONDITIONAL_FREE(handle->configuration->getcacert->ca_cert_target, X509);
-			break;
 		default:
 			return SCEPE_UNKNOWN_CONFIGURATION;
 	}
@@ -159,6 +170,9 @@ SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 			return SCEPE_MEMORY;
 		memset(handle->configuration->pkcsreq, 0,
 				sizeof(struct scep_configuration_pkcsreq_t));
+		handle->configuration->pkcsreq->polling_interval = DEFAULT_POLL_INTERVAL;
+		handle->configuration->pkcsreq->maximum_poll_time = DEFAULT_MAX_POLL_TIME;
+		handle->configuration->pkcsreq->maximum_poll_count = DEFAULT_MAX_POLL_COUNT;
 	}
 
 	switch(type)
@@ -184,9 +198,6 @@ SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 			break;
 		case SCEPCFG_PKCSREQ_SIGCERT:
 			OSSL_CONDITIONAL_FREE(handle->configuration->pkcsreq->signature_cert, X509);
-			break;
-		case SCEPCFG_PKCSREQ_CERT_TARGET:
-			OSSL_CONDITIONAL_FREE(handle->configuration->pkcsreq->cert_target, X509);
 			break;
 		case SCEPCFG_PKCSREQ_POLL_INTERVAL:
 			handle->configuration->pkcsreq->polling_interval = va_arg(arg, int);
@@ -224,9 +235,6 @@ SCEP_ERROR scep_conf_set_getcert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 		case SCEPCFG_GETCERT_CACERT:
 			OSSL_CONDITIONAL_FREE(handle->configuration->getcert->ca_cert, X509);
 			break;
-		case SCEPCFG_GETCERT_CERT_TARGET:
-			OSSL_CONDITIONAL_FREE(handle->configuration->getcert->cert_target, X509);
-			break;
 		default:
 			return SCEPE_UNKNOWN_CONFIGURATION;
 
@@ -251,9 +259,6 @@ SCEP_ERROR scep_conf_set_getcrl(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 	{
 		case SCEPCFG_GETCRL_CERT:
 			OSSL_CONDITIONAL_FREE(handle->configuration->getcrl->cert, X509);
-			break;
-		case SCEPCFG_GETCRL_CRL_TARGET:
-			OSSL_CONDITIONAL_FREE(handle->configuration->getcrl->crl_target, X509_CRL);
 			break;
 		default:
 			return SCEPE_UNKNOWN_CONFIGURATION;
@@ -284,9 +289,6 @@ SCEP_ERROR scep_conf_set_getnextcacert(SCEP *handle, SCEPCFG_TYPE type, va_list 
 					strdup(va_arg(arg, char *))))
 				return SCEPE_MEMORY;
 			break;
-		case SCEPCFG_GETNEXTCACERT_CACERT_TARGET:
-			OSSL_CONDITIONAL_FREE(handle->configuration->getnextcacert->ca_cert_target, X509);
-			break;
 		default:
 			return SCEPE_UNKNOWN_CONFIGURATION;
 
@@ -294,7 +296,7 @@ SCEP_ERROR scep_conf_set_getnextcacert(SCEP *handle, SCEPCFG_TYPE type, va_list 
 	return SCEPE_OK;
 }
 
-void scep_cleanup_conf(SCEP_CONFIGURATION *conf)
+void scep_conf_free(SCEP_CONFIGURATION *conf)
 {
 	if(conf->url)
 	{
@@ -307,28 +309,26 @@ void scep_cleanup_conf(SCEP_CONFIGURATION *conf)
 		free(conf->proxy);
 	}
 
-	scep_cleanup_conf_getcacert(conf->getcacert);
-	scep_cleanup_conf_pkcsreq(conf->pkcsreq);
-	scep_cleanup_conf_getcert(conf->getcert);
-	scep_cleanup_conf_getcrl(conf->getcrl);
-	scep_cleanup_conf_getcacert(conf->getnextcacert);
+	scep_conf_getcacert_free(conf->getcacert);
+	scep_conf_pkcsreq_free(conf->pkcsreq);
+	scep_conf_getcert_free(conf->getcert);
+	scep_conf_getcrl_free(conf->getcrl);
+	scep_conf_getcacert_free(conf->getnextcacert);
 
 	free(conf);
 }
 
-void scep_cleanup_conf_getcacert(struct scep_configuration_getcacert_t *getcacert)
+void scep_conf_getcacert_free(struct scep_configuration_getcacert_t *getcacert)
 {
 	if(getcacert)
 	{
 		if(getcacert->issuer)
 			free(getcacert->issuer);
-		if(getcacert->ca_cert_target)
-			X509_free(getcacert->ca_cert_target);
 		free(getcacert);
 	}
 }
 
-void scep_cleanup_conf_pkcsreq(struct scep_configuration_pkcsreq_t *pkcsreq)
+void scep_conf_pkcsreq_free(struct scep_configuration_pkcsreq_t *pkcsreq)
 {
 	if(pkcsreq)
 	{
@@ -336,8 +336,6 @@ void scep_cleanup_conf_pkcsreq(struct scep_configuration_pkcsreq_t *pkcsreq)
 			X509_REQ_free(pkcsreq->request);
 		if(pkcsreq->request_key)
 			EVP_PKEY_free(pkcsreq->request_key);
-		if(pkcsreq->cert_target)
-			X509_free(pkcsreq->cert_target);
 		if(pkcsreq->challenge_password)
 			free(pkcsreq->challenge_password);
 		if(pkcsreq->signature_key)
@@ -348,28 +346,119 @@ void scep_cleanup_conf_pkcsreq(struct scep_configuration_pkcsreq_t *pkcsreq)
 	}
 }
 
-void scep_cleanup_conf_getcert(struct scep_configuration_getcert_t *getcert)
+void scep_conf_getcert_free(struct scep_configuration_getcert_t *getcert)
 {
 	if(getcert)
 	{
 		if(getcert->request_key)
 			EVP_PKEY_free(getcert->request_key);
-		if(getcert->cert_target)
-			X509_free(getcert->cert_target);
 		if(getcert->ca_cert)
 			X509_free(getcert->ca_cert);
 		free(getcert);
 	}
 }
 
-void scep_cleanup_conf_getcrl(struct scep_configuration_getcrl_t *getcrl)
+void scep_conf_getcrl_free(struct scep_configuration_getcrl_t *getcrl)
 {
 	if(getcrl)
 	{
 		if(getcrl->cert)
 			X509_free(getcrl->cert);
-		if(getcrl->crl_target)
-			X509_CRL_free(getcrl->crl_target);
 		free(getcrl);
 	}
+}
+
+SCEP_ERROR scep_conf_sanity_check(SCEP *handle, SCEP_OPERATION op)
+{
+	int error = SCEPE_OK;
+	if(!handle->configuration->url)
+		return SCEPE_MISSING_URL;
+
+	switch(op)
+	{
+		case SCEPOP_GETCACERT:
+			error = scep_conf_sanity_check_getcacert(handle);
+			break;
+		case SCEPOP_PKCSREQ:
+			error = scep_conf_sanity_check_pkcsreq(handle);
+			break;
+		case SCEPOP_GETCERT:
+			error = scep_conf_sanity_check_getcert(handle);
+			break;
+		case SCEPOP_GETCRL:
+			error = scep_conf_sanity_check_getcrl(handle);
+			break;
+		case SCEPOP_GETNEXTCACERT:
+			error = scep_conf_sanity_check_getnextcacert(handle);
+			break;
+		default:
+			error = SCEPE_UNKOWN_OPERATION;
+	}
+
+	return error;
+}
+
+SCEP_ERROR scep_conf_sanity_check_getcacert(SCEP *handle)
+{
+	if(!handle->configuration->getcacert)
+		return SCEPE_MISSING_CONFIG;
+
+	return SCEPE_OK;
+}
+
+SCEP_ERROR scep_conf_sanity_check_pkcsreq(SCEP *handle)
+{
+	if(!handle->configuration->pkcsreq)
+		return SCEPE_MISSING_CONFIG;
+
+	if(!handle->configuration->pkcsreq->request)
+		return SCEPE_MISSING_CSR;
+
+	if(!handle->configuration->pkcsreq->request_key)
+		return SCEPE_MISSING_REQ_KEY;
+
+	if(!handle->configuration->pkcsreq->ca_cert)
+		return SCEPE_MISSING_CA_CERT;
+
+	if(handle->configuration->pkcsreq->signature_key &&
+			!handle->configuration->pkcsreq->signature_cert)
+		return SCEPE_MISSING_SIGCERT;
+
+	if(handle->configuration->pkcsreq->signature_cert &&
+			!handle->configuration->pkcsreq->signature_key)
+		return SCEPE_MISSING_SIGKEY;
+
+	return SCEPE_OK;
+}
+
+SCEP_ERROR scep_conf_sanity_check_getcert(SCEP *handle)
+{
+	if(!handle->configuration->getcert)
+		return SCEPE_MISSING_CONFIG;
+
+	if(!handle->configuration->getcert->request_key)
+		return SCEPE_MISSING_CERT_KEY;
+
+	if(!handle->configuration->getcert->ca_cert)
+		return SCEPE_MISSING_CA_CERT;
+
+	return SCEPE_OK;
+}
+
+SCEP_ERROR scep_conf_sanity_check_getcrl(SCEP *handle)
+{
+	if(!handle->configuration->getcrl)
+		return SCEPE_MISSING_CONFIG;
+
+	if(!handle->configuration->getcrl->cert)
+		return SCEPE_MISSING_CRL_CERT;
+	return SCEPE_OK;
+}
+
+SCEP_ERROR scep_conf_sanity_check_getnextcacert(SCEP *handle)
+{
+	if(!handle->configuration->getnextcacert)
+		return SCEPE_MISSING_CONFIG;
+
+	return SCEPE_OK;
 }

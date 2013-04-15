@@ -6,8 +6,11 @@
 
 START_TEST(test_scep_init_cleanup)
 {
-	SCEP *handle = scep_init();
-	SCEP *local_memory = malloc(sizeof(SCEP));
+	int error;
+	SCEP *handle;
+	SCEP *local_memory;
+	error = scep_init(&handle);
+	local_memory = malloc(sizeof(SCEP));
 	memset(local_memory, 0, sizeof(SCEP));
 	ck_assert(memcmp(local_memory, handle, sizeof(SCEP)));
 	free(local_memory);

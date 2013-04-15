@@ -51,7 +51,8 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
-DIST_COMMON = $(top_srcdir)/Makefile.am.coverage $(srcdir)/Makefile.in \
+DIST_COMMON = $(top_srcdir)/Makefile.am.coverage \
+	$(top_srcdir)/Makefile.am.docs $(srcdir)/Makefile.in \
 	$(srcdir)/Makefile.am $(top_srcdir)/configure \
 	$(am__configure_deps) $(srcdir)/config.h.in ar-lib compile \
 	config.guess config.sub depcomp install-sh missing ltmain.sh
@@ -300,7 +301,7 @@ all: config.h
 .SUFFIXES:
 am--refresh: Makefile
 	@:
-$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/Makefile.am.coverage $(am__configure_deps)
+$(srcdir)/Makefile.in:  $(srcdir)/Makefile.am $(top_srcdir)/Makefile.am.coverage $(top_srcdir)/Makefile.am.docs $(am__configure_deps)
 	@for dep in $?; do \
 	  case '$(am__configure_deps)' in \
 	    *$$dep*) \
@@ -323,7 +324,7 @@ Makefile: $(srcdir)/Makefile.in $(top_builddir)/config.status
 	    echo ' cd $(top_builddir) && $(SHELL) ./config.status $@ $(am__depfiles_maybe)'; \
 	    cd $(top_builddir) && $(SHELL) ./config.status $@ $(am__depfiles_maybe);; \
 	esac;
-$(top_srcdir)/Makefile.am.coverage:
+$(top_srcdir)/Makefile.am.coverage $(top_srcdir)/Makefile.am.docs:
 
 $(top_builddir)/config.status: $(top_srcdir)/configure $(CONFIG_STATUS_DEPENDENCIES)
 	$(SHELL) ./config.status --recheck
@@ -792,6 +793,13 @@ uninstall-am:
 @HAVE_GCOV_TRUE@	-rm -rf coverage.info coveragereport
 
 @HAVE_GCOV_TRUE@clean-local: clean-coverage-html
+
+sphinx:
+	mkdir docs/_static
+	$(MAKE) -C docs html
+
+sphinx-clean:
+	$(MAKE) -C docs clean
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

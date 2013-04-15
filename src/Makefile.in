@@ -95,7 +95,8 @@ am__installdirs = "$(DESTDIR)$(libdir)"
 LTLIBRARIES = $(lib_LTLIBRARIES)
 libscep_0_1_la_LIBADD =
 am_libscep_0_1_la_OBJECTS = libscep_0_1_la-configuration.lo \
-	libscep_0_1_la-scep.lo libscep_0_1_la-util.lo
+	libscep_0_1_la-scep.lo libscep_0_1_la-util.lo \
+	libscep_0_1_la-operation.lo
 libscep_0_1_la_OBJECTS = $(am_libscep_0_1_la_OBJECTS)
 AM_V_lt = $(am__v_lt_@AM_V@)
 am__v_lt_ = $(am__v_lt_@AM_DEFAULT_V@)
@@ -291,7 +292,7 @@ top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
 lib_LTLIBRARIES = libscep-0.1.la
-libscep_0_1_la_SOURCES = configuration.c scep.c util.c
+libscep_0_1_la_SOURCES = configuration.c scep.c util.c operation.c
 libscep_0_1_la_CFLAGS = $(COVERAGE_CFLAGS) -Wall -Werror
 libscep_0_1_la_LDFLAGS = $(COVERAGE_LDFLAGS) -luriparser -lcrypto
 all: all-am
@@ -373,6 +374,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libscep_0_1_la-configuration.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libscep_0_1_la-operation.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libscep_0_1_la-scep.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libscep_0_1_la-util.Plo@am__quote@
 
@@ -417,6 +419,13 @@ libscep_0_1_la-util.lo: util.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='util.c' object='libscep_0_1_la-util.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libscep_0_1_la_CFLAGS) $(CFLAGS) -c -o libscep_0_1_la-util.lo `test -f 'util.c' || echo '$(srcdir)/'`util.c
+
+libscep_0_1_la-operation.lo: operation.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libscep_0_1_la_CFLAGS) $(CFLAGS) -MT libscep_0_1_la-operation.lo -MD -MP -MF $(DEPDIR)/libscep_0_1_la-operation.Tpo -c -o libscep_0_1_la-operation.lo `test -f 'operation.c' || echo '$(srcdir)/'`operation.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/libscep_0_1_la-operation.Tpo $(DEPDIR)/libscep_0_1_la-operation.Plo
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='operation.c' object='libscep_0_1_la-operation.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libscep_0_1_la_CFLAGS) $(CFLAGS) -c -o libscep_0_1_la-operation.lo `test -f 'operation.c' || echo '$(srcdir)/'`operation.c
 
 mostlyclean-libtool:
 	-rm -f *.lo

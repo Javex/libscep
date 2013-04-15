@@ -93,6 +93,7 @@ General Specification
 Each function that is in the public interface *must* return an error code if it
 can have errors or return ``void`` if it does not handle any error.
 
+
 Initialization
 --------------
 
@@ -124,7 +125,6 @@ The following configuration options are required (by opertaion/global):
     - Encryption Algorithm. *Optional*, has sane default.
 * GetCACert
     - Issuer of the certificate. *Optional*.
-    - CA certificate target.
 * PKCSReq (Enrollment)
     - Certificate Signing Request for private key.
     - Private Key for which to get the certificate.
@@ -133,20 +133,28 @@ The following configuration options are required (by opertaion/global):
     - Signature Private Key with which to sign the PKCSReq message. *Optional*.
     - Signature Certificate corresponding to the Signature Private Key.
       *Optional* but mandatory, if Signature Private Key is set.
-    - Certificate target.
     - Polling interval. *Optional*, has sane default.
     - Maximum polling time. *Optional*, has sane default.
     - Maximum polling count. *Optional*, has sane default.
 * GetCert
     - Private Key for which to get the certificate.
     - CA certificate for the issuer and serial number.
-    - Certificate target.
 * GetCRL
     - Certificate to be validated.
-    - CRL target.
 * GetNextCACert
     - Issuer of the certificate. *Optional*.
-    - CA certificate target.
+
+The configuration also has a sanity check for each operation: This function
+checks the given configuration on whether it makes sense before it tries to
+execute.
+
+Operations
+----------
+
+Each operation returns a value for the target of the operation, e.g. the
+certificate retrieved. Since an actual return value must always be an error
+code, this will be implemented as a parameter passed to the function as a
+pointer.
 
 Layer IV - The Internals
 ========================
