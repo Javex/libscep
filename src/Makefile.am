@@ -2,5 +2,5 @@ lib_LTLIBRARIES = libscep-0.1.la
 
 libscep_0_1_la_SOURCES = configuration.c scep.c util.c operation.c
 libscep_0_1_la_CFLAGS = $(COVERAGE_CFLAGS) -Wall -Werror
-libscep_0_1_la_LDFLAGS = $(COVERAGE_LDFLAGS) -luriparser -lcrypto
+libscep_0_1_la_LDFLAGS = $(COVERAGE_LDFLAGS)
 

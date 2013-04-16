@@ -16,7 +16,7 @@ behaviour.
 GetCACert
 ---------
 
-Only has a GET string ``operation=GetCACert``. No data associated.
+Request: Only has a GET string ``operation=GetCACert``. No data associated.
 
 PKCSReq (Enrollment)
 --------------------

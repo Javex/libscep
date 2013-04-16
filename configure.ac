@@ -17,6 +17,9 @@ AC_PROG_SED
 
 PKG_CHECK_MODULES([CHECK], [check >= 0.9.4])
 
+AC_CHECK_LIB([crypto], [BIO_new])
+AC_CHECK_LIB([curl], [curl_easy_init])
+AC_CHECK_LIB([m], [log])
 # Checks for libraries.
 # FIXME: Replace `main' with a function in `-lcrypto':
 #AC_CHECK_LIB([crypto], [main]) 

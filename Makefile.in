@@ -795,7 +795,7 @@ uninstall-am:
 @HAVE_GCOV_TRUE@clean-local: clean-coverage-html
 
 sphinx:
-	mkdir docs/_static
+	mkdir -p docs/_static
 	$(MAKE) -C docs html
 
 sphinx-clean:

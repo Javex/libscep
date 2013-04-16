@@ -31,7 +31,7 @@ START_TEST(test_scep_set_conf)
 	char *url_string = "http://example.com:80/path/to/scep";
 	char *url_string_test;
 	int url_string_length;
-	int error;
+	SCEP_ERROR error;
 	X509 *test_cert;
 
 	// check the defaults are set
@@ -73,6 +73,10 @@ START_TEST(test_scep_set_conf)
 	ck_assert(SCEPE_OK == error);
 	ck_assert(handle->configuration->encalg == EVP_des_ede3_cbc());
 
+	error = scep_conf_set(handle, SCEPCFG_LOG, BIO_new(BIO_s_mem()));
+	ck_assert(SCEPE_OK == error);
+	ck_assert(handle->configuration->log != NULL);
+
 	error = scep_conf_set(handle, SCEPCFG_GETCACERT_ISSUER, "Test Issuer");
 	ck_assert(SCEPE_OK == error);
 	ck_assert_str_eq(handle->configuration->getcacert->issuer, "Test Issuer");
@@ -98,7 +102,7 @@ END_TEST
 
 START_TEST(test_scep_conf_url)
 {
-	int error;
+	SCEP_ERROR error;
 	char *url_string = "http://example.com/cgi-bin/scep/scep";
 	char *url_string2 = "https://test-example.net/some/path";
 	char *url_string_test = NULL;
@@ -214,7 +218,7 @@ END_TEST
 
 START_TEST(test_scep_conf_pkcsreq)
 {
-	int error;
+	SCEP_ERROR error;
 	X509_REQ *test_req;
 	EVP_PKEY *test_key;
 	X509 *test_cert;
@@ -275,7 +279,7 @@ END_TEST
 
 START_TEST(test_scep_conf_getcert)
 {
-	int error;
+	SCEP_ERROR error;
 	EVP_PKEY *test_key;
 	X509 *test_cert;
 
@@ -292,7 +296,7 @@ END_TEST
 
 START_TEST(test_scep_conf_getcrl)
 {
-	int error;
+	SCEP_ERROR error;
 	X509 *test_cert;
 	X509_CRL *test_crl;
 
@@ -306,7 +310,7 @@ END_TEST
 
 START_TEST(test_scep_conf_getnextcacert)
 {
-	int error;
+	SCEP_ERROR error;
 	X509 *test_cert;
 
 	error = scep_conf_set(handle, SCEPCFG_GETNEXTCACERT_ISSUER, "test1");
@@ -336,7 +340,7 @@ START_TEST(test_scep_conf_sanity_check)
 	ck_assert(scep_conf_sanity_check(handle, SCEPOP_PKCSREQ) != SCEPE_OK);
 	ck_assert(scep_conf_sanity_check(handle, SCEPOP_GETCERT) != SCEPE_OK);
 	ck_assert(scep_conf_sanity_check(handle, SCEPOP_GETCRL) != SCEPE_OK);
-	ck_assert(scep_conf_sanity_check(handle, SCEPOP_GETNEXTCACERT) !=
+	ck_assert(scep_conf_sanity_check(handle, SCEPOP_GETNEXTCACERT) ==
 			SCEPE_OK);
 
 }
@@ -344,8 +348,6 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check_getcacert)
 {
-	ck_assert(scep_conf_sanity_check_getcacert(handle) ==
-			SCEPE_MISSING_CONFIG);
 	scep_conf_set(handle, SCEPCFG_GETCACERT_ISSUER, "");
 	ck_assert(scep_conf_sanity_check_getcacert(handle) == SCEPE_OK);
 }
@@ -353,9 +355,6 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check_pkcsreq)
 {
-	ck_assert(scep_conf_sanity_check_pkcsreq(handle) ==
-			SCEPE_MISSING_CONFIG);
-
 	scep_conf_set(handle, SCEPCFG_PKCSREQ_CHALL_PASSWD, "");
 	ck_assert(scep_conf_sanity_check_pkcsreq(handle) ==
 			SCEPE_MISSING_CSR);
@@ -388,9 +387,6 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check_getcert)
 {
-	ck_assert(scep_conf_sanity_check_getcert(handle) ==
-			SCEPE_MISSING_CONFIG);
-
 	handle->configuration->getcert = malloc(sizeof(struct
 			scep_configuration_getcert_t));
 	memset(handle->configuration->getcert, 0,
@@ -410,9 +406,6 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check_getcrl)
 {
-	ck_assert(scep_conf_sanity_check_getcrl(handle) ==
-			SCEPE_MISSING_CONFIG);
-
 	handle->configuration->getcrl = malloc(sizeof(struct
 			scep_configuration_getcrl_t));
 	memset(handle->configuration->getcrl, 0,
@@ -427,9 +420,6 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check_getnextcacert)
 {
-	ck_assert(scep_conf_sanity_check_getnextcacert(handle) ==
-			SCEPE_MISSING_CONFIG);
-
 	scep_conf_set(handle, SCEPCFG_GETNEXTCACERT_ISSUER, "");
 	ck_assert(scep_conf_sanity_check_getnextcacert(handle) == SCEPE_OK);
 }

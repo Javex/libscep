@@ -148,6 +148,24 @@ The configuration also has a sanity check for each operation: This function
 checks the given configuration on whether it makes sense before it tries to
 execute.
 
+Concerning memory management the following rule applies: Every ``char *`` is
+copied and thus the user is responsible for handling the option he passed.
+For all other options passed in, the user *looses* ownership of the object,
+i.e. after the option has been set the user is not allowed to modify the
+object in any way. However, they can read it before the cleanup is executed.
+Afterwards, this memory will be freed.
+
+.. note::
+    There are **exceptions** to this rule: They are specifically defined and
+    where it is stated, the user is responsible to clean up anything regarding
+    this object himself. Those options described their behaviour themselves
+    but generally the user **must not** free the memory until the cleanup was
+    executed.
+
+    *Example*: The ``BIO *log`` variable: It may contain any kind of ``BIO``
+    and thus it is up to the user to handle it. The library will keep the
+    reference around until cleanup.
+
 Operations
 ----------
 

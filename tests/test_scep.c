@@ -6,7 +6,7 @@
 
 START_TEST(test_scep_init_cleanup)
 {
-	int error;
+	SCEP_ERROR error;
 	SCEP *handle;
 	SCEP *local_memory;
 	error = scep_init(&handle);

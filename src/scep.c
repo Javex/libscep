@@ -5,7 +5,10 @@
 SCEP_ERROR scep_init(SCEP **handle)
 {
 	SCEP *local_handle;
-	int error;
+	SCEP_ERROR error;
+	curl_global_init(CURL_GLOBAL_ALL);
+	OpenSSL_add_all_algorithms();
+	ERR_load_crypto_strings();
 	if(!(local_handle = malloc(sizeof(SCEP))))
 		return SCEPE_MEMORY;
 	memset(local_handle, 0, sizeof(SCEP));
@@ -20,6 +23,8 @@ SCEP_ERROR scep_init(SCEP **handle)
 
 void scep_cleanup(SCEP *handle)
 {
+	EVP_cleanup();
 	scep_conf_free(handle->configuration);
 	free(handle);
+	curl_global_cleanup();
 }

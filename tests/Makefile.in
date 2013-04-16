@@ -50,9 +50,9 @@ POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
 TESTS = test_configuration$(EXEEXT) test_scep$(EXEEXT) \
-	test_util$(EXEEXT)
+	test_util$(EXEEXT) test_operation$(EXEEXT)
 check_PROGRAMS = test_configuration$(EXEEXT) test_scep$(EXEEXT) \
-	test_util$(EXEEXT)
+	test_util$(EXEEXT) test_operation$(EXEEXT)
 subdir = tests
 DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/Makefile.am \
 	$(top_srcdir)/depcomp $(top_srcdir)/test-driver
@@ -81,6 +81,14 @@ test_configuration_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
 	$(test_configuration_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) \
 	$(LDFLAGS) -o $@
+am_test_operation_OBJECTS = test_operation-test_operation.$(OBJEXT)
+test_operation_OBJECTS = $(am_test_operation_OBJECTS)
+test_operation_DEPENDENCIES = $(top_builddir)/src/libscep-0.1.la \
+	$(am__DEPENDENCIES_1)
+test_operation_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(test_operation_CFLAGS) $(CFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o \
+	$@
 am_test_scep_OBJECTS = test_scep-test_scep.$(OBJEXT)
 test_scep_OBJECTS = $(am_test_scep_OBJECTS)
 test_scep_DEPENDENCIES = $(top_builddir)/src/libscep-0.1.la \
@@ -129,10 +137,10 @@ AM_V_CCLD = $(am__v_CCLD_@AM_V@)
 am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
-SOURCES = $(test_configuration_SOURCES) $(test_scep_SOURCES) \
-	$(test_util_SOURCES)
-DIST_SOURCES = $(test_configuration_SOURCES) $(test_scep_SOURCES) \
-	$(test_util_SOURCES)
+SOURCES = $(test_configuration_SOURCES) $(test_operation_SOURCES) \
+	$(test_scep_SOURCES) $(test_util_SOURCES)
+DIST_SOURCES = $(test_configuration_SOURCES) $(test_operation_SOURCES) \
+	$(test_scep_SOURCES) $(test_util_SOURCES)
 am__can_run_installinfo = \
   case $$AM_UPDATE_INFO_DIR in \
     n|no|NO) false;; \
@@ -489,13 +497,16 @@ top_srcdir = @top_srcdir@
 check_LDADD = @CHECK_LIBS@ -lgcov
 test_configuration_SOURCES = test_configuration.c $(top_builddir)/src/scep.h
 test_configuration_CFLAGS = @CHECK_CFLAGS@
-test_configuration_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD) -lcrypto
+test_configuration_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD)
 test_scep_SOURCES = test_scep.c $(top_builddir)/src/scep.h
 test_scep_CFLAGS = @CHECK_CFLAGS@
-test_scep_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD) -lcrypto
+test_scep_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD)
 test_util_SOURCES = test_util.c $(top_builddir)/src/scep.h
 test_util_CFLAGS = @CHECK_CFLAGS@
-test_util_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD) -lcrypto
+test_util_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD)
+test_operation_SOURCES = test_operation.c $(top_builddir)/src/scep.h
+test_operation_CFLAGS = @CHECK_CFLAGS@
+test_operation_LDADD = $(top_builddir)/src/libscep-0.1.la $(check_LDADD)
 all: all-am
 
 .SUFFIXES:
@@ -542,6 +553,9 @@ clean-checkPROGRAMS:
 test_configuration$(EXEEXT): $(test_configuration_OBJECTS) $(test_configuration_DEPENDENCIES) $(EXTRA_test_configuration_DEPENDENCIES) 
 	@rm -f test_configuration$(EXEEXT)
 	$(AM_V_CCLD)$(test_configuration_LINK) $(test_configuration_OBJECTS) $(test_configuration_LDADD) $(LIBS)
+test_operation$(EXEEXT): $(test_operation_OBJECTS) $(test_operation_DEPENDENCIES) $(EXTRA_test_operation_DEPENDENCIES) 
+	@rm -f test_operation$(EXEEXT)
+	$(AM_V_CCLD)$(test_operation_LINK) $(test_operation_OBJECTS) $(test_operation_LDADD) $(LIBS)
 test_scep$(EXEEXT): $(test_scep_OBJECTS) $(test_scep_DEPENDENCIES) $(EXTRA_test_scep_DEPENDENCIES) 
 	@rm -f test_scep$(EXEEXT)
 	$(AM_V_CCLD)$(test_scep_LINK) $(test_scep_OBJECTS) $(test_scep_LDADD) $(LIBS)
@@ -556,6 +570,7 @@ distclean-compile:
 	-rm -f *.tab.c
 
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_configuration-test_configuration.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_operation-test_operation.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_scep-test_scep.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/test_util-test_util.Po@am__quote@
 
@@ -593,6 +608,20 @@ test_configuration-test_configuration.obj: test_configuration.c
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_configuration.c' object='test_configuration-test_configuration.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_configuration_CFLAGS) $(CFLAGS) -c -o test_configuration-test_configuration.obj `if test -f 'test_configuration.c'; then $(CYGPATH_W) 'test_configuration.c'; else $(CYGPATH_W) '$(srcdir)/test_configuration.c'; fi`
+
+test_operation-test_operation.o: test_operation.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_operation_CFLAGS) $(CFLAGS) -MT test_operation-test_operation.o -MD -MP -MF $(DEPDIR)/test_operation-test_operation.Tpo -c -o test_operation-test_operation.o `test -f 'test_operation.c' || echo '$(srcdir)/'`test_operation.c
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_operation-test_operation.Tpo $(DEPDIR)/test_operation-test_operation.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_operation.c' object='test_operation-test_operation.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_operation_CFLAGS) $(CFLAGS) -c -o test_operation-test_operation.o `test -f 'test_operation.c' || echo '$(srcdir)/'`test_operation.c
+
+test_operation-test_operation.obj: test_operation.c
+@am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_operation_CFLAGS) $(CFLAGS) -MT test_operation-test_operation.obj -MD -MP -MF $(DEPDIR)/test_operation-test_operation.Tpo -c -o test_operation-test_operation.obj `if test -f 'test_operation.c'; then $(CYGPATH_W) 'test_operation.c'; else $(CYGPATH_W) '$(srcdir)/test_operation.c'; fi`
+@am__fastdepCC_TRUE@	$(AM_V_at)$(am__mv) $(DEPDIR)/test_operation-test_operation.Tpo $(DEPDIR)/test_operation-test_operation.Po
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	$(AM_V_CC)source='test_operation.c' object='test_operation-test_operation.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(AM_V_CC@am__nodep@)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_operation_CFLAGS) $(CFLAGS) -c -o test_operation-test_operation.obj `if test -f 'test_operation.c'; then $(CYGPATH_W) 'test_operation.c'; else $(CYGPATH_W) '$(srcdir)/test_operation.c'; fi`
 
 test_scep-test_scep.o: test_scep.c
 @am__fastdepCC_TRUE@	$(AM_V_CC)$(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(test_scep_CFLAGS) $(CFLAGS) -MT test_scep-test_scep.o -MD -MP -MF $(DEPDIR)/test_scep-test_scep.Tpo -c -o test_scep-test_scep.o `test -f 'test_scep.c' || echo '$(srcdir)/'`test_scep.c
@@ -838,6 +867,13 @@ test_scep.log: test_scep$(EXEEXT)
 test_util.log: test_util$(EXEEXT)
 	@p='test_util$(EXEEXT)'; \
 	b='test_util'; \
+	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
+	--log-file $$b.log --trs-file $$b.trs \
+	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \
+	"$$tst" $(AM_TESTS_FD_REDIRECT)
+test_operation.log: test_operation$(EXEEXT)
+	@p='test_operation$(EXEEXT)'; \
+	b='test_operation'; \
 	$(am__check_pre) $(LOG_DRIVER) --test-name "$$f" \
 	--log-file $$b.log --trs-file $$b.trs \
 	$(am__common_driver_flags) $(AM_LOG_DRIVER_FLAGS) $(LOG_DRIVER_FLAGS) -- $(LOG_COMPILE) \

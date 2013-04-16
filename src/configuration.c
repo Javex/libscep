@@ -4,28 +4,83 @@
 
 SCEP_ERROR scep_conf_init(SCEP *handle)
 {
-	int error;
+	SCEP_ERROR error;
 
 	if(!(handle->configuration = malloc(sizeof(SCEP_CONFIGURATION))))
 		return SCEPE_MEMORY;
 	memset(handle->configuration, 0, sizeof(SCEP_CONFIGURATION));
 
-	if((error = scep_conf_set(handle, SCEPCFG_VERBOSITY, DEFAULT_VERBOSITY)) != SCEPE_OK)
+	if((error = scep_conf_set(handle, SCEPCFG_VERBOSITY, DEFAULT_VERBOSITY)) !=
+			SCEPE_OK)
 		return error;
 
-	if((error = scep_conf_set(handle, SCEPCFG_SIGALG, DEFAULT_SIGALG)) != SCEPE_OK)
+	if((error = scep_conf_set(handle, SCEPCFG_SIGALG, DEFAULT_SIGALG)) !=
+			SCEPE_OK)
 		return error;
 
-	if((error = scep_conf_set(handle, SCEPCFG_ENCALG, DEFAULT_ENCALG)) != SCEPE_OK)
+	if((error = scep_conf_set(handle, SCEPCFG_ENCALG, DEFAULT_ENCALG)) !=
+			SCEPE_OK)
 		return error;
 
-	return SCEPE_OK;
+	// if struct does not already exist, create it.
+	if(handle->configuration->getcacert == NULL)
+	{
+		if(!(handle->configuration->getcacert =
+				malloc(sizeof(struct scep_configuration_getcacert_t))))
+			return SCEPE_MEMORY;
+		memset(handle->configuration->getcacert, 0,
+				sizeof(struct scep_configuration_getcacert_t));
+	}
+
+	// if struct does not already exist, create it.
+	if(handle->configuration->pkcsreq == NULL)
+	{
+		if(!(handle->configuration->pkcsreq =
+				malloc(sizeof(struct scep_configuration_pkcsreq_t))))
+			return SCEPE_MEMORY;
+		memset(handle->configuration->pkcsreq, 0,
+				sizeof(struct scep_configuration_pkcsreq_t));
+		handle->configuration->pkcsreq->polling_interval = DEFAULT_POLL_INTERVAL;
+		handle->configuration->pkcsreq->maximum_poll_time = DEFAULT_MAX_POLL_TIME;
+		handle->configuration->pkcsreq->maximum_poll_count = DEFAULT_MAX_POLL_COUNT;
+	}
+
+	// if struct does not already exist, create it.
+	if(handle->configuration->getcert == NULL)
+	{
+		if(!(handle->configuration->getcert =
+				malloc(sizeof(struct scep_configuration_getcert_t))))
+			return SCEPE_MEMORY;
+		memset(handle->configuration->getcert, 0,
+				sizeof(struct scep_configuration_getcert_t));
+	}
+
+	// if struct does not already exist, create it.
+	if(handle->configuration->getcrl == NULL)
+	{
+		if(!(handle->configuration->getcrl =
+				malloc(sizeof(struct scep_configuration_getcrl_t))))
+			return SCEPE_MEMORY;
+		memset(handle->configuration->getcrl, 0,
+				sizeof(struct scep_configuration_getcrl_t));
+	}
+
+	// if struct does not already exist, create it.
+	if(handle->configuration->getnextcacert == NULL)
+	{
+		if(!(handle->configuration->getnextcacert =
+				malloc(sizeof(struct scep_configuration_getcacert_t))))
+			return SCEPE_MEMORY;
+		memset(handle->configuration->getnextcacert, 0,
+				sizeof(struct scep_configuration_getcacert_t));
+	}
+	return error;
 }
 
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 {
 	va_list arg;
-	int error = SCEPE_OK;
+	SCEP_ERROR error = SCEPE_OK;
 
 	va_start(arg, type);
 	switch(type)
@@ -43,6 +98,19 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 			break;
 		case SCEPCFG_ENCALG:
 			handle->configuration->encalg = va_arg(arg, EVP_CIPHER *);
+			break;
+		case SCEPCFG_LOG:
+			if(handle->configuration->log)
+			{
+				scep_log(handle,
+						ERROR,
+						"Overwriting the BIO log is not allowed and also not"
+						"recommended. BIOs can be modified in-place and "
+						"should never need to be swapped.");
+				error = SCEPE_DUPLICATE_BIO;
+				break;
+			}
+			handle->configuration->log = va_arg(arg, BIO *);
 			break;
 
 			/* GetCACert options */
@@ -90,8 +158,9 @@ SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str)
 {
 	UriParserStateA state;
 	UriUriA *url;
-	int error = SCEPE_OK;
+	SCEP_ERROR error = SCEPE_OK;
 
+	scep_log(handle, DEBUG, "Setting URL to %s\n", url_str);
 	url = malloc(sizeof(UriUriA));
 	state.uri = url;
 	if(uriParseUriA(&state, url_str) != URI_SUCCESS)
@@ -133,17 +202,6 @@ finally:
 
 SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 {
-
-	// if struct does not already exist, create it.
-	if(handle->configuration->getcacert == NULL)
-	{
-		if(!(handle->configuration->getcacert =
-				malloc(sizeof(struct scep_configuration_getcacert_t))))
-			return SCEPE_MEMORY;
-		memset(handle->configuration->getcacert, 0,
-				sizeof(struct scep_configuration_getcacert_t));
-	}
-
 	switch(type)
 	{
 		case SCEPCFG_GETCACERT_ISSUER:
@@ -162,19 +220,6 @@ SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 
 SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 {
-	// if struct does not already exist, create it.
-	if(handle->configuration->pkcsreq == NULL)
-	{
-		if(!(handle->configuration->pkcsreq =
-				malloc(sizeof(struct scep_configuration_pkcsreq_t))))
-			return SCEPE_MEMORY;
-		memset(handle->configuration->pkcsreq, 0,
-				sizeof(struct scep_configuration_pkcsreq_t));
-		handle->configuration->pkcsreq->polling_interval = DEFAULT_POLL_INTERVAL;
-		handle->configuration->pkcsreq->maximum_poll_time = DEFAULT_MAX_POLL_TIME;
-		handle->configuration->pkcsreq->maximum_poll_count = DEFAULT_MAX_POLL_COUNT;
-	}
-
 	switch(type)
 	{
 		case SCEPCFG_PKCSREQ_CSR:
@@ -216,17 +261,6 @@ SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 
 SCEP_ERROR scep_conf_set_getcert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 {
-
-	// if struct does not already exist, create it.
-	if(handle->configuration->getcert == NULL)
-	{
-		if(!(handle->configuration->getcert =
-				malloc(sizeof(struct scep_configuration_getcert_t))))
-			return SCEPE_MEMORY;
-		memset(handle->configuration->getcert, 0,
-				sizeof(struct scep_configuration_getcert_t));
-	}
-
 	switch(type)
 	{
 		case SCEPCFG_GETCERT_KEY:
@@ -244,17 +278,6 @@ SCEP_ERROR scep_conf_set_getcert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 
 SCEP_ERROR scep_conf_set_getcrl(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 {
-
-	// if struct does not already exist, create it.
-	if(handle->configuration->getcrl == NULL)
-	{
-		if(!(handle->configuration->getcrl =
-				malloc(sizeof(struct scep_configuration_getcrl_t))))
-			return SCEPE_MEMORY;
-		memset(handle->configuration->getcrl, 0,
-				sizeof(struct scep_configuration_getcrl_t));
-	}
-
 	switch(type)
 	{
 		case SCEPCFG_GETCRL_CERT:
@@ -269,16 +292,6 @@ SCEP_ERROR scep_conf_set_getcrl(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 
 SCEP_ERROR scep_conf_set_getnextcacert(SCEP *handle, SCEPCFG_TYPE type, va_list arg)
 {
-
-	// if struct does not already exist, create it.
-	if(handle->configuration->getnextcacert == NULL)
-	{
-		if(!(handle->configuration->getnextcacert =
-				malloc(sizeof(struct scep_configuration_getcacert_t))))
-			return SCEPE_MEMORY;
-		memset(handle->configuration->getnextcacert, 0,
-				sizeof(struct scep_configuration_getcacert_t));
-	}
 
 	switch(type)
 	{
@@ -372,7 +385,8 @@ void scep_conf_getcrl_free(struct scep_configuration_getcrl_t *getcrl)
 
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle, SCEP_OPERATION op)
 {
-	int error = SCEPE_OK;
+	SCEP_ERROR error = SCEPE_OK;
+
 	if(!handle->configuration->url)
 		return SCEPE_MISSING_URL;
 
@@ -402,17 +416,11 @@ SCEP_ERROR scep_conf_sanity_check(SCEP *handle, SCEP_OPERATION op)
 
 SCEP_ERROR scep_conf_sanity_check_getcacert(SCEP *handle)
 {
-	if(!handle->configuration->getcacert)
-		return SCEPE_MISSING_CONFIG;
-
 	return SCEPE_OK;
 }
 
 SCEP_ERROR scep_conf_sanity_check_pkcsreq(SCEP *handle)
 {
-	if(!handle->configuration->pkcsreq)
-		return SCEPE_MISSING_CONFIG;
-
 	if(!handle->configuration->pkcsreq->request)
 		return SCEPE_MISSING_CSR;
 
@@ -435,9 +443,6 @@ SCEP_ERROR scep_conf_sanity_check_pkcsreq(SCEP *handle)
 
 SCEP_ERROR scep_conf_sanity_check_getcert(SCEP *handle)
 {
-	if(!handle->configuration->getcert)
-		return SCEPE_MISSING_CONFIG;
-
 	if(!handle->configuration->getcert->request_key)
 		return SCEPE_MISSING_CERT_KEY;
 
@@ -449,9 +454,6 @@ SCEP_ERROR scep_conf_sanity_check_getcert(SCEP *handle)
 
 SCEP_ERROR scep_conf_sanity_check_getcrl(SCEP *handle)
 {
-	if(!handle->configuration->getcrl)
-		return SCEPE_MISSING_CONFIG;
-
 	if(!handle->configuration->getcrl->cert)
 		return SCEPE_MISSING_CRL_CERT;
 	return SCEPE_OK;
@@ -459,8 +461,5 @@ SCEP_ERROR scep_conf_sanity_check_getcrl(SCEP *handle)
 
 SCEP_ERROR scep_conf_sanity_check_getnextcacert(SCEP *handle)
 {
-	if(!handle->configuration->getnextcacert)
-		return SCEPE_MISSING_CONFIG;
-
 	return SCEPE_OK;
 }
