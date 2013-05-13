@@ -11,7 +11,7 @@ SCEP_ERROR scep_operation_getcacert(SCEP *handle, STACK_OF(X509) **certs)
 		return error;
 
 	// send the message
-	error = scep_send_request(handle, "GetCACert", NULL, &reply);
+	error = scep_send_request(handle, "GetCACert", handle->configuration->getcacert->issuer, &reply);
 	if(error != SCEPE_OK)
 	{
 		scep_log(handle, FATAL, "Operation \"GetCACert\" failed with error "
@@ -20,6 +20,7 @@ SCEP_ERROR scep_operation_getcacert(SCEP *handle, STACK_OF(X509) **certs)
 		return error;
 	}
 
+	// work with the content
 	if(strncmp(reply->content_type, SCEP_MIME_GETCA_RA,
 			strlen(SCEP_MIME_GETCA_RA)) == 0)
 	{

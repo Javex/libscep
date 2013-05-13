@@ -10,5 +10,6 @@ using ``libscep``.
     :maxdepth: 2
 
     narrative/usage
+    narrative/configuration
     narrative/developer
     narrative/scep
