@@ -9,8 +9,8 @@ SCEP *handle;
 #define TEST_ERRMSG(ival, sval) \
 	ck_assert_str_eq(scep_strerror(ival), sval)
 
-#define TEST_SERVER "http://23.21.166.149/cgi-bin/scep/scep"
-#define TEST_SERVER_Q "http://23.21.166.149/cgi-bin/scep/scep?key1=value1"
+#define TEST_SERVER "http://demo.openxpki.org/cgi-bin/scep/scep"
+#define TEST_SERVER_Q "http://demo.openxpki.org/cgi-bin/scep/scep?key1=value1"
 #define TEST_CSR_1 "test-files/test-1-csr.pem"
 #define TEST_CSR_2 "test-files/test-2-csr.pem"
 

@@ -7,7 +7,7 @@
 SCEP *handle;
 BIO *scep_log;
 
-#define TEST_SERVER "http://23.21.166.149/cgi-bin/scep/scep"
+#define TEST_SERVER "http://demo.openxpki.org/cgi-bin/scep/scep"
 
 #define OSSL_TEST_TYPE_ONCE(var, cfg_enum, cfg_var, type) \
 	var = type ## _new(); \
