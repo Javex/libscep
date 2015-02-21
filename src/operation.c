@@ -4,9 +4,9 @@ SCEP_ERROR scep_operation_getcacert(SCEP *handle, STACK_OF(X509) **certs)
 {
 	SCEP_ERROR error;
 	SCEP_REPLY *reply;
-	X509 *cert;
-	BIO *bio;
-	PKCS7 *p7;
+	X509 *cert = NULL;
+	BIO *bio = NULL;
+	PKCS7 *p7 = NULL;
 	if((error = scep_conf_sanity_check(handle, SCEPOP_GETCACERT)) != SCEPE_OK)
 		return error;
 
