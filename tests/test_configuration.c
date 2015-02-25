@@ -2,7 +2,7 @@
 
 #include <check.h>
 #include <stdlib.h>
-#include "../src/scep.h"
+#include "scep.h"
 
 SCEP *handle;
 

@@ -2,7 +2,7 @@
 
 #include <check.h>
 #include <stdlib.h>
-#include "../src/scep.h"
+#include "scep.h"
 
 SCEP *handle;
 
@@ -11,8 +11,8 @@ SCEP *handle;
 
 #define TEST_SERVER "http://demo.openxpki.org/cgi-bin/scep/scep"
 #define TEST_SERVER_Q "http://demo.openxpki.org/cgi-bin/scep/scep?key1=value1"
-#define TEST_CSR_1 "test-files/test-1-csr.pem"
-#define TEST_CSR_2 "test-files/test-2-csr.pem"
+#define TEST_CSR_1 "tests/test-files/test-1-csr.pem"
+#define TEST_CSR_2 "tests/test-files/test-2-csr.pem"
 
 void setup()
 {

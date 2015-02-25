@@ -2,7 +2,7 @@
 
 #include <check.h>
 #include <stdlib.h>
-#include "../src/scep.h"
+#include "scep.h"
 
 START_TEST(test_scep_init_cleanup)
 {

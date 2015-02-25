@@ -332,9 +332,12 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 	char *message;
 	int message_len, full_message_len;
 	va_list args;
+	char *filecopy, *filename;
 	if(handle->configuration->log &&
 			handle->configuration->verbosity > verbosity)
 	{
+		filecopy = strdup(file);
+		filename = basename(filecopy);
 		// create the message from format string and var args.
 		va_start(args, format);
 		message_len = vsnprintf(NULL, 0, format, args) + 1;
@@ -347,7 +350,7 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		// this code is extended to be more readable, any decent compiler will
 		// automatically add those constants
 		full_message_len = strlen(message)
-					 + strlen(file)
+					 + strlen(filename)
 					 + (int) log10(line)
 					 + 1 // + 1 for log for an upper bound
 					 + 2 // two colons
@@ -359,8 +362,9 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		if(!(full_message = malloc(full_message_len)))
 			return;
 		snprintf(full_message, full_message_len, "%s:%d: %s\n",
-				file, line, message);
+				filename, line, message);
 		BIO_puts(handle->configuration->log, full_message);
+		free(filecopy);
 	}
 }
 
