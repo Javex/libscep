@@ -18,6 +18,35 @@ START_TEST(test_scep_init_cleanup)
 }
 END_TEST
 
+START_TEST(test_create_oids)
+{
+	SCEP *handle = malloc(sizeof(SCEP));
+	memset(handle, 0, sizeof(SCEP));
+	ck_assert(scep_create_oids(handle) == SCEPE_OK);
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.messageType), "messageType");
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.messageType), "messageType");
+
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.pkiStatus), "pkiStatus");
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.pkiStatus), "pkiStatus");
+
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.failInfo), "failInfo");
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.failInfo), "failInfo");
+
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.senderNonce), "senderNonce");
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.senderNonce), "senderNonce");
+
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.recipientNonce), "recipientNonce");
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.recipientNonce), "recipientNonce");
+
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.transId), "transId");
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.transId), "transId");
+
+	ck_assert_str_eq(OBJ_nid2ln(handle->oids.extensionReq), "extensionReq");
+	ck_assert_str_eq(OBJ_nid2sn(handle->oids.extensionReq), "extensionReq");
+	free(handle);
+}
+END_TEST
+
 Suite * scep_suite(void)
 {
 	Suite *s = suite_create("General");
@@ -25,6 +54,7 @@ Suite * scep_suite(void)
 	/* Core test case */
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_test(tc_core, test_scep_init_cleanup);
+	tcase_add_test(tc_core, test_create_oids);
 
 	suite_add_tcase(s, tc_core);
 

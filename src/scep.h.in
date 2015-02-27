@@ -26,6 +26,12 @@
 #define libscep_VERSION_MAJOR @libscep_VERSION_MAJOR@
 #define libscep_VERSION_MINOR @libscep_VERSION_MINOR@
 
+#define MESSAGE_TYPE_PKCSREQ "19"
+#define MESSAGE_TYPE_CERTREQ "3"
+#define MESSAGE_TYPE_GETCERTINITIAL "20"
+#define MESSAGE_TYPE_GETCERT "21"
+#define MESSAGE_TYPE_GETCRL "22"
+
 // number of nonce bytes, defined by protocol
 #define NONCE_LENGTH 16
 
@@ -176,7 +182,18 @@ typedef struct {
 } SCEP_CONFIGURATION;
 
 typedef struct {
+	int messageType;
+	int pkiStatus;
+	int failInfo;
+	int senderNonce;
+	int recipientNonce;
+	int transId;
+	int extensionReq;
+} SCEP_OIDS;
+
+typedef struct {
 	SCEP_CONFIGURATION *configuration;
+	SCEP_OIDS oids;
 } SCEP;
 
 typedef struct {
@@ -209,6 +226,8 @@ SCEP_ERROR scep_operation_getcrl(SCEP *handle, X509_CRL **crl);
 SCEP_ERROR scep_operation_getnextcacert(SCEP *handle, X509 **cert);
 
 /* Internal functions */
+SCEP_ERROR scep_create_oids(SCEP *);
+
 SCEP_ERROR scep_conf_init(SCEP *handle);
 SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str);
 SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type,
@@ -237,8 +256,20 @@ SCEP_ERROR scep_operation_init(SCEP *handle, scep_pkiMessage_t **pkiMessage);
 size_t scep_recieve_data(void *buffer, size_t size, size_t nmemb, void *userp);
 SCEP_ERROR scep_send_request(SCEP *handle, char *operation, char *message,
 		SCEP_REPLY **reply);
-SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, char **transaction_id);
+SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		int line, char *format, ...);
 void scep_reply_free(SCEP_REPLY *reply);
+
+SCEP_ERROR scep_pkiMessage(
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
+    EVP_PKEY *req_pubkey,
+    char *messageType, BIO *data,
+    X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    PKCS7 **pkiMessage);
+
+SCEP_ERROR scep_pkcsreq(
+    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+        X509 *enc_cert, const EVP_CIPHER *enc_alg,
+        PKCS7 **pkiMessage);
 #endif /* SCEP_H_ */

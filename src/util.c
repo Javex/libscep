@@ -287,16 +287,21 @@ finally:
 	return error;
 }
 
-SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, char **transaction_id)
+SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, EVP_PKEY *pubkey, char **transaction_id)
 {
 	SCEP_ERROR error = SCEPE_OK;
 	BIO *bio;
-	EVP_PKEY *pubkey;
-	X509_REQ *req;
 	unsigned char *data, digest[SHA256_DIGEST_LENGTH];
 	int len, i;
+	EVP_MD_CTX *ctx;
 
-	req = handle->configuration->pkcsreq->request;
+#define OSSL_ERR(msg)                                   \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg);                   \
+        goto finally;                                   \
+    } while(0)
 
 	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
 		return SCEPE_MEMORY;
@@ -307,11 +312,27 @@ SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, char **transaction_id)
 		error = SCEPE_MEMORY;
 		goto finally;
 	}
-	pubkey = X509_REQ_get_pubkey(req);
-	i2d_PUBKEY_bio(bio, pubkey);
-	EVP_PKEY_free(pubkey);
+	
+	if(!i2d_PUBKEY_bio(bio, pubkey))
+		OSSL_ERR("Could not convert pubkey to DER.\n");
+
 	len = BIO_get_mem_data(bio, &data);
+	if(len == 0)
+		OSSL_ERR("Could not get data from bio.\n");
+	
 	SHA256(data, len, digest);
+	ctx = EVP_MD_CTX_create();
+	if(ctx == NULL)
+		OSSL_ERR("Could not create hash context.\n");
+
+	if(EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) == 0)
+		OSSL_ERR("Could not initialize hash context.\n");
+
+	if(EVP_DigestUpdate(ctx, data, len) == 0)
+		OSSL_ERR("Could not read data into context.\n");
+
+	if(EVP_DigestFinal_ex(ctx, digest, NULL) == 0)
+		OSSL_ERR("Could not finalize context.\n");
 
 	for(i=0; i < SHA256_DIGEST_LENGTH; ++i)
 		sprintf((*transaction_id) + i * 2, "%02X", digest[i]);
@@ -323,6 +344,7 @@ finally:
 	if(bio)
 		BIO_free(bio);
 	return error;
+#undef OSSL_ERR
 }
 
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,

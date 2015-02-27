@@ -95,20 +95,20 @@ START_TEST(test_scep_calculate_transaction_id)
 	SCEP_ERROR error;
 	fp = fopen(TEST_CSR_1, "r");
 	req = PEM_read_X509_REQ(fp, NULL, NULL, NULL);
-	scep_conf_set(handle, SCEPCFG_PKCSREQ_CSR, req);
+	EVP_PKEY *pubkey = X509_REQ_get_pubkey(req);
 	fclose(fp);
 
-	error = scep_calculate_transaction_id(handle, &tid);
+	error = scep_calculate_transaction_id(handle, pubkey, &tid);
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(tid, "5418898A0D8052E60EB9E9F9BEB2E402F8138122C8503213CF5FD86DBB8267CF");
 	free(tid);
 
 	fp = fopen(TEST_CSR_2, "r");
 	req = PEM_read_X509_REQ(fp, NULL, NULL, NULL);
-	scep_conf_set(handle, SCEPCFG_PKCSREQ_CSR, req);
+	pubkey = X509_REQ_get_pubkey(req);
 	fclose(fp);
 
-	error = scep_calculate_transaction_id(handle, &tid);
+	error = scep_calculate_transaction_id(handle, pubkey, &tid);
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(tid, "569673452595B161A6F8D272D9A214152F828133994D5B166EFFB2C140A88EA2");
 	free(tid);
