@@ -1,17 +1,17 @@
 #include "scep.h"
 
-SCEP_ERROR scep_operation_getcacert(SCEP *handle, STACK_OF(X509) **certs)
+SCEP_ERROR scep_operation_getcacert(SCEP *handle, char *issuer, STACK_OF(X509) **certs)
 {
 	SCEP_ERROR error;
 	SCEP_REPLY *reply;
 	X509 *cert = NULL;
 	BIO *bio = NULL;
 	PKCS7 *p7 = NULL;
-	if((error = scep_conf_sanity_check(handle, SCEPOP_GETCACERT)) != SCEPE_OK)
+	if((error = scep_conf_sanity_check(handle)) != SCEPE_OK)
 		return error;
 
 	// send the message
-	error = scep_send_request(handle, "GetCACert", handle->configuration->getcacert->issuer, &reply);
+	error = scep_send_request(handle, "GetCACert", issuer, &reply);
 	if(error != SCEPE_OK)
 	{
 		scep_log(handle, FATAL, "Operation \"GetCACert\" failed with error "
@@ -87,38 +87,39 @@ finally:
 
 SCEP_ERROR scep_operation_pkcsreq(SCEP *handle, X509 **cert)
 {
-	SCEP_ERROR error;
-	if((error = scep_conf_sanity_check(handle, SCEPOP_PKCSREQ)) != SCEPE_OK)
-		return error;
+	/*
+	 * Perform sanity check for:
+	 * - CSR
+	 * - Request key
+	 * - CA cert
+	 * - Sig key & Sig cert (both should be present, explicitly passed)
+	 */
 
 	return SCEPE_OK;
 }
 
 SCEP_ERROR scep_operation_getcert(SCEP *handle, X509 **cert)
 {
-	SCEP_ERROR error;
-	if((error = scep_conf_sanity_check(handle, SCEPOP_GETCERT)) != SCEPE_OK)
-		return error;
+	/*
+	 * Perform sanity check for:
+	 * - Request key
+	 * - CA cert
+	 */
 
 	return SCEPE_OK;
 }
 
 SCEP_ERROR scep_operation_getcrl(SCEP *handle, X509_CRL **crl)
 {
-	SCEP_ERROR error;
-	if((error = scep_conf_sanity_check(handle, SCEPOP_GETCRL)) != SCEPE_OK)
-		return error;
-
+	/*
+	 * Perform sanity check for:
+	 * - Certificate
+	 */
 	return SCEPE_OK;
 }
 
 SCEP_ERROR scep_operation_getnextcacert(SCEP *handle, X509 **cert)
 {
-	SCEP_ERROR error;
-	if((error = scep_conf_sanity_check(handle, SCEPOP_GETNEXTCACERT)) !=
-			SCEPE_OK)
-		return error;
-
 	return SCEPE_OK;
 }
 

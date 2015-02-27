@@ -41,14 +41,9 @@ START_TEST(test_scep_operation_getcacert)
 	X509 *cert;
 	SCEP_ERROR error;
 	int i;
-	error = scep_operation_getcacert(handle, &certs);
+	error = scep_operation_getcacert(handle, NULL, &certs);
 	ck_assert(error == SCEPE_OK);
 	ck_assert(sk_X509_num(certs) > 0);
-	for(i = 0; i < sk_X509_num(certs); ++i)
-	{
-		cert = sk_X509_value(certs, i);
-		PEM_write_X509(stdout, cert);
-	}
 }
 END_TEST
 

@@ -65,30 +65,6 @@ typedef enum {
 	SCEPCFG_SIGALG,
 	SCEPCFG_ENCALG,
 	SCEPCFG_LOG,
-
-	/* GetCACert options */
-	SCEPCFG_GETCACERT_ISSUER,
-
-	/* PKCSReq options */
-	SCEPCFG_PKCSREQ_CSR,
-	SCEPCFG_PKCSREQ_KEY,
-	SCEPCFG_PKCSREQ_CACERT,
-	SCEPCFG_PKCSREQ_CHALL_PASSWD,
-	SCEPCFG_PKCSREQ_SIGKEY,
-	SCEPCFG_PKCSREQ_SIGCERT,
-	SCEPCFG_PKCSREQ_POLL_INTERVAL,
-	SCEPCFG_PKCSREQ_POLL_TIME,
-	SCEPCFG_PKCSREQ_POLL_COUNT,
-
-	/* GetCert options */
-	SCEPCFG_GETCERT_KEY,
-	SCEPCFG_GETCERT_CACERT,
-
-	/* GetCRL */
-	SCEPCFG_GETCRL_CERT,
-
-	/* GetNextCACert */
-	SCEPCFG_GETNEXTCACERT_ISSUER,
 } SCEPCFG_TYPE;
 
 typedef enum {
@@ -142,31 +118,6 @@ typedef enum {
 	badCertId = 4,
 } scep_failInfo_t;
 
-struct scep_configuration_getcacert_t {
-	char *issuer;
-};
-
-struct scep_configuration_pkcsreq_t {
-	X509_REQ *request;
-	EVP_PKEY *request_key;
-	X509 *ca_cert;
-	char *challenge_password;
-	EVP_PKEY *signature_key;
-	X509 *signature_cert;
-	int polling_interval;
-	int maximum_poll_time;
-	int maximum_poll_count;
-};
-
-struct scep_configuration_getcert_t {
-	EVP_PKEY *request_key;
-	X509 *ca_cert;
-};
-
-struct scep_configuration_getcrl_t {
-	X509 *cert;
-};
-
 typedef struct {
 	UriUriA *url;
 	UriUriA *proxy;
@@ -174,11 +125,6 @@ typedef struct {
 	EVP_MD *sigalg;
 	EVP_CIPHER *encalg;
 	BIO *log;
-	struct scep_configuration_getcacert_t *getcacert;
-	struct scep_configuration_pkcsreq_t *pkcsreq;
-	struct scep_configuration_getcert_t *getcert;
-	struct scep_configuration_getcrl_t *getcrl;
-	struct scep_configuration_getcacert_t *getnextcacert;
 } SCEP_CONFIGURATION;
 
 typedef struct {
@@ -219,7 +165,7 @@ void scep_cleanup(SCEP *handle);
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
 char *scep_strerror(SCEP_ERROR err);
 
-SCEP_ERROR scep_operation_getcacert(SCEP *handle, STACK_OF(X509) **certs);
+SCEP_ERROR scep_operation_getcacert(SCEP *handle, char *issuer, STACK_OF(X509) **certs);
 SCEP_ERROR scep_operation_pkcsreq(SCEP *handle, X509 **cert);
 SCEP_ERROR scep_operation_getcert(SCEP *handle, X509 **cert);
 SCEP_ERROR scep_operation_getcrl(SCEP *handle, X509_CRL **crl);
@@ -230,26 +176,8 @@ SCEP_ERROR scep_create_oids(SCEP *);
 
 SCEP_ERROR scep_conf_init(SCEP *handle);
 SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str);
-SCEP_ERROR scep_conf_set_getcacert(SCEP *handle, SCEPCFG_TYPE type,
-		va_list arg);
-SCEP_ERROR scep_conf_set_pkcsreq(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
-SCEP_ERROR scep_conf_set_getcert(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
-SCEP_ERROR scep_conf_set_getcrl(SCEP *handle, SCEPCFG_TYPE type, va_list arg);
-SCEP_ERROR scep_conf_set_getnextcacert(SCEP *handle, SCEPCFG_TYPE type,
-		va_list arg);
-
 void scep_conf_free(SCEP_CONFIGURATION *conf);
-void scep_conf_getcacert_free(struct scep_configuration_getcacert_t *getcacert);
-void scep_conf_pkcsreq_free(struct scep_configuration_pkcsreq_t *pkcsreq);
-void scep_conf_getcert_free(struct scep_configuration_getcert_t *getcert);
-void scep_conf_getcrl_free(struct scep_configuration_getcrl_t *getcrl);
-
-SCEP_ERROR scep_conf_sanity_check(SCEP *handle, SCEP_OPERATION op);
-SCEP_ERROR scep_conf_sanity_check_getcacert(SCEP *handle);
-SCEP_ERROR scep_conf_sanity_check_pkcsreq(SCEP *handle);
-SCEP_ERROR scep_conf_sanity_check_getcert(SCEP *handle);
-SCEP_ERROR scep_conf_sanity_check_getcrl(SCEP *handle);
-SCEP_ERROR scep_conf_sanity_check_getnextcacert(SCEP *handle);
+SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 
 SCEP_ERROR scep_operation_init(SCEP *handle, scep_pkiMessage_t **pkiMessage);
 
