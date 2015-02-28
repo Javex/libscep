@@ -13,6 +13,9 @@ SCEP *handle;
 #define TEST_SERVER_Q "http://demo.openxpki.org/cgi-bin/scep/scep?key1=value1"
 #define TEST_CSR_1 "tests/test-files/test-1-csr.pem"
 #define TEST_CSR_2 "tests/test-files/test-2-csr.pem"
+#define TEST_B64_PKCS7_BIN "tests/test-files/util_b64_pkcs7.bin"
+#define TEST_B64_PKCS7_PEM "tests/test-files/util_b64_pkcs7.pem"
+
 
 void setup()
 {
@@ -89,6 +92,30 @@ START_TEST(test_scep_calculate_transaction_id)
 }
 END_TEST
 
+START_TEST(test_scep_PKCS7_base64_encode)
+{
+	BIO *inbio;
+	PKCS7 *p7;
+	char *out, *b64_pem;
+	FILE *f;
+	int f_size;
+
+	inbio = BIO_new_file(TEST_B64_PKCS7_BIN, "rb");
+	p7 = d2i_PKCS7_bio(inbio, NULL);
+	BIO_free(inbio);
+
+	f = fopen(TEST_B64_PKCS7_PEM, "rb");
+	fseek(f, 0, SEEK_END);
+	f_size = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	b64_pem = malloc(f_size + 1);
+	ck_assert(fread(b64_pem, 1, f_size, f) == f_size);
+
+	ck_assert(scep_PKCS7_base64_encode(handle, p7, &out) == SCEPE_OK);
+	ck_assert_str_eq(out, b64_pem);
+}
+END_TEST
+
 START_TEST(test_scep_log)
 {
 	BIO *bio;
@@ -121,6 +148,7 @@ Suite * scep_util_suite(void)
 	tcase_add_test(tc_core, test_scep_recieve_data);
 	tcase_add_test(tc_core, test_scep_send_request);
 	tcase_add_test(tc_core, test_scep_calculate_transaction_id);
+	tcase_add_test(tc_core, test_scep_PKCS7_base64_encode);
 	tcase_add_test(tc_core, test_scep_log);
 
 	suite_add_tcase(s, tc_core);

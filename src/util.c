@@ -347,6 +347,38 @@ finally:
 #undef OSSL_ERR
 }
 
+SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
+{
+	BIO *outbio = NULL, *input_b64bio = NULL;
+	SCEP_ERROR error = SCEPE_OK;
+
+#define OSSL_ERR(msg)                                   \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg);                   \
+        goto finally;                                   \
+    } while(0)
+
+	outbio = BIO_new(BIO_s_mem());
+	BIO_set_close(outbio, BIO_NOCLOSE);
+	input_b64bio = BIO_push(BIO_new(BIO_f_base64()), outbio);
+	if(!input_b64bio || !outbio)
+		OSSL_ERR("Could not create B64 encoding BIO chain.\n");
+
+	if(!i2d_PKCS7_bio(input_b64bio, p7))
+		OSSL_ERR("Could read data into BIO.\n");
+	BIO_flush(input_b64bio);
+
+	if(!BIO_get_mem_data(outbio, encoded))
+		OSSL_ERR("Could not copy data from BIO to output char *.\n");
+
+finally:
+	BIO_free_all(input_b64bio);
+	return error;
+#undef OSSL_ERR
+}
+
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		int line, char *format, ...)
 {
