@@ -117,12 +117,10 @@ void generic_teardown()
 }
 
 void make_message_data(
-		X509 **sig_cert, EVP_PKEY **sig_key, EVP_PKEY **req_pubkey, 
-		char **messageType, BIO **data, X509 **enc_cert, const EVP_CIPHER **enc_alg)
+		X509 **sig_cert, EVP_PKEY **sig_key, X509_REQ **req, 
+		char **messageType, X509 **enc_cert, const EVP_CIPHER **enc_alg)
 {
-	PKCS7 *p7;
-	BIO *b, *pkcs7bio;
-	X509_REQ *csr;
+	BIO *b;
 	if(*sig_cert == NULL || *sig_key == NULL) {
 		b = BIO_new(BIO_s_mem());
 		BIO_puts(b, test_key);
@@ -145,22 +143,16 @@ void make_message_data(
 		BIO_free(b);
 	}
 
-	if(*req_pubkey == NULL) {
-		csr = X509_REQ_new();
+	if(*req == NULL) {
+		*req = X509_REQ_new();
 		b = BIO_new(BIO_s_mem());
 		BIO_puts(b, test_new_csr);
-		PEM_read_bio_X509_REQ(b, &csr, 0, 0);
+		PEM_read_bio_X509_REQ(b, req, 0, 0);
 		BIO_free(b);
-		*req_pubkey = X509_REQ_get_pubkey(csr);
 	}
 
 	if(*messageType == NULL) {
 		*messageType = MESSAGE_TYPE_PKCSREQ;
-	}
-
-	if(*data == NULL) {
-		*data = BIO_new(BIO_s_mem());
-		BIO_puts(*data, "foobar\n");
 	}
 
 	if(*enc_cert == NULL) {
@@ -174,14 +166,14 @@ void make_message_data(
 		*enc_alg = EVP_des_ede3_cbc();
 }
 
-PKCS7 *make_message(
-		X509 *sig_cert, EVP_PKEY *sig_key, EVP_PKEY *req_pubkey, 
-		char *messageType, BIO *data, X509 *enc_cert, const EVP_CIPHER *enc_alg)
+PKCS7 *make_pkcsreq_message(
+		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req, 
+		char *messageType, X509 *enc_cert, const EVP_CIPHER *enc_alg)
 {
-	make_message_data(&sig_cert, &sig_key, &req_pubkey, &messageType, &data, &enc_cert, &enc_alg);
-	ck_assert(scep_pkiMessage(
-		handle, sig_cert, sig_key, req_pubkey, messageType, data, 
-		enc_cert, enc_alg, &p7) == SCEPE_OK);
+	PKCS7 *p7;
+	make_message_data(&sig_cert, &sig_key, &req, &messageType, &enc_cert, &enc_alg);
+	ck_assert(scep_pkcsreq(
+		handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_OK);
 	return p7;
 }
 
@@ -233,13 +225,13 @@ BIO *get_decrypted_data(PKCS7 *p7)
 	return outbio;
 }
 
-void null_setup()
+void pkcsreq_setup()
 {
 	generic_setup();
-	p7 = make_message(NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
-void null_teardown()
+void pkcsreq_teardown()
 {
 	generic_teardown();
 	PKCS7_free(p7);
@@ -272,14 +264,6 @@ START_TEST(test_scep_message_transaction_id)
 }
 END_TEST
 
-START_TEST(test_scep_message_message_type)
-{
-	ck_assert_str_eq(
-		"19",
-		get_attribute_data(p7, handle->oids.messageType));
-}
-END_TEST
-
 START_TEST(test_scep_message_sender_nonce)
 {
 	ck_assert(ASN1_STRING_length(get_attribute(p7, handle->oids.senderNonce)) == 16);
@@ -300,56 +284,35 @@ START_TEST(test_scep_message_content_type)
 END_TEST
 
 
-START_TEST(test_scep_message_encryption)
-{
-	unsigned char *reply;
-	ck_assert(BIO_get_mem_data(get_decrypted_data(p7), &reply));
-	ck_assert_str_eq("foobar\n", reply);
-}
-END_TEST
-
-
-void pkcsreq_setup()
-{
-	BIO *b, *data = NULL;
-	X509_REQ *csr;
-	X509 *sig_cert = NULL, *enc_cert = NULL;
-	EVP_PKEY *sig_key = NULL;
-	EVP_PKEY *req_pubkey = NULL; 
-	const EVP_CIPHER *enc_alg = NULL;
-	char *messageType = MESSAGE_TYPE_PKCSREQ;
-
-	b = BIO_new(BIO_s_mem());
-	csr = X509_REQ_new();
-	BIO_puts(b, test_new_csr);
-	PEM_read_bio_X509_REQ(b, &csr, 0, 0);
-	BIO_free(b);
-	generic_setup();
-	make_message_data(
-		&sig_cert, &sig_key, &req_pubkey, &messageType,
-		&data, &enc_cert, &enc_alg);
-	ck_assert(scep_pkcsreq(
-		handle, csr, sig_cert, sig_key,
-		enc_cert, enc_alg, &p7) == SCEPE_OK);
-}
-
-void pkcsreq_teardown()
-{
-	generic_teardown();
-	PKCS7_free(p7);
-
-}
-
 START_TEST(test_scep_pkcsreq)
 {
 	BIO *data = get_decrypted_data(p7);
-	X509_REQ *csr = d2i_X509_REQ_bio(data, NULL);
-	PEM_write_X509_REQ(stderr, csr);
+
+	unsigned char *data_buf;
+	int data_buf_len = BIO_get_mem_data(data, &data_buf);
+	ck_assert(data_buf_len);
+
+	X509_REQ *ref_csr = X509_REQ_new();
+	data = BIO_new(BIO_s_mem());
+	BIO_puts(data, test_new_csr);
+	PEM_read_bio_X509_REQ(data, &ref_csr, 0, 0);
+	BIO_free(data);
+
+	data = BIO_new(BIO_s_mem());
+	ck_assert(i2d_X509_REQ_bio(data, ref_csr));
+	unsigned char *ref_buf;
+	int ref_buf_len = BIO_get_mem_data(data, &ref_buf);
+	BIO_free(data);
+
+	ck_assert(ref_buf_len);
+	ck_assert(ref_buf_len == data_buf_len);
+	ck_assert(memcmp(ref_buf, data_buf, ref_buf_len));
 	// how to verify this, what to test?
 	ck_assert(0);
 
-	// verify presence of following attributes:
-	// tid, messageType, senderNonce
+	ck_assert_str_eq(
+		MESSAGE_TYPE_PKCSREQ,
+		get_attribute_data(p7, handle->oids.messageType));
 }
 END_TEST
 
@@ -376,21 +339,14 @@ Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
 
-	/* Null Message test case */
-	TCase *tc_null_msg = tcase_create("Null Message");
-	tcase_add_checked_fixture(tc_null_msg, null_setup, null_teardown);
-	tcase_add_test(tc_null_msg, test_scep_message_asn1_version);
-	tcase_add_test(tc_null_msg, test_scep_message_transaction_id);
-	tcase_add_test(tc_null_msg, test_scep_message_message_type);
-	tcase_add_test(tc_null_msg, test_scep_message_sender_nonce);
-	tcase_add_test(tc_null_msg, test_scep_message_type);
-	tcase_add_test(tc_null_msg, test_scep_message_content_type);
-	tcase_add_test(tc_null_msg, test_scep_message_encryption);
-	suite_add_tcase(s, tc_null_msg);
-
 	/* PKCSReq tests */
 	TCase *tc_pkcsreq_msg = tcase_create("PKCSReq Message");
 	tcase_add_checked_fixture(tc_pkcsreq_msg, pkcsreq_setup, pkcsreq_teardown);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_asn1_version);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_type);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_content_type);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq_missing_dn);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq_missing_pubkey);

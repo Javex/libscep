@@ -28,38 +28,12 @@ void teardown()
 
 START_TEST(test_scep_set_conf)
 {
-	char *url_string = "http://example.com:80/path/to/scep";
-	char *url_string_test;
-	int url_string_length;
 	SCEP_ERROR error;
-	X509 *test_cert;
 
 	// check the defaults are set
 	ck_assert(handle->configuration->verbosity == DEFAULT_VERBOSITY);
 	ck_assert(handle->configuration->sigalg == DEFAULT_SIGALG);
 	ck_assert(handle->configuration->encalg == DEFAULT_ENCALG);
-
-	error = scep_conf_set(handle, SCEPCFG_URL, url_string);
-	ck_assert(SCEPE_OK == error);
-	uriToStringCharsRequiredA(handle->configuration->url, &url_string_length);
-	url_string_length++;
-	url_string_test = malloc(url_string_length);
-	uriToStringA(url_string_test, handle->configuration->url,
-			url_string_length, NULL);
-	ck_assert_str_eq(url_string_test, url_string);
-	free(url_string_test);
-
-
-	url_string = "https://test.com:8080";
-	error = scep_conf_set(handle, SCEPCFG_PROXY, url_string);
-	ck_assert(SCEPE_OK == error);
-	uriToStringCharsRequiredA(handle->configuration->proxy, &url_string_length);
-	url_string_length++;
-	url_string_test = malloc(url_string_length);
-	uriToStringA(url_string_test, handle->configuration->proxy,
-			url_string_length, NULL);
-	ck_assert_str_eq(url_string_test, url_string);
-	free(url_string_test);
 
 	error = scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
 	ck_assert(SCEPE_OK == error);
@@ -79,66 +53,6 @@ START_TEST(test_scep_set_conf)
 
 	error = scep_conf_set(handle, -1, NULL);
 	ck_assert(SCEPE_UNKNOWN_CONFIGURATION == error);
-}
-END_TEST
-
-START_TEST(test_scep_conf_url)
-{
-	SCEP_ERROR error;
-	char *url_string = "http://example.com/cgi-bin/scep/scep";
-	char *url_string2 = "https://test-example.net/some/path";
-	char *url_string_test = NULL;
-	int url_string_length;
-
-	// test setting url
-	error = scep_conf_set_url(handle, SCEPCFG_URL, url_string);
-	ck_assert(SCEPE_OK == error);
-	uriToStringCharsRequiredA(handle->configuration->url, &url_string_length);
-	url_string_length++;
-	url_string_test = malloc(url_string_length);
-	uriToStringA(url_string_test, handle->configuration->url,
-			url_string_length, NULL);
-	ck_assert_str_eq(url_string_test, url_string);
-	free(url_string_test);
-
-	error = scep_conf_set_url(handle, SCEPCFG_URL, url_string2);
-	ck_assert(SCEPE_OK == error);
-	uriToStringCharsRequiredA(handle->configuration->url, &url_string_length);
-	url_string_length++;
-	url_string_test = malloc(url_string_length);
-	uriToStringA(url_string_test, handle->configuration->url,
-			url_string_length, NULL);
-	ck_assert_str_eq(url_string_test, url_string2);
-	free(url_string_test);
-
-	// and now the same game with proxy
-	error = scep_conf_set_url(handle, SCEPCFG_PROXY, url_string);
-	ck_assert(SCEPE_OK == error);
-	uriToStringCharsRequiredA(handle->configuration->proxy, &url_string_length);
-	url_string_length++;
-	url_string_test = malloc(url_string_length);
-	uriToStringA(url_string_test, handle->configuration->proxy,
-			url_string_length, NULL);
-	ck_assert_str_eq(url_string_test, url_string);
-	free(url_string_test);
-
-	error = scep_conf_set_url(handle, SCEPCFG_PROXY, url_string2);
-	ck_assert(SCEPE_OK == error);
-	uriToStringCharsRequiredA(handle->configuration->proxy, &url_string_length);
-	url_string_length++;
-	url_string_test = malloc(url_string_length);
-	uriToStringA(url_string_test, handle->configuration->proxy,
-			url_string_length, NULL);
-	ck_assert_str_eq(url_string_test, url_string2);
-	free(url_string_test);
-
-	// make wrong URL
-	error = scep_conf_set_url(handle, SCEPCFG_URL, NULL);
-	ck_assert(error == SCEPE_INVALID_URL);
-
-	// and now lets hit the default branch
-	error = scep_conf_set_url(handle, -1, "");
-	ck_assert(error == SCEPE_UNKNOWN_CONFIGURATION);
 }
 END_TEST
 
@@ -182,8 +96,6 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check)
 {
-       ck_assert(scep_conf_sanity_check(handle) == SCEPE_MISSING_URL);
-       scep_conf_set(handle, SCEPCFG_URL, "http://example.com/scep");
        ck_assert(scep_conf_sanity_check(handle) == SCEPE_OK);
 }
 END_TEST
@@ -196,7 +108,6 @@ Suite * scep_conf_suite(void)
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_checked_fixture(tc_core, setup, teardown);
 	tcase_add_test(tc_core, test_scep_set_conf);
-	tcase_add_test(tc_core, test_scep_conf_url);
 	tcase_add_test(tc_core, test_scep_conf_encalg);
 	tcase_add_test(tc_core, test_scep_conf_sigalg);
 	tcase_add_test(tc_core, test_scep_conf_verbosity);

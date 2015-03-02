@@ -9,8 +9,6 @@ SCEP *handle;
 #define TEST_ERRMSG(ival, sval) \
 	ck_assert_str_eq(scep_strerror(ival), sval)
 
-#define TEST_SERVER "http://demo.openxpki.org/cgi-bin/scep/scep"
-#define TEST_SERVER_Q "http://demo.openxpki.org/cgi-bin/scep/scep?key1=value1"
 #define TEST_CSR_1 "tests/test-files/test-1-csr.pem"
 #define TEST_CSR_2 "tests/test-files/test-2-csr.pem"
 #define TEST_B64_PKCS7_BIN "tests/test-files/util_b64_pkcs7.bin"
@@ -20,7 +18,6 @@ SCEP *handle;
 void setup()
 {
 	ck_assert(scep_init(&handle) == SCEPE_OK);
-	scep_conf_set(handle, SCEPCFG_URL, TEST_SERVER_Q);
 }
 
 void teardown()
@@ -35,32 +32,6 @@ START_TEST(test_scep_strerror)
 		ck_assert(strlen(scep_strerror(i)));
 	for(i=SCEPE_DUMMY_LAST_ERROR; i <= SCEPE_DUMMY_LAST_ERROR + 1; ++i)
 		TEST_ERRMSG(i, "Unknown error");
-}
-END_TEST
-
-START_TEST(test_scep_recieve_data)
-{
-
-}
-END_TEST
-
-START_TEST(test_scep_send_request)
-{
-	SCEP_ERROR error;
-	SCEP_REPLY *reply;
-	BIO *log;
-
-	log = BIO_new_fp(stdout, BIO_NOCLOSE);
-	scep_conf_set(handle, SCEPCFG_LOG, log);
-	scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
-
-	error = scep_send_request(handle, "GetCACert", NULL, &reply);
-	ck_assert(error == SCEPE_OK);
-	ck_assert(reply->status == 200);
-	ck_assert_str_eq(reply->content_type, "application/x-x509-ca-ra-cert");
-
-	BIO_free(log);
-	free(reply);
 }
 END_TEST
 
@@ -145,8 +116,6 @@ Suite * scep_util_suite(void)
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_checked_fixture(tc_core, setup, teardown);
 	tcase_add_test(tc_core, test_scep_strerror);
-	tcase_add_test(tc_core, test_scep_recieve_data);
-	tcase_add_test(tc_core, test_scep_send_request);
 	tcase_add_test(tc_core, test_scep_calculate_transaction_id);
 	tcase_add_test(tc_core, test_scep_PKCS7_base64_encode);
 	tcase_add_test(tc_core, test_scep_log);
