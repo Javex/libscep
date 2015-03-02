@@ -156,6 +156,10 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 	int message_len, full_message_len;
 	va_list args;
 	char *filecopy, *filename;
+	/* we don't handle any errors here (besides checking for them).
+	 * If there's not enough memory, there are bigger issues at stake
+	 * than logging.
+	 */
 	if(handle->configuration->log &&
 			handle->configuration->verbosity >= verbosity)
 	{
@@ -166,27 +170,20 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		message_len = vsnprintf(NULL, 0, format, args) + 1;
 		va_end(args);
 		message = malloc(message_len);
+		if(!message)
+			return;
 		va_start(args, format);
 		vsnprintf(message, message_len, format, args);
 		va_end(args);
 
-		// this code is extended to be more readable, any decent compiler will
-		// automatically add those constants
-		full_message_len = strlen(message)
-					 + strlen(filename)
-					 + (int) log10(line)
-					 + 1 // + 1 for log for an upper bound
-					 + 2 // two colons
-					 + 1 // one space after line number
-					 + 1; // terminating null char
-
-		// we don't handle any errors here. If there's not enough memory, there
-		// are bigger issues at stake than logging
-		if(!(full_message = malloc(full_message_len)))
+		full_message_len = snprintf(NULL, 0, "%s:%d: %s\n", filename, line, message);
+		full_message = malloc(full_message_len);
+		if(!full_message)
 			return;
-		snprintf(full_message, full_message_len, "%s:%d: %s\n",
-				filename, line, message);
+		snprintf(full_message, full_message_len, "%s:%d: %s\n", filename, line, message);
 		BIO_puts(handle->configuration->log, full_message);
 		free(filecopy);
+		free(full_message);
+		free(message);
 	}
 }
