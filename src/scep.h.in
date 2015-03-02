@@ -160,6 +160,28 @@ typedef struct {
 	unsigned char *recipientNonce;
 } scep_pkiMessage_t;
 
+typedef struct {
+	char *transactionID;
+	unsigned char *senderNonce;
+	unsigned char *recipientNonce;
+	X509 *signer_certificate;
+	char *messageType;
+	int messageType_int;
+	union {
+		X509_REQ *request;  // PKCSReq
+		X509_CRL *crl;  // GetCRL
+		PKCS7_ISSUER_AND_SERIAL *ias; // GetCert
+	};
+} SCEP_REQUEST;
+
+struct p7_data_t {
+	PKCS7 *p7;
+	BIO *bio;
+	PKCS7_SIGNER_INFO *signer_info;
+	unsigned char sender_nonce[NONCE_LENGTH];
+	char *transaction_id;
+};
+
 /* External functions */
 SCEP_ERROR scep_init(SCEP **handle);
 void scep_cleanup(SCEP *handle);
@@ -190,12 +212,15 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		int line, char *format, ...);
 void scep_reply_free(SCEP_REPLY *reply);
 
+SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data);
+SCEP_ERROR scep_p7_server_init(SCEP *handle, struct p7_data_t *p7data);
+SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7);
+
 SCEP_ERROR scep_pkiMessage(
-    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
-    EVP_PKEY *req_pubkey,
-    char *messageType, BIO *data,
-    X509 *enc_cert, const EVP_CIPHER *enc_alg,
-    PKCS7 **pkiMessage);
+        SCEP *handle,
+        char *messageType, BIO *data,
+        X509 *enc_cert, const EVP_CIPHER *enc_alg,
+        struct p7_data_t *p7data);
 
 SCEP_ERROR scep_pkcsreq(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,

@@ -1,5 +1,76 @@
 #include "scep.h"
+SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
+{
+    SCEP_ERROR error = SCEPE_OK;
+#define OSSL_ERR(msg)                                   \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg);                   \
+        goto finally;                                   \
+    } while(0)
 
+    p7data->p7 = PKCS7_new();
+    if(p7data->p7 == NULL)
+        OSSL_ERR("Could not create PKCS#7 data structure.\n");
+
+    if(!PKCS7_set_type(p7data->p7, NID_pkcs7_signed))
+        OSSL_ERR("Could not set PKCS#7 type.\n");
+
+    p7data->signer_info = PKCS7_add_signature(
+        p7data->p7, sig_cert, sig_key, handle->configuration->sigalg);
+    if(p7data->signer_info == NULL)
+        OSSL_ERR("Could not create new PKCS#7 signature.\n");
+
+    /* transaction ID */
+    if((error = scep_calculate_transaction_id(handle, req_pubkey, &p7data->transaction_id)) != SCEPE_OK) {
+        scep_log(handle, FATAL, "Could create transaction ID.\n");
+        goto finally;
+    }
+
+    /* sender nonce */
+    if(RAND_bytes(p7data->sender_nonce, NONCE_LENGTH) == 0)
+        OSSL_ERR("Could not generate random sender nonce.\n");
+
+    /* Initialize content */
+    if(!PKCS7_content_new(p7data->p7, NID_pkcs7_data))
+        OSSL_ERR("Could not create inner PKCS#7 data structure.\n");
+    p7data->bio = PKCS7_dataInit(p7data->p7, NULL);
+    if(!p7data->bio)
+        OSSL_ERR("Could not initialize PKCS#7 data.\n");
+
+finally:
+    if(error != SCEPE_OK) {
+        if(p7data->p7)
+            PKCS7_free(p7data->p7);
+        if(p7data->bio)
+            BIO_free(p7data->bio);
+        if(p7data->transaction_id)
+            free(p7data->transaction_id);
+    }
+    return error;
+#undef OSSL_ERR
+}
+
+SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7)
+{
+    SCEP_ERROR error = SCEPE_OK;
+#define OSSL_ERR(msg)                                   \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg);                   \
+        goto finally;                                   \
+    } while(0)
+
+    if(!PKCS7_dataFinal(p7data->p7, p7data->bio))
+        OSSL_ERR("Could not finalize PKCS#7 data.\n");
+
+    *p7 = p7data->p7;
+finally:
+    return error;
+#undef OSSL_ERR
+}
 
 SCEP_ERROR scep_pkcsreq(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
@@ -9,6 +80,7 @@ SCEP_ERROR scep_pkcsreq(
     BIO *databio = NULL;
     EVP_PKEY *req_pubkey = NULL;
     SCEP_ERROR error = SCEPE_OK;
+    struct p7_data_t p7data;
 
 #define OSSL_ERR(msg)                                   \
     do {                                                \
@@ -31,9 +103,14 @@ SCEP_ERROR scep_pkcsreq(
     if(!req_pubkey)
         OSSL_ERR("Could not get public key from CSŖ.\n");
 
-    error = scep_pkiMessage(
-        handle, sig_cert, sig_key, req_pubkey, MESSAGE_TYPE_PKCSREQ,
-        databio, enc_cert, enc_alg, pkiMessage);
+    if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)) != SCEPE_OK)
+        goto finally;
+    if((error = scep_pkiMessage(
+            handle, MESSAGE_TYPE_PKCSREQ,
+            databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+        goto finally;
+    if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
+        goto finally;
 
 finally:
     if(databio)
@@ -46,19 +123,14 @@ finally:
 
 
 SCEP_ERROR scep_pkiMessage(
-        SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
-        EVP_PKEY *req_pubkey,
+        SCEP *handle,
         char *messageType, BIO *data,
         X509 *enc_cert, const EVP_CIPHER *enc_alg,
-        PKCS7 **pkiMessage) {
-    PKCS7 *p7 = NULL, *encdata = NULL;
-    PKCS7_SIGNER_INFO *p7_signer_info = NULL;
+        struct p7_data_t *p7data) {
+    PKCS7 *encdata = NULL;
     SCEP_ERROR error = SCEPE_OK;
     STACK_OF(X509) *enc_certs;
-    BIO *pkcs7bio = NULL;
-    char *transaction_id = NULL;
     ASN1_PRINTABLESTRING *asn1_transaction_id, *asn1_message_type, *asn1_sender_nonce;
-    unsigned char sender_nonce[NONCE_LENGTH];
 
 #define OSSL_ERR(msg)                                   \
     do {                                                \
@@ -68,31 +140,14 @@ SCEP_ERROR scep_pkiMessage(
         goto finally;                                   \
     } while(0)
 
-    p7 = PKCS7_new();
-    if(p7 == NULL)
-        OSSL_ERR("Could not create PKCS#7 data structure.\n");
-
-    if(!PKCS7_set_type(p7, NID_pkcs7_signed)) 
-        OSSL_ERR("Could not set PKCS#7 type.\n");
-
-    p7_signer_info = PKCS7_add_signature(
-        p7, sig_cert, sig_key, handle->configuration->sigalg);
-    if(p7_signer_info == NULL)
-        OSSL_ERR("Could not create new PKCS#7 signature.\n");
-
     /* transaction ID */
-    if((error = scep_calculate_transaction_id(handle, req_pubkey, &transaction_id)) != SCEPE_OK) {
-        scep_log(handle, FATAL, "Could create transaction ID.\n");
-        goto finally;
-    }
-
     asn1_transaction_id = ASN1_PRINTABLESTRING_new();
     if(asn1_transaction_id == NULL)
         OSSL_ERR("Could not create ASN1 TID object.\n");
-    if(!ASN1_STRING_set(asn1_transaction_id, transaction_id, -1))
+    if(!ASN1_STRING_set(asn1_transaction_id, p7data->transaction_id, -1))
         OSSL_ERR("Could not set ASN1 TID object.\n");
     if(!PKCS7_add_signed_attribute(
-            p7_signer_info, handle->oids.transId, V_ASN1_PRINTABLESTRING, 
+            p7data->signer_info, handle->oids.transId, V_ASN1_PRINTABLESTRING,
             asn1_transaction_id))
         OSSL_ERR("Could not add attribute for transaction ID.\n");
 
@@ -103,20 +158,18 @@ SCEP_ERROR scep_pkiMessage(
     if(!ASN1_STRING_set(asn1_message_type, messageType, -1))
         OSSL_ERR("Could not set ASN1 message type object.\n");
     if(!PKCS7_add_signed_attribute(
-            p7_signer_info, handle->oids.messageType, V_ASN1_PRINTABLESTRING,
+            p7data->signer_info, handle->oids.messageType, V_ASN1_PRINTABLESTRING,
             asn1_message_type))
         OSSL_ERR("Could not add attribute for message type.\n");
 
     /* sender nonce */
-    if(RAND_bytes(sender_nonce, NONCE_LENGTH) == 0)
-        OSSL_ERR("Could not generate random sender nonce.\n");
     asn1_sender_nonce = ASN1_OCTET_STRING_new();
     if(asn1_sender_nonce == NULL)
         OSSL_ERR("Could not create ASN1 sender nonce object.\n");
-    if(!ASN1_OCTET_STRING_set(asn1_sender_nonce, sender_nonce, NONCE_LENGTH))
+    if(!ASN1_OCTET_STRING_set(asn1_sender_nonce, p7data->sender_nonce, NONCE_LENGTH))
         OSSL_ERR("Could not set ASN1 sender nonce object.\n");
     if(!PKCS7_add_signed_attribute(
-            p7_signer_info, handle->oids.senderNonce, V_ASN1_OCTET_STRING,
+            p7data->signer_info, handle->oids.senderNonce, V_ASN1_OCTET_STRING,
             asn1_sender_nonce))
         OSSL_ERR("Could not add attribute for sender nonce.\n");
 
@@ -137,24 +190,10 @@ SCEP_ERROR scep_pkiMessage(
         OSSL_ERR("Could not encrypt data.\n");
 
     // put encrypted data into p7
-    if(!PKCS7_content_new(p7, NID_pkcs7_data))
-        OSSL_ERR("Could not create inner PKCS#7 data structure.\n");
-    pkcs7bio = PKCS7_dataInit(p7, NULL);
-    if(!pkcs7bio)
-        OSSL_ERR("Could not initialize PKCS#7 data.\n");
-    if(!i2d_PKCS7_bio(pkcs7bio, encdata))
+    if(!i2d_PKCS7_bio(p7data->bio, encdata))
         OSSL_ERR("Could not write encdata to PKCS#7 BIO.\n");
-    if(!PKCS7_dataFinal(p7, pkcs7bio))
-        OSSL_ERR("Could not finalize PKCS#7 data.\n");
 
-    *pkiMessage = p7;
 finally:
-    if(error != SCEPE_OK && p7)
-        PKCS7_free(p7);
-    if(pkcs7bio)
-        BIO_free(pkcs7bio);
-    if(transaction_id)
-        free(transaction_id);
     return error;
 #undef OSSL_ERR
 }
