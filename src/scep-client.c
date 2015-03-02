@@ -1,62 +1,7 @@
-#include <scep.h>
+#include "scep-client.h"
 #include <argp.h>
 
-#define STR(x) #x
-#define libscep_VERSION_STR(major, minor) "scep-client v" STR(major) "." STR(minor)
 const char *argp_program_version = libscep_VERSION_STR(libscep_VERSION_MAJOR, libscep_VERSION_MINOR);
-
-
-/* Command-Line Client Structures */
-
-struct cmd_args_t
-{
-    SCEP_OPERATION operation;
-
-    union {
-        struct {
-            /* GetCA */
-            char *identifier;
-            const EVP_MD *fp_algorithm;
-        } getca;
-
-        struct {
-            /* PKCSReq */
-            EVP_PKEY *request_key;
-            X509_REQ *request;
-            EVP_PKEY *sig_key;
-            X509 *sig_cert;
-            X509 *ca_cert;
-            char *self_signed_target;
-            int poll_interval;
-            int max_poll_time;
-            int max_poll_count;
-            int resume;
-        } pkcsreq;
-
-        struct {
-            /* GetCert */
-            EVP_PKEY *private_key;
-            X509 *local_cert;
-            ASN1_INTEGER *serial;
-            char *target_cert_filename;
-        } getcert;
-
-        struct {
-            /* GetCRL */
-            EVP_PKEY *private_key;
-            X509 *local_cert;
-            char *target_crl_filename;
-        } getcrl;
-    };
-};
-
-
-struct cmd_handle_t
-{
-    SCEP *handle;
-    struct cmd_args_t cmd_args;
-};
-
 
 static char doc[] = "SCEP client -- Command line interface to the client side of the SCEP protocol";
 
@@ -85,10 +30,10 @@ static struct argp_option options[] = {
     {"signature-cert", 'O', "file", 0, "Signature certificate (used instead of self-signed)", 3},
     {"ca-cert", 'e', "file", 0, "Use different CA cert for encryption", 3},
     {"self-signed-target", 'L', "file", 0, "Write selfsigned certificate in file", 3},
-    {"--poll-interval", 't', "secs", 0, "Polling interval in seconds", 3},
-    {"--max-poll-time", 'T', "secs", 0, "Max polling time in seconds", 3},
-    {"--max-poll-count", 'n', "count", 0, "Max number of GetCertInitial requests", 3},
-    {"--resume", 'R', 0, 0, "Resume interrupted enrollment"},
+    {"poll-interval", 't', "secs", 0, "Polling interval in seconds", 3},
+    {"max-poll-time", 'T', "secs", 0, "Max polling time in seconds", 3},
+    {"max-poll-count", 'n', "count", 0, "Max number of GetCertInitial requests", 3},
+    {"resume", 'R', 0, 0, "Resume interrupted enrollment"},
 
     /* GetCert Options */
     {"\nOPTIONS for OPERATION getcert are:", 0, 0, OPTION_DOC, 0, 3},
@@ -116,9 +61,10 @@ parse_opt(int key, char *arg, struct argp_state *state)
     const EVP_CIPHER *enc_alg = NULL;
     const EVP_MD *sig_alg = NULL;
     SCEP_OPERATION op;
-    if(key == ARGP_KEY_ARG && cmd_args.operation == SCEPOP_NONE) {
-        if(state->arg_num > 1)
-            argp_failure(state, 1, 0, "only one operation per execution");
+    SCEP_CLIENT_ERROR error;
+    if(key == ARGP_KEY_ARG) {
+        if(cmd_args.operation != SCEPOP_NONE)
+            return 0;
         if(strncmp(arg, "getca", 5) == 0)
             op = SCEPOP_GETCACERT;
         else if(strncmp(arg, "enroll", 6) == 0)
@@ -133,22 +79,25 @@ parse_opt(int key, char *arg, struct argp_state *state)
             return ARGP_ERR_UNKNOWN;
         cmd_handle->cmd_args.operation = op;
         state->next = 1;
-    } else if(key == ARGP_KEY_END)
+        return 0;
+    } else if(key == ARGP_KEY_END) {
         if(state->arg_num < 1)
             argp_failure(state, 1, 0, "Missing operation");
+    }
 
-
-    if(cmd_handle->cmd_args.operation == SCEPOP_NONE)
+    if(cmd_args.operation == SCEPOP_NONE)
         return 0;
 
     /* Common Options */
     switch(key)
     {
         case 'u':
-            scep_conf_set(handle, SCEPCFG_URL, arg);
+            if((error = scep_conf_set_url(cmd_handle, arg, &cmd_args.url)) != SCEPE_CLIENT_OK)
+                argp_failure(state, 1, 0, "Setting URL failed: %s", scep_client_strerror(error));
             break;
         case 'p':
-            scep_conf_set(handle, SCEPCFG_PROXY, arg);
+            if((error = scep_conf_set_url(cmd_handle, arg, &cmd_args.proxy)) != SCEPE_CLIENT_OK)
+                argp_failure(state, 1, 0, "Setting Proxy failed: %s", scep_client_strerror(error));
             break;
         case 'f':
             return ENOSYS; // NYI
@@ -183,27 +132,81 @@ parse_opt(int key, char *arg, struct argp_state *state)
         case 'd':
             scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
             break;
-    }
-
-    /* GetCA Options */
-    switch(key)
-    {
-        case 'i':
-            cmd_args.getca.identifier = malloc(strlen(arg) + 1);
-            strncpy(cmd_args.getca.identifier, arg, strlen(arg) + 1);
-            break;
-        case 'F':
-            if(strncmp(arg, "md5", 3) == 0)
-                sig_alg = EVP_md5();
-            else if(strncmp(arg, "sha1", 4) == 0)
-                sig_alg = EVP_sha1();
-            else if(strncmp(arg, "sha256", 6) == 0)
-                sig_alg = EVP_sha256();
-            else if(strncmp(arg, "sha512", 6) == 0)
-                sig_alg = EVP_sha512();
-            else
-                argp_failure(state, 1, 0, "Invalid fingerprint signature algorithm: %s\n", arg);
-            cmd_args.getca.fp_algorithm = sig_alg;
+        default:
+            switch(cmd_args.operation)
+            {
+                case SCEPOP_GETCACERT:
+                    /* GetCA Options */
+                    switch(key)
+                    {
+                        case 'i':
+                            cmd_args.getca.identifier = malloc(strlen(arg) + 1);
+                            strncpy(cmd_args.getca.identifier, arg, strlen(arg) + 1);
+                            break;
+                        case 'F':
+                            if(strncmp(arg, "md5", 3) == 0)
+                                sig_alg = EVP_md5();
+                            else if(strncmp(arg, "sha1", 4) == 0)
+                                sig_alg = EVP_sha1();
+                            else if(strncmp(arg, "sha256", 6) == 0)
+                                sig_alg = EVP_sha256();
+                            else if(strncmp(arg, "sha512", 6) == 0)
+                                sig_alg = EVP_sha512();
+                            else
+                                argp_failure(state, 1, 0, "Invalid fingerprint signature algorithm: %s\n", arg);
+                            cmd_args.getca.fp_algorithm = sig_alg;
+                            break;
+                    }
+                    break;
+                case SCEPOP_PKCSREQ:
+                    /* PKCSReq Options */
+                    switch(key)
+                    {
+                        case 'k':
+                            if((error = scep_read_key(handle, &cmd_args.pkcsreq.request_key, arg)) != SCEPE_CLIENT_OK)
+                                argp_failure(state, 1, 0, "Failed to load request key: %s", scep_client_strerror(error));
+                            break;
+                        case 'r':
+                            if((error = scep_read_request(handle, &cmd_args.pkcsreq.request, arg)) != SCEPE_CLIENT_OK)
+                                argp_failure(state, 1, 0, "Failed to load request: %s", scep_client_strerror(error));
+                            break;
+                        case 'K':
+                            if((error = scep_read_key(handle, &cmd_args.pkcsreq.sig_key, arg)) != SCEPE_CLIENT_OK)
+                                argp_failure(state, 1, 0, "Failed to load signature key: %s", scep_client_strerror(error));
+                            break;
+                        case 'O':
+                            if((error = scep_read_cert(handle, &cmd_args.pkcsreq.sig_cert, arg)) != SCEPE_CLIENT_OK)
+                                argp_failure(state, 1, 0, "Failed to load signature certificate: %s", scep_client_strerror(error));
+                            break;
+                        case 'e':
+                            if((error = scep_read_cert(handle, &cmd_args.pkcsreq.enc_cert, arg)) != SCEPE_CLIENT_OK)
+                                argp_failure(state, 1, 0, "Failed to load encryption certificate: %s", scep_client_strerror(error));
+                            break;
+                        case 'L':
+                            cmd_args.pkcsreq.self_signed_target = malloc(strlen(arg) + 1);
+                            strncpy(cmd_args.pkcsreq.self_signed_target, arg, strlen(arg) + 1);
+                            break;
+                        case 't':
+                            cmd_args.pkcsreq.poll_interval = strtoul(arg, NULL, 10);
+                            break;
+                        case 'T':
+                            cmd_args.pkcsreq.max_poll_time = strtoul(arg, NULL, 10);
+                            break;
+                        case 'n':
+                            cmd_args.pkcsreq.max_poll_count = strtoul(arg, NULL, 10);
+                            break;
+                        case 'R':
+                            cmd_args.pkcsreq.resume = 1;
+                            break;
+                    }
+                    break;
+                case SCEPOP_GETCERT:
+                    break;
+                case SCEPOP_GETCRL:
+                    break;
+                default:
+                    return ARGP_ERR_UNKNOWN;
+            }
             break;
     }
     return 0;
@@ -216,12 +219,52 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 int main(int argc, char *argv[])
 {
     struct cmd_handle_t cmd_handle;
+    struct cmd_args_t cmd_args;
     SCEP_ERROR error;
+    PKCS7 *request = NULL;
+    memset(&cmd_handle, 0, sizeof(cmd_handle));
     if((error = scep_init(&cmd_handle.handle)) != SCEPE_OK) {
         fprintf(stderr, "Failed to initialize basic SCEP structure: %s\n", scep_strerror(error));
         exit(1);
     }
+
+    if((error = scep_conf_set(cmd_handle.handle, SCEPCFG_LOG, BIO_new_fp(stdout, 0))) != SCEPE_OK) {
+        fprintf(stderr, "Failed to set log BIO: %s\n", scep_strerror(error));
+        exit(1);
+    }
+
     cmd_handle.cmd_args.operation = SCEPOP_NONE;
     argp_parse(&argp, argc, argv, 0, 0, &cmd_handle);
+
+    switch(cmd_handle.cmd_args.operation)
+    {
+        case SCEPOP_GETCACERT:
+            break;
+        case SCEPOP_PKCSREQ:
+            if((error = scep_pkcsreq(
+                    cmd_handle.handle,
+                    cmd_args.pkcsreq.request,
+                    cmd_args.pkcsreq.sig_cert,
+                    cmd_args.pkcsreq.sig_key,
+                    cmd_args.pkcsreq.enc_cert,
+                    cmd_handle.handle->configuration->encalg,
+                    &request
+                    )) != SCEPE_OK)
+                exit(1);
+            // send request
+            // parse response
+            break;
+        case SCEPOP_GETCERT:
+            break;
+        case SCEPOP_GETCRL:
+            break;
+        case SCEPOP_GETNEXTCACERT:
+            break;
+        case SCEPOP_NONE:
+            scep_log(cmd_handle.handle, FATAL, "Missing Operation\n");
+            exit(1);
+    }
+
+    scep_cleanup(cmd_handle.handle);
     exit(0);
 }
