@@ -157,7 +157,7 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 	va_list args;
 	char *filecopy, *filename;
 	if(handle->configuration->log &&
-			handle->configuration->verbosity > verbosity)
+			handle->configuration->verbosity >= verbosity)
 	{
 		filecopy = strdup(file);
 		filename = basename(filecopy);
