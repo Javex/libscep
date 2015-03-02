@@ -12,32 +12,42 @@ struct cmd_args_t
 {
     SCEP_OPERATION operation;
 
-    /* GetCA */
-    char *identifier;
-    char *target_filename;
+    union {
+        struct {
+            /* GetCA */
+            char *identifier;
+            const EVP_MD *fp_algorithm;
+        } getca;
 
-    /* PKCSReq */
-    EVP_PKEY *request_key;
-    X509_REQ *request;
-    EVP_PKEY *sig_key;
-    X509 *sig_cert;
-    X509 *ca_cert;
-    char *self_signed_target;
-    int poll_interval;
-    int max_poll_time;
-    int max_poll_count;
-    int resume;
+        struct {
+            /* PKCSReq */
+            EVP_PKEY *request_key;
+            X509_REQ *request;
+            EVP_PKEY *sig_key;
+            X509 *sig_cert;
+            X509 *ca_cert;
+            char *self_signed_target;
+            int poll_interval;
+            int max_poll_time;
+            int max_poll_count;
+            int resume;
+        } pkcsreq;
 
-    /* GetCert */
-    int serial; // TODO: Is int enough!?
-    char *target_cert_filename;
+        struct {
+            /* GetCert */
+            EVP_PKEY *private_key;
+            X509 *local_cert;
+            ASN1_INTEGER *serial;
+            char *target_cert_filename;
+        } getcert;
 
-    /* GetCRL */
-    char *target_crl_filename;
-
-    /* GetCRL & GetCert */
-    EVP_PKEY *private_key;
-    X509 *local_cert;
+        struct {
+            /* GetCRL */
+            EVP_PKEY *private_key;
+            X509 *local_cert;
+            char *target_crl_filename;
+        } getcrl;
+    };
 };
 
 
@@ -105,7 +115,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
     const EVP_CIPHER *enc_alg = NULL;
     const EVP_MD *sig_alg = NULL;
     SCEP_OPERATION op;
-    if(key == ARGP_KEY_ARG) {
+    if(key == ARGP_KEY_ARG && cmd_args.operation == SCEPOP_NONE) {
         if(state->arg_num > 1)
             argp_failure(state, 1, 0, "only one operation per execution");
         if(strncmp(arg, "getca", 5) == 0)
@@ -140,7 +150,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
             scep_conf_set(handle, SCEPCFG_PROXY, arg);
             break;
         case 'f':
-            return ARGP_ERR_UNKNOWN; // NYI
+            return ENOSYS; // NYI
             break;
         case 'E':
             if(strncmp(arg, "blowfish", 8) == 0)
