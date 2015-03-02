@@ -168,7 +168,6 @@ SCEP_ERROR scep_pkcsreq(
 SCEP_ERROR scep_create_oids(SCEP *);
 
 SCEP_ERROR scep_conf_init(SCEP *handle);
-SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str);
 void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 
