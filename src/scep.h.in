@@ -97,6 +97,7 @@ typedef enum {
 } SCEP_ERROR;
 
 typedef enum {
+	SCEPOP_NONE,
 	SCEPOP_GETCACERT,
 	SCEPOP_PKCSREQ,
 	SCEPOP_GETCERT,
