@@ -51,9 +51,9 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 			{
 				scep_log(handle,
 						ERROR,
-						"Overwriting the BIO log is not allowed and also not"
+						"Overwriting the BIO log is not allowed and also not "
 						"recommended. BIOs can be modified in-place and "
-						"should never need to be swapped.");
+						"should never need to be swapped.\n");
 				error = SCEPE_DUPLICATE_BIO;
 				break;
 			}
