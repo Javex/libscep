@@ -13,3 +13,13 @@ The library itself is pretty basic. It gets initialized, then one or multiple
 operations can be executed and then it gets destroyed again.
 
 *Note*: This is currently in development phase und not yet ready.
+
+Compiling
+----------
+
+Dependencies: `openssl`
+
+    mkdir build
+    cmake ..
+    make
+    make test
