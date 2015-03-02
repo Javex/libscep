@@ -68,14 +68,14 @@ static struct argp_option options[] = {
     {"proxy", 'p', "host:port", 0, "Use proxy server at host:port"},
     {"configuration", 'f', "file", 0, "Use configuration file"},
     {"encryption-algorithm", 'E', "algorithm", 0, "PKCS#7 encryption algorithm (des|3des|blowfish)"},
-    {"signature-algorithm", 'S', "algorithm", 0, "PKCS#7 signature algorithm (md5|sha1)"},
+    {"signature-algorithm", 'S', "algorithm", 0, "PKCS#7 signature algorithm (md5|sha1|sha256|sha512)"},
     {"verbose", 'v', 0, 0, "Verbose output"},
     {"debug", 'd', 0, 0, "Debug (even more verbose output)"},
     
     /* GetCA Options */
     {"\nOPTIONS for OPERATION getca are:", 0, 0, OPTION_DOC, 0, 1},
     {"identifier", 'i', "string", 0, "CA identifier string", 2},
-    {"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm", 2},
+    {"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512", 2},
 
     /* PKCSReq Options */
     {"\nOPTIONS for OPERATION enroll are:", 0, 0, OPTION_DOC, 0, 2},
@@ -112,6 +112,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
 {
     struct cmd_handle_t *cmd_handle = state->input;
     SCEP *handle = cmd_handle->handle;
+    struct cmd_args_t cmd_args = cmd_handle->cmd_args;
     const EVP_CIPHER *enc_alg = NULL;
     const EVP_MD *sig_alg = NULL;
     SCEP_OPERATION op;
@@ -188,8 +189,21 @@ parse_opt(int key, char *arg, struct argp_state *state)
     switch(key)
     {
         case 'i':
+            cmd_args.getca.identifier = malloc(strlen(arg) + 1);
+            strncpy(cmd_args.getca.identifier, arg, strlen(arg) + 1);
             break;
         case 'F':
+            if(strncmp(arg, "md5", 3) == 0)
+                sig_alg = EVP_md5();
+            else if(strncmp(arg, "sha1", 4) == 0)
+                sig_alg = EVP_sha1();
+            else if(strncmp(arg, "sha256", 6) == 0)
+                sig_alg = EVP_sha256();
+            else if(strncmp(arg, "sha512", 6) == 0)
+                sig_alg = EVP_sha512();
+            else
+                argp_failure(state, 1, 0, "Invalid fingerprint signature algorithm: %s\n", arg);
+            cmd_args.getca.fp_algorithm = sig_alg;
             break;
     }
     return 0;
