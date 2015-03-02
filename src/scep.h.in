@@ -7,8 +7,6 @@
 #include <string.h>
 #include <math.h>
 #include <libgen.h>
-#include <uriparser/Uri.h>
-#include <curl/curl.h>
 
 #include <openssl/x509.h>
 #include <openssl/evp.h>
@@ -16,15 +14,14 @@
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
-#define DEFAULT_POLL_INTERVAL 300
-#define DEFAULT_MAX_POLL_TIME 28800
-#define DEFAULT_MAX_POLL_COUNT 256
 #define DEFAULT_SIGALG EVP_md5()
 #define DEFAULT_ENCALG EVP_des_cbc()
 #define DEFAULT_VERBOSITY ERROR
 
 #define libscep_VERSION_MAJOR @libscep_VERSION_MAJOR@
 #define libscep_VERSION_MINOR @libscep_VERSION_MINOR@
+#define libscep_STR(x) #x
+#define libscep_VERSION_STR(major, minor) "scep-client v" libscep_STR(major) "." libscep_STR(minor)
 
 #define MESSAGE_TYPE_PKCSREQ "19"
 #define MESSAGE_TYPE_CERTREQ "3"
@@ -38,148 +35,123 @@
 #define SCEP_MIME_GETCA_RA "application/x-x509-ca-ra-cert"
 #define SCEP_MIME_GETCA "application/x-x509-ca-cert"
 
-/* macro to free any openssl structure if it exists and dynamically load
- * a new value from a var arg. Massively used in configuration.c
- */
-#define OSSL_CONDITIONAL_FREE(item, type) \
-	if(item) \
-		type ## _free(item); \
-	item = va_arg(arg, type *)
-
 #define scep_log(handle, verbosity, format, ...) \
-	_scep_log(handle, verbosity, __FILE__, __LINE__, format, ##__VA_ARGS__)
+    _scep_log(handle, verbosity, __FILE__, __LINE__, format, ##__VA_ARGS__)
 
 typedef enum {
-	FATAL,
-	ERROR,
-	WARN,
-	INFO,
-	DEBUG,
+    FATAL,
+    ERROR,
+    WARN,
+    INFO,
+    DEBUG,
 } SCEP_VERBOSITY;
 
 typedef enum {
-	/* Global options */
-	SCEPCFG_URL,
-	SCEPCFG_PROXY,
-	SCEPCFG_VERBOSITY,
-	SCEPCFG_SIGALG,
-	SCEPCFG_ENCALG,
-	SCEPCFG_LOG,
+    /* Global options */
+    SCEPCFG_VERBOSITY,
+    SCEPCFG_SIGALG,
+    SCEPCFG_ENCALG,
+    SCEPCFG_LOG,
 } SCEPCFG_TYPE;
 
 typedef enum {
-	SCEPE_OK,
-	SCEPE_MEMORY,
-	SCEPE_INVALID_URL,
-	SCEPE_UNKNOWN_CONFIGURATION,
-	SCEPE_UNKOWN_OPERATION,
-	SCEPE_QUERY_OP,
-	SCEPE_QUERY_PARSE,
-	SCEPE_DUPLICATE_BIO,
+    SCEPE_OK,
+    SCEPE_MEMORY,
+    SCEPE_UNKNOWN_CONFIGURATION,
+    SCEPE_UNKOWN_OPERATION,
+    SCEPE_DUPLICATE_BIO,
 
-	SCEPE_MISSING_URL,
-	SCEPE_MISSING_CSR,
-	SCEPE_MISSING_REQ_KEY,
-	SCEPE_MISSING_CA_CERT,
-	SCEPE_MISSING_SIGKEY,
-	SCEPE_MISSING_SIGCERT,
-	SCEPE_MISSING_CERT_KEY,
-	SCEPE_MISSING_CRL_CERT,
+    SCEPE_MISSING_CSR,
+    SCEPE_MISSING_REQ_KEY,
+    SCEPE_MISSING_CA_CERT,
+    SCEPE_MISSING_SIGKEY,
+    SCEPE_MISSING_SIGCERT,
+    SCEPE_MISSING_CERT_KEY,
+    SCEPE_MISSING_CRL_CERT,
 
-	SCEPE_CURL,
-	SCEPE_INVALID_RESPONSE,
-	SCEPE_NYI,
-	SCEPE_OPENSSL,
+    SCEPE_INVALID_RESPONSE,
+    SCEPE_NYI,
+    SCEPE_OPENSSL,
 
-	// this always needs to be the last error for unit tests. It is used to
-	// make sure we test all error messages.
-	SCEPE_DUMMY_LAST_ERROR,
+    // this always needs to be the last error for unit tests. It is used to
+    // make sure we test all error messages.
+    SCEPE_DUMMY_LAST_ERROR,
 } SCEP_ERROR;
 
 typedef enum {
-	SCEPOP_NONE,
-	SCEPOP_GETCACERT,
-	SCEPOP_PKCSREQ,
-	SCEPOP_GETCERT,
-	SCEPOP_GETCRL,
-	SCEPOP_GETNEXTCACERT,
+    SCEPOP_NONE,
+    SCEPOP_GETCACERT,
+    SCEPOP_PKCSREQ,
+    SCEPOP_GETCERT,
+    SCEPOP_GETCRL,
+    SCEPOP_GETNEXTCACERT,
 } SCEP_OPERATION;
 
-typedef enum {
-	SUCCESS = 0,
-	FAILURE = 2,
-	PENDING = 3,
-} scep_pkiStatus_t;
+enum {
+    SUCCESS = 0,
+    FAILURE = 2,
+    PENDING = 3,
+} SCEP_PKISTATUS;
 
 typedef enum {
-	badAlg = 0,
-	badMessageCheck = 1,
-	badRequest = 2,
-	badTime = 3,
-	badCertId = 4,
-} scep_failInfo_t;
+    badAlg = 0,
+    badMessageCheck = 1,
+    badRequest = 2,
+    badTime = 3,
+    badCertId = 4,
+} SCEP_FAILINFO;
 
 typedef struct {
-	UriUriA *url;
-	UriUriA *proxy;
-	SCEP_VERBOSITY verbosity;
-	EVP_MD *sigalg;
-	EVP_CIPHER *encalg;
-	BIO *log;
+    SCEP_VERBOSITY verbosity;
+    EVP_MD *sigalg;
+    EVP_CIPHER *encalg;
+    BIO *log;
 } SCEP_CONFIGURATION;
 
 typedef struct {
-	int messageType;
-	int pkiStatus;
-	int failInfo;
-	int senderNonce;
-	int recipientNonce;
-	int transId;
-	int extensionReq;
+    int messageType;
+    int pkiStatus;
+    int failInfo;
+    int senderNonce;
+    int recipientNonce;
+    int transId;
+    int extensionReq;
 } SCEP_OIDS;
 
 typedef struct {
-	SCEP_CONFIGURATION *configuration;
-	SCEP_OIDS oids;
+    SCEP_CONFIGURATION *configuration;
+    SCEP_OIDS oids;
 } SCEP;
 
+typedef struct pkcs7_issuer_and_subject_st
+{
+    X509_NAME *issuer;
+    X509_NAME *subject;
+} PKCS7_ISSUER_AND_SUBJECT;
+
+/* public return value containing all relevant values of a request */
 typedef struct {
-	char *payload;
-	int length;
-	long status;
-	char *content_type;
-} SCEP_REPLY;
+    char *transactionID;
+    unsigned char *senderNonce;
+    unsigned char *recipientNonce;
+    X509 *signer_certificate;
+    char *messageType;
+    int messageType_int;
+    union {
+        X509_REQ *request;  // PKCSReq
+        X509_CRL *crl;  // GetCRL
+        PKCS7_ISSUER_AND_SERIAL *issuer_and_serial; // GetCert
+        PKCS7_ISSUER_AND_SUBJECT *issuer_and_subject; // GetCertInitial
+    };
+} SCEP_DATA;
 
-typedef struct {
-	char *transactionID;
-	char *messageType;
-	unsigned char *senderNonce;
-
-	scep_pkiStatus_t pkiStatus;
-	scep_failInfo_t failInfo;
-	unsigned char *recipientNonce;
-} scep_pkiMessage_t;
-
-typedef struct {
-	char *transactionID;
-	unsigned char *senderNonce;
-	unsigned char *recipientNonce;
-	X509 *signer_certificate;
-	char *messageType;
-	int messageType_int;
-	union {
-		X509_REQ *request;  // PKCSReq
-		X509_CRL *crl;  // GetCRL
-		PKCS7_ISSUER_AND_SERIAL *ias; // GetCert
-	};
-} SCEP_REQUEST;
-
+/* internal structure to handle operations */
 struct p7_data_t {
-	PKCS7 *p7;
-	BIO *bio;
-	PKCS7_SIGNER_INFO *signer_info;
-	unsigned char sender_nonce[NONCE_LENGTH];
-	char *transaction_id;
+    PKCS7 *p7;
+    BIO *bio;
+    PKCS7_SIGNER_INFO *signer_info;
+    unsigned char sender_nonce[NONCE_LENGTH];
+    char *transaction_id;
 };
 
 /* External functions */
@@ -188,11 +160,9 @@ void scep_cleanup(SCEP *handle);
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
 char *scep_strerror(SCEP_ERROR err);
 
-SCEP_ERROR scep_operation_getcacert(SCEP *handle, char *issuer, STACK_OF(X509) **certs);
-SCEP_ERROR scep_operation_pkcsreq(SCEP *handle, X509 **cert);
-SCEP_ERROR scep_operation_getcert(SCEP *handle, X509 **cert);
-SCEP_ERROR scep_operation_getcrl(SCEP *handle, X509_CRL **crl);
-SCEP_ERROR scep_operation_getnextcacert(SCEP *handle, X509 **cert);
+SCEP_ERROR scep_pkcsreq(
+    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage);
 
 /* Internal functions */
 SCEP_ERROR scep_create_oids(SCEP *);
@@ -202,28 +172,19 @@ SCEP_ERROR scep_conf_set_url(SCEP *handle, SCEPCFG_TYPE type, char *url_str);
 void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 
-SCEP_ERROR scep_operation_init(SCEP *handle, scep_pkiMessage_t **pkiMessage);
-
-size_t scep_recieve_data(void *buffer, size_t size, size_t nmemb, void *userp);
-SCEP_ERROR scep_send_request(SCEP *handle, char *operation, char *message,
-		SCEP_REPLY **reply);
-SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
+SCEP_ERROR scep_calculate_transaction_id(
+    SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
-		int line, char *format, ...);
-void scep_reply_free(SCEP_REPLY *reply);
+        int line, char *format, ...);
 
-SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data);
+SCEP_ERROR scep_p7_client_init(
+    SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key,
+    struct p7_data_t *p7data);
 SCEP_ERROR scep_p7_server_init(SCEP *handle, struct p7_data_t *p7data);
 SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7);
 
 SCEP_ERROR scep_pkiMessage(
-        SCEP *handle,
-        char *messageType, BIO *data,
-        X509 *enc_cert, const EVP_CIPHER *enc_alg,
-        struct p7_data_t *p7data);
-
-SCEP_ERROR scep_pkcsreq(
-    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-        X509 *enc_cert, const EVP_CIPHER *enc_alg,
-        PKCS7 **pkiMessage);
+    SCEP *handle, char *messageType, BIO *data,
+    X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    struct p7_data_t *p7data);
 #endif /* SCEP_H_ */

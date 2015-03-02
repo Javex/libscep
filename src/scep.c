@@ -6,7 +6,6 @@ SCEP_ERROR scep_init(SCEP **handle)
 {
 	SCEP *local_handle;
 	SCEP_ERROR error;
-	curl_global_init(CURL_GLOBAL_ALL);
 	OpenSSL_add_all_algorithms();
 	ERR_load_crypto_strings();
 	if(!(local_handle = malloc(sizeof(SCEP))))
@@ -32,7 +31,6 @@ void scep_cleanup(SCEP *handle)
 	EVP_cleanup();
 	scep_conf_free(handle->configuration);
 	free(handle);
-	curl_global_cleanup();
 }
 
 SCEP_ERROR scep_create_oids(SCEP *handle)
