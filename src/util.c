@@ -37,6 +37,9 @@ char *scep_strerror(SCEP_ERROR err)
 		case SCEPE_MISSING_CRL_CERT:
 			return "To request a CRL you need to provide the certificate "
 					"which you want to validate";
+		case SCEPE_INVALID_CONTENT:
+			return "The content did not match protocol specifications. "
+					"Consult log for additional information.";
 		case SCEPE_NYI:
 			return "Action is defined by protocol but client does not yet "
 					"support it. See log for details on which action is "

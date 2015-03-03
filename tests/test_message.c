@@ -6,7 +6,7 @@
 
 SCEP *handle;
 BIO *scep_log;
-PKCS7 *p7;
+PKCS7 *p7 = NULL;
 EVP_PKEY *dec_key;
 X509 *dec_cert;
 
@@ -58,15 +58,16 @@ char *test_new_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "-----END RSA PRIVATE KEY-----";
 
 char *test_new_csr = "-----BEGIN CERTIFICATE REQUEST-----\n"
-"MIIBhDCB7gIBADBFMQswCQYDVQQGEwJBVTETMBEGA1UECBMKU29tZS1TdGF0ZTEh\n"
-"MB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0cyBQdHkgTHRkMIGfMA0GCSqGSIb3DQEB\n"
-"AQUAA4GNADCBiQKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56\n"
-"nhL3X1Xuv+3e6HWS74IOWbwuZXADdSWswFMefJuh6D4tRACzvgbOuXaxxopj9PYn\n"
-"ieNunATNl1O1fy1QG3uJiy+QuQe3/xfIIwIVtvsx5ckMfRHk4g4lsOJwLofIvwID\n"
-"AQABoAAwDQYJKoZIhvcNAQEFBQADgYEAe2JFYCaHVkpDNIWXBU9Q2WiPzVBhOPIu\n"
-"OYMK8+h22AcvTxC0vXDfMItBYFo7qUSu9ITU03sVjnc4pt5KE422/ZCy4x2PrPfE\n"
-"TVLyJrDSrTiXLKhG4qWYDUn1PaPkbDkZGVhSrQGfnDLIl9yMPYxWLLj1R2YDJ3x3\n"
-"mSUfZ4/vOWA=\n"
+"MIIBtTCCAR4CAQAwVzELMAkGA1UEBhMCQVUxEzARBgNVBAgTClNvbWUtU3RhdGUx\n"
+"ITAfBgNVBAoTGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEQMA4GA1UEAxMHZm9v\n"
+"LmJhcjCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEApws+aot5FvGrzwj4Zijl\n"
+"MEkaQnKjotER97Rm7q7QqB5eep4S919V7r/t3uh1ku+CDlm8LmVwA3UlrMBTHnyb\n"
+"oeg+LUQAs74Gzrl2scaKY/T2J4njbpwEzZdTtX8tUBt7iYsvkLkHt/8XyCMCFbb7\n"
+"MeXJDH0R5OIOJbDicC6HyL8CAwEAAaAeMBwGCSqGSIb3DQEJBzEPEw1GT09CQVJU\n"
+"RVNUUFdEMA0GCSqGSIb3DQEBBQUAA4GBACHwu5U6KNAsgFkmgU6DNBQXriPwRvvn\n"
+"uGCzClbjbwGnoi9XCtgepO6I6AbDokjpuuU8/JEGAqKwtRzOsvGJyq4tphAPf/89\n"
+"/H+xoHva5tgIGv9zUQSj/6Q0B7TEUKLfVC4H0K9wde+5g13l82EzXXrsCjnyB3S7\n"
+"SLYGjIEJ2RwX\n"
 "-----END CERTIFICATE REQUEST-----";
 
 char *test_server_cert = "-----BEGIN CERTIFICATE-----\n"
@@ -118,7 +119,7 @@ void generic_teardown()
 
 void make_message_data(
 		X509 **sig_cert, EVP_PKEY **sig_key, X509_REQ **req, 
-		char **messageType, X509 **enc_cert, const EVP_CIPHER **enc_alg)
+		X509 **enc_cert, const EVP_CIPHER **enc_alg)
 {
 	BIO *b;
 	if(*sig_cert == NULL || *sig_key == NULL) {
@@ -151,10 +152,6 @@ void make_message_data(
 		BIO_free(b);
 	}
 
-	if(*messageType == NULL) {
-		*messageType = MESSAGE_TYPE_PKCSREQ;
-	}
-
 	if(*enc_cert == NULL) {
 		b = BIO_new(BIO_s_mem());
 		BIO_puts(b, test_server_cert);
@@ -168,10 +165,10 @@ void make_message_data(
 
 PKCS7 *make_pkcsreq_message(
 		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req, 
-		char *messageType, X509 *enc_cert, const EVP_CIPHER *enc_alg)
+		X509 *enc_cert, const EVP_CIPHER *enc_alg)
 {
 	PKCS7 *p7;
-	make_message_data(&sig_cert, &sig_key, &req, &messageType, &enc_cert, &enc_alg);
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
 	ck_assert(scep_pkcsreq(
 		handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_OK);
 	return p7;
@@ -228,7 +225,7 @@ BIO *get_decrypted_data(PKCS7 *p7)
 void pkcsreq_setup()
 {
 	generic_setup();
-	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
 }
 
 void pkcsreq_teardown()
@@ -318,19 +315,78 @@ END_TEST
 
 START_TEST(test_scep_pkcsreq_missing_dn)
 {
-	ck_assert(0);
+	BIGNUM *bne = BN_new();
+	ck_assert(BN_set_word(bne, RSA_F4));
+	RSA *r = RSA_new();
+	ck_assert(RSA_generate_key_ex(r, 2048, bne, NULL));
+
+	X509_REQ *req = X509_REQ_new();
+	ck_assert(X509_REQ_set_version(req, 1));
+
+	EVP_PKEY *key = EVP_PKEY_new();
+	EVP_PKEY_assign_RSA(key, r);
+	ck_assert(X509_REQ_set_pubkey(req, key));
+	ck_assert(X509_REQ_sign(req, key, EVP_sha1()));
+
+	X509 *sig_cert = NULL, *enc_cert = NULL;
+	EVP_PKEY *sig_key = NULL;
+	const EVP_CIPHER *enc_alg = NULL;
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
+	ck_assert(p7 == NULL);
 }
 END_TEST
 
 START_TEST(test_scep_pkcsreq_missing_pubkey)
 {
-	ck_assert(0);
+	BIGNUM *bne = BN_new();
+	ck_assert(BN_set_word(bne, RSA_F4));
+	RSA *r = RSA_new();
+	ck_assert(RSA_generate_key_ex(r, 2048, bne, NULL));
+
+	X509_REQ *req = X509_REQ_new();
+	ck_assert(X509_REQ_set_version(req, 1));
+
+	X509_NAME *name = X509_REQ_get_subject_name(req);
+	ck_assert(X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, "DE", -1, -1, 0));
+
+	EVP_PKEY *key = EVP_PKEY_new();
+	EVP_PKEY_assign_RSA(key, r);
+	ck_assert(X509_REQ_sign(req, key, EVP_sha1()));
+
+	X509 *sig_cert = NULL, *enc_cert = NULL;
+	EVP_PKEY *sig_key = NULL;
+	const EVP_CIPHER *enc_alg = NULL;
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
+	ck_assert(p7 == NULL);
 }
 END_TEST
 
 START_TEST(test_scep_pkcsreq_missing_challenge_password)
 {
-	ck_assert(0);
+	BIGNUM *bne = BN_new();
+	ck_assert(BN_set_word(bne, RSA_F4));
+	RSA *r = RSA_new();
+	ck_assert(RSA_generate_key_ex(r, 2048, bne, NULL));
+
+	X509_REQ *req = X509_REQ_new();
+	ck_assert(X509_REQ_set_version(req, 1));
+
+	X509_NAME *name = X509_REQ_get_subject_name(req);
+	ck_assert(X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, "DE", -1, -1, 0));
+
+	EVP_PKEY *key = EVP_PKEY_new();
+	EVP_PKEY_assign_RSA(key, r);
+	ck_assert(X509_REQ_set_pubkey(req, key));
+	ck_assert(X509_REQ_sign(req, key, EVP_sha1()));
+
+	X509 *sig_cert = NULL, *enc_cert = NULL;
+	EVP_PKEY *sig_key = NULL;
+	const EVP_CIPHER *enc_alg = NULL;
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
+	ck_assert(p7 == NULL);
 }
 END_TEST
 
@@ -348,10 +404,14 @@ Suite * scep_message_suite(void)
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_type);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_content_type);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq);
-	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq_missing_dn);
-	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq_missing_pubkey);
-	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq_missing_challenge_password);
 	suite_add_tcase(s, tc_pkcsreq_msg);
+
+	TCase *tc_pkcsreq_errors = tcase_create("PKCSReq Invalid");
+	tcase_add_checked_fixture(tc_pkcsreq_errors, generic_setup, generic_teardown);
+	tcase_add_test(tc_pkcsreq_errors, test_scep_pkcsreq_missing_dn);
+	tcase_add_test(tc_pkcsreq_errors, test_scep_pkcsreq_missing_pubkey);
+	tcase_add_test(tc_pkcsreq_errors, test_scep_pkcsreq_missing_challenge_password);
+	suite_add_tcase(s, tc_pkcsreq_errors);
 
 	return s;
 }

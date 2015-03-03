@@ -81,6 +81,9 @@ SCEP_ERROR scep_pkcsreq(
     EVP_PKEY *req_pubkey = NULL;
     SCEP_ERROR error = SCEPE_OK;
     struct p7_data_t p7data;
+    X509_NAME *subject;
+    char *subject_str = NULL;
+    int passwd_index;
 
 #define OSSL_ERR(msg)                                   \
     do {                                                \
@@ -90,7 +93,26 @@ SCEP_ERROR scep_pkcsreq(
         goto finally;                                   \
     } while(0)
 
-    // TODO: verify that request contains required attributes
+    subject = X509_REQ_get_subject_name(req);
+    subject_str = X509_NAME_oneline(subject, NULL, 0);
+    if(!strlen(subject_str)) {
+        scep_log(handle, ERROR, "Need a subject on CSR as required by SCEP protocol specification.\n");
+        return SCEPE_INVALID_CONTENT;
+    }
+    scep_log(handle, INFO, "Certificate subject: %s\n", subject_str);
+    free(subject_str);
+
+    req_pubkey = X509_REQ_get_pubkey(req);
+    if(!req_pubkey) {
+        scep_log(handle, ERROR, "Need public key on CSR.\n");
+        return SCEPE_INVALID_CONTENT;
+    }
+
+    passwd_index = X509_REQ_get_attr_by_NID(req, NID_pkcs9_challengePassword, -1);
+    if(passwd_index == -1) {
+        scep_log(handle, ERROR, "Need challenge password field on CSR.\n");
+        return SCEPE_INVALID_CONTENT;
+    }
 
     databio = BIO_new(BIO_s_mem());
     if(!databio)
@@ -98,10 +120,6 @@ SCEP_ERROR scep_pkcsreq(
 
     if(i2d_X509_REQ_bio(databio, req) <= 0)
         OSSL_ERR("Could not read request into data BIO.\n");
-
-    req_pubkey = X509_REQ_get_pubkey(req);
-    if(!req_pubkey)
-        OSSL_ERR("Could not get public key from CSŖ.\n");
 
     if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)) != SCEPE_OK)
         goto finally;
