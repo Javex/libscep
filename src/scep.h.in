@@ -134,6 +134,7 @@ typedef struct {
     char *transactionID;
     unsigned char *senderNonce;
     unsigned char *recipientNonce;
+    char *challenge_password;
     X509 *signer_certificate;
     char *messageType;
     int messageType_int;
