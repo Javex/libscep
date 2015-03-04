@@ -352,12 +352,13 @@ START_TEST(test_scep_pkcsreq)
 	ck_assert(ref_buf_len);
 	ck_assert(ref_buf_len == data_buf_len);
 	ck_assert(memcmp(ref_buf, data_buf, ref_buf_len));
-	// how to verify this, what to test?
-	ck_assert(0);
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_PKCSREQ,
 		get_attribute_data(p7, handle->oids.messageType));
+
+	// how to verify this, what to test?
+	ck_assert(0);
 }
 END_TEST
 
