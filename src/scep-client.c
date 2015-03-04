@@ -134,6 +134,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
     const EVP_MD *sig_alg = NULL;
     SCEP_OPERATION op;
     SCEP_CLIENT_ERROR error;
+    SCEP_ERROR lib_error;
     if(key == ARGP_KEY_ARG) {
         if(cmd_args->operation != SCEPOP_NONE)
             return 0;
@@ -159,6 +160,17 @@ parse_opt(int key, char *arg, struct argp_state *state)
         if(cmd_args->operation == SCEPOP_PKCSREQ || cmd_args->operation == SCEPOP_GETCERTINITIAL) {
             if(!cmd_args->pkcsreq.enc_cert)
                 cmd_args->pkcsreq.enc_cert = cmd_args->cacert;
+            if(!cmd_args->pkcsreq.sig_key)
+                cmd_args->pkcsreq.sig_key = cmd_args->pkcsreq.request_key;
+            if(!cmd_args->pkcsreq.sig_cert)
+                if((lib_error = scep_new_selfsigned_X509(
+                        handle,
+                        cmd_args->pkcsreq.request,
+                        cmd_args->pkcsreq.request_key,
+                        &cmd_args->pkcsreq.sig_cert)) != SCEPE_OK) {
+                    fprintf(stderr, "Error generating selfsinged certificate: %s\n", scep_strerror(lib_error));
+                    exit(1);
+                }
         }
     }
 

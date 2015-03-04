@@ -14,6 +14,35 @@ SCEP *handle;
 #define TEST_B64_PKCS7_BIN "tests/test-files/util_b64_pkcs7.bin"
 #define TEST_B64_PKCS7_PEM "tests/test-files/util_b64_pkcs7.pem"
 
+char *test_new_key = "-----BEGIN RSA PRIVATE KEY-----\n"
+"MIICXAIBAAKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56nhL3\n"
+"X1Xuv+3e6HWS74IOWbwuZXADdSWswFMefJuh6D4tRACzvgbOuXaxxopj9PYnieNu\n"
+"nATNl1O1fy1QG3uJiy+QuQe3/xfIIwIVtvsx5ckMfRHk4g4lsOJwLofIvwIDAQAB\n"
+"AoGAGt9dMCi11zITsJ/BzjWAAU+RUOU+W+AEYvP7pyQqXxFbo6AwbulAWsM3kieV\n"
+"Woj7RDG9az1YUsYSxILAHGRxaMzpMtJISEECUqlmDYU+/vinU/vYp0a2oAuqFg4G\n"
+"8nSoOQ2aTG5owNNcSrK7FbEcI2XdKZNNHM+82iYv7DA4tBECQQDYJLdeudpBhgiE\n"
+"u6XaRfvlOeRWK7kfgIloz23qjfbgpDkVO40gIOMxUfU7ut19PuwJ5yJJG4mYCCbP\n"
+"wR9Bu1snAkEAxdi7hfgj4Lkdh3C/Qki5K5Q7KR2K6Xhfzpn+fY4SmsLHd/v6QYhF\n"
+"+igQv3Y357dz67+9dxWBzaMsMBFOM7QEqQJBAJadXzofADvQjncP246yXclqAfca\n"
+"GLIe+6GRieJ8cqAvT6fAC6Nrx2VC20R3/oecJRbxfS68hbDvXTxAMuu3BtkCQGdP\n"
+"q2xjjOiWAZNuDpFgREE7YEEyCg2sK+tIgpmxjIl/2IUQ8TczH8dnEIfKBZtcMo4S\n"
+"S69ZbbSh1jsrbjiVcjECQAlyT5MO1eWxksYaW4aFx8w+QO9vxQh0vgkI1fBArbzt\n"
+"sj4kcSMpE9Tn8CeAhi1d0Qwayo8QO1TPbIgay02syMo=\n"
+"-----END RSA PRIVATE KEY-----";
+
+char *test_new_csr = "-----BEGIN CERTIFICATE REQUEST-----\n"
+"MIIBtTCCAR4CAQAwVzELMAkGA1UEBhMCQVUxEzARBgNVBAgTClNvbWUtU3RhdGUx\n"
+"ITAfBgNVBAoTGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEQMA4GA1UEAxMHZm9v\n"
+"LmJhcjCBnzANBgkqhkiG9w0BAQEFAAOBjQAwgYkCgYEApws+aot5FvGrzwj4Zijl\n"
+"MEkaQnKjotER97Rm7q7QqB5eep4S919V7r/t3uh1ku+CDlm8LmVwA3UlrMBTHnyb\n"
+"oeg+LUQAs74Gzrl2scaKY/T2J4njbpwEzZdTtX8tUBt7iYsvkLkHt/8XyCMCFbb7\n"
+"MeXJDH0R5OIOJbDicC6HyL8CAwEAAaAeMBwGCSqGSIb3DQEJBzEPEw1GT09CQVJU\n"
+"RVNUUFdEMA0GCSqGSIb3DQEBBQUAA4GBACHwu5U6KNAsgFkmgU6DNBQXriPwRvvn\n"
+"uGCzClbjbwGnoi9XCtgepO6I6AbDokjpuuU8/JEGAqKwtRzOsvGJyq4tphAPf/89\n"
+"/H+xoHva5tgIGv9zUQSj/6Q0B7TEUKLfVC4H0K9wde+5g13l82EzXXrsCjnyB3S7\n"
+"SLYGjIEJ2RwX\n"
+"-----END CERTIFICATE REQUEST-----";
+
 
 void setup()
 {
@@ -108,6 +137,30 @@ START_TEST(test_scep_log)
 }
 END_TEST
 
+START_TEST(test_scep_new_selfsigned)
+{
+	X509_REQ *req = X509_REQ_new();
+	EVP_PKEY *req_key = EVP_PKEY_new();
+	BIO *data;
+	X509 *cert;
+	data = BIO_new(BIO_s_mem());
+	BIO_puts(data, test_new_csr);
+	ck_assert(PEM_read_bio_X509_REQ(data, &req, 0, 0));
+	BIO_free(data);
+
+	data = BIO_new(BIO_s_mem());
+	BIO_puts(data, test_new_key);
+	ck_assert(PEM_read_bio_PrivateKey(data, &req_key, 0, 0));
+	BIO_free(data);
+
+	ck_assert(scep_new_selfsigned_X509(handle, req, req_key, &cert) == SCEPE_OK);
+	ck_assert_str_eq(X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
+	ck_assert_str_eq(X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
+	ck_assert_str_eq(i2s_ASN1_INTEGER(NULL, X509_get_serialNumber(cert)), "1");
+	ck_assert(X509_verify(cert, req_key));
+}
+END_TEST
+
 Suite * scep_util_suite(void)
 {
 	Suite *s = suite_create("Util");
@@ -119,6 +172,7 @@ Suite * scep_util_suite(void)
 	tcase_add_test(tc_core, test_scep_calculate_transaction_id);
 	tcase_add_test(tc_core, test_scep_PKCS7_base64_encode);
 	tcase_add_test(tc_core, test_scep_log);
+	tcase_add_test(tc_core, test_scep_new_selfsigned);
 
 	suite_add_tcase(s, tc_core);
 
