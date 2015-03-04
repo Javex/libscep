@@ -60,6 +60,70 @@ static struct argp_option options[] = {
     { 0 },
 };
 
+static void verify_arguments(struct argp_state *state)
+{
+    struct cmd_handle_t *cmd_handle = state->input;
+    struct cmd_args_t *cmd_args = &cmd_handle->cmd_args;
+
+#define FAIL(msg, ...) argp_failure(state, 1, 0, msg, ##__VA_ARGS__)
+
+    // general argument check
+    if(!cmd_args->url)
+        FAIL("SCEP server URL required");
+    if(cmd_args->operation == SCEPOP_GETCACERT) {
+            if(!cmd_args->cacert_target)
+                FAIL("Target filename for CA cert missing");
+    } else {
+        if(!cmd_args->cacert)
+            FAIL("Missing CA certificate");
+    }
+
+    // operation specific checks
+    switch(cmd_args->operation)
+    {
+        case SCEPOP_GETCACERT:
+            break;  // no required arguments
+        case SCEPOP_GETCERTINITIAL:
+        case SCEPOP_PKCSREQ:
+            if(!cmd_args->pkcsreq.request_key)
+                FAIL("Key of CSR missing");
+            if(!cmd_args->pkcsreq.request)
+                FAIL("CSR missing");
+            if(!cmd_args->pkcsreq.cert_target_filename)
+                FAIL("Certificate output filename missing");
+            if((!cmd_args->pkcsreq.sig_key && cmd_args->pkcsreq.sig_cert) ||
+                    (!cmd_args->pkcsreq.sig_key && cmd_args->pkcsreq.sig_cert))
+                FAIL("Signature key and certificate always required together");
+            break;
+        case SCEPOP_GETCERT:
+            if(!cmd_args->getcert.private_key)
+                FAIL("Missing private key");
+            if(!cmd_args->getcert.local_cert)
+                FAIL("Missing issuer CA cert");
+            if(!cmd_args->getcert.serial)
+                FAIL("Missing serial for certificate");
+            if(!cmd_args->getcert.target_cert_filename)
+                FAIL("Missing target filepath for requested certificate");
+            break;
+        case SCEPOP_GETCRL:
+            if(!cmd_args->getcrl.private_key)
+                FAIL("Missing private key");
+            if(!cmd_args->getcrl.local_cert)
+                FAIL("Missing CA cert");
+            if(!cmd_args->getcrl.target_crl_filename)
+                FAIL("Missing target filepath for requested CRL");
+            break;
+        case SCEPOP_GETNEXTCACERT:
+            if(!cmd_args->getnextca.ca_chain)
+                FAIL("Missing CA chain");
+            break;
+        case SCEPOP_NONE:
+        default:
+            exit(1);
+    }
+#undef FAIL
+}
+
 static error_t
 parse_opt(int key, char *arg, struct argp_state *state)
 {
@@ -91,6 +155,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
     } else if(key == ARGP_KEY_END) {
         if(state->arg_num < 1)
             argp_failure(state, 1, 0, "Missing operation");
+        verify_arguments(state);
         if(cmd_args->operation == SCEPOP_PKCSREQ || cmd_args->operation == SCEPOP_GETCERTINITIAL) {
             if(!cmd_args->pkcsreq.enc_cert)
                 cmd_args->pkcsreq.enc_cert = cmd_args->cacert;
