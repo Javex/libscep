@@ -41,6 +41,13 @@ struct cmd_args_t
         } getca;
 
         struct {
+            /* GetNextCA */
+            X509_STORE *ca_chain;
+            const EVP_MD *fp_algorithm;
+            char *taget_signer_cert_filename;
+        } getnextca;
+
+        struct {
             /* PKCSReq */
             EVP_PKEY *request_key;
             X509_REQ *request;

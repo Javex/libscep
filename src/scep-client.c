@@ -12,7 +12,7 @@ static struct argp_option options[] = {
     {"url", 'u', "url", 0, "SCEP server URL"},
     {"proxy", 'p', "host:port", 0, "Use proxy server at host:port"},
     {"configuration", 'f', "file", 0, "Use configuration file"},
-    {"ca-cert", 'c', "file", 0, "CA certificate file (write if OPERATION is getca)"},
+    {"ca-cert", 'c', "file", 0, "CA certificate file (write if OPERATION is getca or getnextca)"},
     {"encryption-algorithm", 'E', "algorithm", 0, "PKCS#7 encryption algorithm (des|3des|blowfish)"},
     {"signature-algorithm", 'S', "algorithm", 0, "PKCS#7 signature algorithm (md5|sha1|sha256|sha512)"},
     {"verbose", 'v', 0, 0, "Verbose output"},
@@ -23,33 +23,40 @@ static struct argp_option options[] = {
     {"identifier", 'i', "string", 0, "CA identifier string", 2},
     {"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512", 2},
 
+    /* GetNextCACert */
+    {"\nOPTIONS for OPERATION getnextca are:", 0, 0, OPTION_DOC, 0, 2},
+    {"cert-chain", 'C', "file", 0, "Local certificate chain file for signature verification in PEM format", 3},
+    {"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512", 3},
+    {"signer-cert", 'w', "file", 0, "Write signer certificate in file (optional)", 3},
+
     /* PKCSReq Options */
-    {"\nOPTIONS for OPERATION enroll are:", 0, 0, OPTION_DOC, 0, 2},
-    {"private-key", 'k', "file", 0, "Private key file", 3},
-    {"certificate-request", 'r', "file", 0, "Certificate request file", 3},
-    {"signature-key", 'K', "file", 0, "Signature private key file, use with -O", 3},
-    {"signature-cert", 'O', "file", 0, "Signature certificate (used instead of self-signed)", 3},
-    {"encryption-cert", 'e', "file", 0, "Use different CA cert for encryption", 3},
-    {"self-signed-target", 'L', "file", 0, "Write selfsigned certificate in file", 3},
-    {"poll-interval", 't', "secs", 0, "Polling interval in seconds", 3},
-    {"max-poll-time", 'T', "secs", 0, "Max polling time in seconds", 3},
-    {"max-poll-count", 'n', "count", 0, "Max number of GetCertInitial requests", 3},
+    {"\nOPTIONS for OPERATION enroll are:", 0, 0, OPTION_DOC, 0, 3},
+    {"private-key", 'k', "file", 0, "Private key file", 4},
+    {"certificate-request", 'r', "file", 0, "Certificate request file", 4},
+    {"signature-key", 'K', "file", 0, "Signature private key file, use with -O", 4},
+    {"signature-cert", 'O', "file", 0, "Signature certificate (used instead of self-signed)", 4},
+    {"cert-target", 'l', "file", 0, "Write enrolled certificate in file", 4},
+    {"encryption-cert", 'e', "file", 0, "Use different CA cert for encryption", 4},
+    {"self-signed-target", 'L', "file", 0, "Write selfsigned certificate in file", 4},
+    {"poll-interval", 't', "secs", 0, "Polling interval in seconds", 4},
+    {"max-poll-time", 'T', "secs", 0, "Max polling time in seconds", 4},
+    {"max-poll-count", 'n', "count", 0, "Max number of GetCertInitial requests", 4},
     {"resume", 'R', 0, 0, "Resume interrupted enrollment"},
 
     /* GetCert Options */
-    {"\nOPTIONS for OPERATION getcert are:", 0, 0, OPTION_DOC, 0, 3},
-    {"private-key", 'k', "file", 0, "Private key file", 4},
-    {"local-cert", 'l', "file", 0, "Local certificate file", 4},
-    {"serial", 's', "number", 0, "Certificate serial number", 4},
-    {"certificate-out", 'w', "file", 0, "Write certificate in file", 4},
-
-    /* GetCRL Options */
-    {"\nOPTIONS for OPERATION getcrl are:", 0, 0, OPTION_DOC, 0, 4},
+    {"\nOPTIONS for OPERATION getcert are:", 0, 0, OPTION_DOC, 0, 4},
     {"private-key", 'k', "file", 0, "Private key file", 5},
     {"local-cert", 'l', "file", 0, "Local certificate file", 5},
-    {"crl-out", 'w', "file", 0, "Write CRL in file", 5},
+    {"serial", 's', "number", 0, "Certificate serial number", 5},
+    {"certificate-out", 'w', "file", 0, "Write certificate in file", 5},
 
-    {"\n\n", 0, 0, OPTION_DOC, 0, 5},
+    /* GetCRL Options */
+    {"\nOPTIONS for OPERATION getcrl are:", 0, 0, OPTION_DOC, 0, 5},
+    {"private-key", 'k', "file", 0, "Private key file", 6},
+    {"local-cert", 'l', "file", 0, "Local certificate file", 6},
+    {"crl-out", 'w', "file", 0, "Write CRL in file", 6},
+
+    {"\n\n", 0, 0, OPTION_DOC, 0, 7},
     { 0 },
 };
 
@@ -171,6 +178,8 @@ parse_opt(int key, char *arg, struct argp_state *state)
                             cmd_args.getca.fp_algorithm = sig_alg;
                             break;
                     }
+                    break;
+                case SCEPOP_GETNEXTCACERT:
                     break;
                 case SCEPOP_PKCSREQ:
                 case SCEPOP_GETCERTINITIAL:
