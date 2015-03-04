@@ -105,7 +105,8 @@ parse_opt(int key, char *arg, struct argp_state *state)
                 argp_failure(state, 1, 0, "Setting Proxy failed: %s", scep_client_strerror(error));
             break;
         case 'f':
-            return ENOSYS; // NYI
+            argp_failure(state, 1, 0, "Configuration File not supported, yet");
+            break;
         case 'c':
             if(cmd_args.operation == SCEPOP_GETCACERT) {
                 cmd_args.cacert_target = malloc(strlen(arg) + 1);
