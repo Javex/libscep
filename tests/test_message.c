@@ -85,6 +85,21 @@ char *test_server_cert = "-----BEGIN CERTIFICATE-----\n"
 "ublOOHR0hldn/XqR7hKfZ/uIPnznQeKkVGjrEs223vtf7cI=\n"
 "-----END CERTIFICATE-----\n";
 
+char *test_server_ca_cert = "-----BEGIN CERTIFICATE-----\n"
+"MIICLzCCAZgCCQDTeVgTQPW40zANBgkqhkiG9w0BAQUFADBbMQswCQYDVQQGEwJE\n"
+"RTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0\n"
+"cyBQdHkgTHRkMRQwEgYDVQQDEwtmb28uYmFyLmNvbTAgFw0xNTAyMjYxMjAwMzla\n"
+"GA8yMTE1MDIwMjEyMDAzOVowWzELMAkGA1UEBhMCREUxEzARBgNVBAgTClNvbWUt\n"
+"U3RhdGUxITAfBgNVBAoTGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEUMBIGA1UE\n"
+"AxMLZm9vLmJhci5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANFEiTNr\n"
+"xDGehD636meTlC2yAmINuZn7pU9CC4BudfdDAI2YdoB9h9YqRk773EYAveAfSMYg\n"
+"/ySzMlzz+yb8skZwctrocJYGpgB4N0BpmkGt7VSK9qwT4mRXqL6G2Cvvifi4BBYP\n"
+"Q4c5JvYP43cDd7/Yb7Hg3Do8tG16Zo6AXaFpAgMBAAEwDQYJKoZIhvcNAQEFBQAD\n"
+"gYEAbUXoPS+AhHuO7T7KRdgwJDLyr15dwUplGwtZT+MoOnnDMRWv/0VG4QUbBwvP\n"
+"5Jrrk/lRHKajXLmzrqaoiadGzj6vCOh+zuf/KAOhQjvYtZyL0b727W1Sf2i7Cij+\n"
+"ublOOHR0hldn/XqR7hKfZ/uIPnznQeKkVGjrEs223vtf7cI=\n"
+"-----END CERTIFICATE-----\n";
+
 char *test_server_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "MIICXgIBAAKBgQDRRIkza8QxnoQ+t+pnk5QtsgJiDbmZ+6VPQguAbnX3QwCNmHaA\n"
 "fYfWKkZO+9xGAL3gH0jGIP8kszJc8/sm/LJGcHLa6HCWBqYAeDdAaZpBre1Uivas\n"
@@ -174,6 +189,27 @@ PKCS7 *make_pkcsreq_message(
 	return p7;
 }
 
+
+PKCS7 *make_gci_message(
+		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req,
+		X509 *enc_cert, const EVP_CIPHER *enc_alg, X509 *cacert)
+{
+	PKCS7 *p7;
+	BIO *b;
+
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, test_server_ca_cert);
+	PEM_read_bio_X509(b, &cacert, 0, 0);
+	BIO_free(b);
+
+	ck_assert(scep_get_cert_initial(
+		handle, req, sig_cert, sig_key,
+		cacert, enc_cert, enc_alg, &p7) == SCEPE_OK);
+	return p7;
+}
+
 SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 	BIO *pkcs7bio = NULL;
 	PKCS7 *content = NULL;
@@ -229,6 +265,18 @@ void pkcsreq_setup()
 }
 
 void pkcsreq_teardown()
+{
+	generic_teardown();
+	PKCS7_free(p7);
+}
+
+void gci_setup()
+{
+	generic_setup();
+	p7 = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
+void gci_teardown()
 {
 	generic_teardown();
 	PKCS7_free(p7);
@@ -391,6 +439,24 @@ START_TEST(test_scep_pkcsreq_missing_challenge_password)
 END_TEST
 
 
+START_TEST(test_scep_gci)
+{
+	BIO *data = get_decrypted_data(p7);
+
+	unsigned char *data_buf;
+	int data_buf_len = BIO_get_mem_data(data, &data_buf);
+	ck_assert(data_buf_len);
+
+	ck_assert_str_eq(
+		MESSAGE_TYPE_GETCERTINITIAL,
+		get_attribute_data(p7, handle->oids.messageType));
+
+	// how to verify this, what to test?
+	ck_assert(0);
+}
+END_TEST
+
+
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
@@ -412,6 +478,14 @@ Suite * scep_message_suite(void)
 	tcase_add_test(tc_pkcsreq_errors, test_scep_pkcsreq_missing_pubkey);
 	tcase_add_test(tc_pkcsreq_errors, test_scep_pkcsreq_missing_challenge_password);
 	suite_add_tcase(s, tc_pkcsreq_errors);
+
+	/* GetCertInitial tests */
+	TCase *tc_gci_msg = tcase_create("GetCertInitial Message");
+	tcase_add_checked_fixture(tc_gci_msg, gci_setup, gci_teardown);
+	tcase_add_test(tc_gci_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_gci_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gci_msg, test_scep_gci);
+	suite_add_tcase(s, tc_gci_msg);
 
 	return s;
 }

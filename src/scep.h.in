@@ -164,6 +164,10 @@ char *scep_strerror(SCEP_ERROR err);
 SCEP_ERROR scep_pkcsreq(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage);
+SCEP_ERROR scep_get_cert_initial(
+    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    PKCS7 **pkiMessage);
 
 /* Internal functions */
 SCEP_ERROR scep_create_oids(SCEP *);
@@ -176,6 +180,7 @@ SCEP_ERROR scep_calculate_transaction_id(
     SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
         int line, char *format, ...);
+DECLARE_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)
 
 SCEP_ERROR scep_p7_client_init(
     SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key,

@@ -2,6 +2,7 @@
 
 #include "scep.h"
 #include <stdio.h>
+#include <openssl/asn1t.h>
 
 char *scep_strerror(SCEP_ERROR err)
 {
@@ -188,3 +189,10 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		free(message);
 	}
 }
+
+ASN1_SEQUENCE(PKCS7_ISSUER_AND_SUBJECT) = {
+	ASN1_SIMPLE(PKCS7_ISSUER_AND_SUBJECT, issuer, X509_NAME),
+	ASN1_SIMPLE(PKCS7_ISSUER_AND_SUBJECT, subject, X509_NAME)
+} ASN1_SEQUENCE_END(PKCS7_ISSUER_AND_SUBJECT)
+
+IMPLEMENT_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)

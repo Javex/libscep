@@ -133,8 +133,74 @@ SCEP_ERROR scep_pkcsreq(
 finally:
     if(databio)
         BIO_free(databio);
-    if(req_pubkey)
+    if(req_pubkey)  // needed?
         EVP_PKEY_free(req_pubkey);
+    return error;
+#undef OSSL_ERR
+}
+
+SCEP_ERROR scep_get_cert_initial(
+        SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+        X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+        PKCS7 **pkiMessage)
+{
+
+    SCEP_ERROR error = SCEPE_OK;
+    struct p7_data_t p7data;
+    EVP_PKEY *req_pubkey = NULL;
+    PKCS7_ISSUER_AND_SUBJECT *ias;
+    unsigned char *ias_data;
+    int ias_data_size;
+    BIO *databio;
+
+#define OSSL_ERR(msg)                                   \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg);                   \
+        goto finally;                                   \
+    } while(0)
+
+    req_pubkey = X509_REQ_get_pubkey(req);
+    if(!req_pubkey) {
+        scep_log(handle, ERROR, "Need public key on CSR.\n");
+        return SCEPE_INVALID_CONTENT;
+    }
+
+    ias = PKCS7_ISSUER_AND_SUBJECT_new();
+    if(!ias)
+        OSSL_ERR("Could not create new issuer and subject structure.\n");
+
+    ias->subject = X509_REQ_get_subject_name(req);
+    if(!ias->subject)
+        OSSL_ERR("Could not get subject from request.\n");
+
+    ias->issuer = X509_get_issuer_name(cacert);
+    if(!ias->issuer)
+        OSSL_ERR("Could not get issuer name for CA cert.\n");
+
+    ias_data_size = i2d_PKCS7_ISSUER_AND_SUBJECT(ias, &ias_data);
+    if(!ias_data_size)
+        OSSL_ERR("Could not extract issuer and subject data.\n");
+
+    databio = BIO_new(BIO_s_mem());
+    if(!databio)
+        OSSL_ERR("Could not create data BIO.\n");
+
+    if(!BIO_write(databio, ias_data, ias_data_size))
+        OSSL_ERR("Could not write issuer and subject data into BIO.\n");
+
+    if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)))
+        goto finally;
+    if((error = scep_pkiMessage(
+            handle, MESSAGE_TYPE_GETCERTINITIAL, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+        goto finally;
+    if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
+        goto finally;
+
+finally:
+    if(databio)
+        BIO_free(databio);
     return error;
 #undef OSSL_ERR
 }
