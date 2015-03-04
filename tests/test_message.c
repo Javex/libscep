@@ -444,7 +444,7 @@ START_TEST(test_scep_gci)
 {
 	BIO *data = get_decrypted_data(p7);
 
-	unsigned char *data_buf;
+	const unsigned char *data_buf;
 	int data_buf_len = BIO_get_mem_data(data, &data_buf);
 	ck_assert(data_buf_len);
 
@@ -452,8 +452,11 @@ START_TEST(test_scep_gci)
 		MESSAGE_TYPE_GETCERTINITIAL,
 		get_attribute_data(p7, handle->oids.messageType));
 
-	// how to verify this, what to test?
-	ck_assert(0);
+	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
+	d2i_PKCS7_ISSUER_AND_SUBJECT(&ias, &data_buf, data_buf_len);
+	ck_assert(ias);
+	ck_assert_str_eq(X509_NAME_oneline(ias->subject, NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
+	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
 }
 END_TEST
 

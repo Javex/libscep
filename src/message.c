@@ -149,9 +149,10 @@ SCEP_ERROR scep_get_cert_initial(
     struct p7_data_t p7data;
     EVP_PKEY *req_pubkey = NULL;
     PKCS7_ISSUER_AND_SUBJECT *ias;
-    unsigned char *ias_data;
+    unsigned char *ias_data = NULL;
     int ias_data_size;
     BIO *databio;
+    char *subject_str = NULL, *issuer_str = NULL;
 
 #define OSSL_ERR(msg)                                   \
     do {                                                \
@@ -174,10 +175,14 @@ SCEP_ERROR scep_get_cert_initial(
     ias->subject = X509_REQ_get_subject_name(req);
     if(!ias->subject)
         OSSL_ERR("Could not get subject from request.\n");
+    subject_str = X509_NAME_oneline(ias->subject, NULL, 0);
+    scep_log(handle, INFO, "Request subject is %s\n", subject_str);
 
     ias->issuer = X509_get_issuer_name(cacert);
     if(!ias->issuer)
         OSSL_ERR("Could not get issuer name for CA cert.\n");
+    issuer_str = X509_NAME_oneline(ias->issuer, NULL, 0);
+    scep_log(handle, INFO, "Issuer Name is %s\n", issuer_str);
 
     ias_data_size = i2d_PKCS7_ISSUER_AND_SUBJECT(ias, &ias_data);
     if(!ias_data_size)
