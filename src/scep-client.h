@@ -51,7 +51,6 @@ struct cmd_args_t
             unsigned int poll_interval;
             unsigned int max_poll_time;
             unsigned int max_poll_count;
-            int resume;
         } pkcsreq;
 
         struct {

@@ -84,7 +84,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
     } else if(key == ARGP_KEY_END) {
         if(state->arg_num < 1)
             argp_failure(state, 1, 0, "Missing operation");
-        if(cmd_args.operation == SCEPOP_PKCSREQ) {
+        if(cmd_args.operation == SCEPOP_PKCSREQ || cmd_args.operation == SCEPOP_GETCERTINITIAL) {
             if(!cmd_args.pkcsreq.enc_cert)
                 cmd_args.pkcsreq.enc_cert = cmd_args.cacert;
         }
@@ -173,6 +173,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
                     }
                     break;
                 case SCEPOP_PKCSREQ:
+                case SCEPOP_GETCERTINITIAL:
                     /* PKCSReq Options */
                     switch(key)
                     {
@@ -210,7 +211,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
                             cmd_args.pkcsreq.max_poll_count = strtoul(arg, NULL, 10);
                             break;
                         case 'R':
-                            cmd_args.pkcsreq.resume = 1;
+                            cmd_args.operation = SCEPOP_GETCERTINITIAL;
                             break;
                     }
                     break;
@@ -273,6 +274,8 @@ int main(int argc, char *argv[])
         case SCEPOP_GETCRL:
             break;
         case SCEPOP_GETNEXTCACERT:
+            break;
+        case SCEPOP_GETCERTINITIAL:
             break;
         case SCEPOP_NONE:
             scep_log(cmd_handle.handle, FATAL, "Missing Operation\n");
