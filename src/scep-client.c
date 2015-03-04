@@ -65,13 +65,13 @@ parse_opt(int key, char *arg, struct argp_state *state)
 {
     struct cmd_handle_t *cmd_handle = state->input;
     SCEP *handle = cmd_handle->handle;
-    struct cmd_args_t cmd_args = cmd_handle->cmd_args;
+    struct cmd_args_t *cmd_args = &cmd_handle->cmd_args;
     const EVP_CIPHER *enc_alg = NULL;
     const EVP_MD *sig_alg = NULL;
     SCEP_OPERATION op;
     SCEP_CLIENT_ERROR error;
     if(key == ARGP_KEY_ARG) {
-        if(cmd_args.operation != SCEPOP_NONE)
+        if(cmd_args->operation != SCEPOP_NONE)
             return 0;
         if(strncmp(arg, "getca", 5) == 0)
             op = SCEPOP_GETCACERT;
@@ -85,41 +85,41 @@ parse_opt(int key, char *arg, struct argp_state *state)
             op = SCEPOP_GETNEXTCACERT;
         else
             return ARGP_ERR_UNKNOWN;
-        cmd_handle->cmd_args.operation = op;
+        cmd_args->operation = op;
         state->next = 1;
         return 0;
     } else if(key == ARGP_KEY_END) {
         if(state->arg_num < 1)
             argp_failure(state, 1, 0, "Missing operation");
-        if(cmd_args.operation == SCEPOP_PKCSREQ || cmd_args.operation == SCEPOP_GETCERTINITIAL) {
-            if(!cmd_args.pkcsreq.enc_cert)
-                cmd_args.pkcsreq.enc_cert = cmd_args.cacert;
+        if(cmd_args->operation == SCEPOP_PKCSREQ || cmd_args->operation == SCEPOP_GETCERTINITIAL) {
+            if(!cmd_args->pkcsreq.enc_cert)
+                cmd_args->pkcsreq.enc_cert = cmd_args->cacert;
         }
     }
 
-    if(cmd_args.operation == SCEPOP_NONE)
+    if(cmd_args->operation == SCEPOP_NONE)
         return 0;
 
     /* Common Options */
     switch(key)
     {
         case 'u':
-            if((error = scep_conf_set_url(cmd_handle, arg, &cmd_args.url)) != SCEPE_CLIENT_OK)
+            if((error = scep_conf_set_url(cmd_handle, arg, &cmd_args->url)) != SCEPE_CLIENT_OK)
                 argp_failure(state, 1, 0, "Setting URL failed: %s", scep_client_strerror(error));
             break;
         case 'p':
-            if((error = scep_conf_set_url(cmd_handle, arg, &cmd_args.proxy)) != SCEPE_CLIENT_OK)
+            if((error = scep_conf_set_url(cmd_handle, arg, &cmd_args->proxy)) != SCEPE_CLIENT_OK)
                 argp_failure(state, 1, 0, "Setting Proxy failed: %s", scep_client_strerror(error));
             break;
         case 'f':
             argp_failure(state, 1, 0, "Configuration File not supported, yet");
             break;
         case 'c':
-            if(cmd_args.operation == SCEPOP_GETCACERT) {
-                cmd_args.cacert_target = malloc(strlen(arg) + 1);
-                strncpy(cmd_args.cacert_target, arg, strlen(arg) + 1);
+            if(cmd_args->operation == SCEPOP_GETCACERT) {
+                cmd_args->cacert_target = malloc(strlen(arg) + 1);
+                strncpy(cmd_args->cacert_target, arg, strlen(arg) + 1);
             } else {
-                if((error = scep_read_cert(handle, &cmd_args.cacert, arg)) != SCEPE_CLIENT_OK)
+                if((error = scep_read_cert(handle, &cmd_args->cacert, arg)) != SCEPE_CLIENT_OK)
                     argp_failure(state, 1, 0, "Failed to load CA certificate: %s", scep_client_strerror(error));
             }
             break;
@@ -154,15 +154,15 @@ parse_opt(int key, char *arg, struct argp_state *state)
             scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
             break;
         default:
-            switch(cmd_args.operation)
+            switch(cmd_args->operation)
             {
                 case SCEPOP_GETCACERT:
                     /* GetCA Options */
                     switch(key)
                     {
                         case 'i':
-                            cmd_args.getca.identifier = malloc(strlen(arg) + 1);
-                            strncpy(cmd_args.getca.identifier, arg, strlen(arg) + 1);
+                            cmd_args->getca.identifier = malloc(strlen(arg) + 1);
+                            strncpy(cmd_args->getca.identifier, arg, strlen(arg) + 1);
                             break;
                         case 'F':
                             if(strncmp(arg, "md5", 3) == 0)
@@ -175,7 +175,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
                                 sig_alg = EVP_sha512();
                             else
                                 argp_failure(state, 1, 0, "Invalid fingerprint signature algorithm: %s\n", arg);
-                            cmd_args.getca.fp_algorithm = sig_alg;
+                            cmd_args->getca.fp_algorithm = sig_alg;
                             break;
                     }
                     break;
@@ -187,40 +187,40 @@ parse_opt(int key, char *arg, struct argp_state *state)
                     switch(key)
                     {
                         case 'k':
-                            if((error = scep_read_key(handle, &cmd_args.pkcsreq.request_key, arg)) != SCEPE_CLIENT_OK)
+                            if((error = scep_read_key(handle, &cmd_args->pkcsreq.request_key, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load request key: %s", scep_client_strerror(error));
                             break;
                         case 'r':
-                            if((error = scep_read_request(handle, &cmd_args.pkcsreq.request, arg)) != SCEPE_CLIENT_OK)
+                            if((error = scep_read_request(handle, &cmd_args->pkcsreq.request, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load request: %s", scep_client_strerror(error));
                             break;
                         case 'K':
-                            if((error = scep_read_key(handle, &cmd_args.pkcsreq.sig_key, arg)) != SCEPE_CLIENT_OK)
+                            if((error = scep_read_key(handle, &cmd_args->pkcsreq.sig_key, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load signature key: %s", scep_client_strerror(error));
                             break;
                         case 'O':
-                            if((error = scep_read_cert(handle, &cmd_args.pkcsreq.sig_cert, arg)) != SCEPE_CLIENT_OK)
+                            if((error = scep_read_cert(handle, &cmd_args->pkcsreq.sig_cert, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load signature certificate: %s", scep_client_strerror(error));
                             break;
                         case 'e':
-                            if((error = scep_read_cert(handle, &cmd_args.pkcsreq.enc_cert, arg)) != SCEPE_CLIENT_OK)
+                            if((error = scep_read_cert(handle, &cmd_args->pkcsreq.enc_cert, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load encryption certificate: %s", scep_client_strerror(error));
                             break;
                         case 'L':
-                            cmd_args.pkcsreq.self_signed_target = malloc(strlen(arg) + 1);
-                            strncpy(cmd_args.pkcsreq.self_signed_target, arg, strlen(arg) + 1);
+                            cmd_args->pkcsreq.self_signed_target = malloc(strlen(arg) + 1);
+                            strncpy(cmd_args->pkcsreq.self_signed_target, arg, strlen(arg) + 1);
                             break;
                         case 't':
-                            cmd_args.pkcsreq.poll_interval = strtoul(arg, NULL, 10);
+                            cmd_args->pkcsreq.poll_interval = strtoul(arg, NULL, 10);
                             break;
                         case 'T':
-                            cmd_args.pkcsreq.max_poll_time = strtoul(arg, NULL, 10);
+                            cmd_args->pkcsreq.max_poll_time = strtoul(arg, NULL, 10);
                             break;
                         case 'n':
-                            cmd_args.pkcsreq.max_poll_count = strtoul(arg, NULL, 10);
+                            cmd_args->pkcsreq.max_poll_count = strtoul(arg, NULL, 10);
                             break;
                         case 'R':
-                            cmd_args.operation = SCEPOP_GETCERTINITIAL;
+                            cmd_args->operation = SCEPOP_GETCERTINITIAL;
                             break;
                     }
                     break;
@@ -243,7 +243,7 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 int main(int argc, char *argv[])
 {
     struct cmd_handle_t cmd_handle;
-    struct cmd_args_t cmd_args;
+    struct cmd_args_t *cmd_args = &cmd_handle.cmd_args;
     SCEP_ERROR error;
     PKCS7 *request = NULL;
     memset(&cmd_handle, 0, sizeof(cmd_handle));
@@ -257,20 +257,20 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    cmd_handle.cmd_args.operation = SCEPOP_NONE;
+    cmd_args->operation = SCEPOP_NONE;
     argp_parse(&argp, argc, argv, 0, 0, &cmd_handle);
 
-    switch(cmd_handle.cmd_args.operation)
+    switch(cmd_args->operation)
     {
         case SCEPOP_GETCACERT:
             break;
         case SCEPOP_PKCSREQ:
             if((error = scep_pkcsreq(
                     cmd_handle.handle,
-                    cmd_args.pkcsreq.request,
-                    cmd_args.pkcsreq.sig_cert,
-                    cmd_args.pkcsreq.sig_key,
-                    cmd_args.pkcsreq.enc_cert,
+                    cmd_args->pkcsreq.request,
+                    cmd_args->pkcsreq.sig_cert,
+                    cmd_args->pkcsreq.sig_key,
+                    cmd_args->pkcsreq.enc_cert,
                     cmd_handle.handle->configuration->encalg,
                     &request
                     )) != SCEPE_OK)
