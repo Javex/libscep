@@ -54,6 +54,7 @@ struct cmd_args_t
             EVP_PKEY *sig_key;
             X509 *sig_cert;
             X509 *enc_cert;
+            char *cert_target_filename;
             char *self_signed_target;
             unsigned int poll_interval;
             unsigned int max_poll_time;

@@ -202,6 +202,10 @@ parse_opt(int key, char *arg, struct argp_state *state)
                             if((error = scep_read_cert(handle, &cmd_args->pkcsreq.sig_cert, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load signature certificate: %s", scep_client_strerror(error));
                             break;
+                        case 'l':
+                            cmd_args->pkcsreq.cert_target_filename = malloc(strlen(arg) + 1);
+                            strncpy(cmd_args->pkcsreq.cert_target_filename, arg, strlen(arg) + 1);
+                            break;
                         case 'e':
                             if((error = scep_read_cert(handle, &cmd_args->pkcsreq.enc_cert, arg)) != SCEPE_CLIENT_OK)
                                 argp_failure(state, 1, 0, "Failed to load encryption certificate: %s", scep_client_strerror(error));
