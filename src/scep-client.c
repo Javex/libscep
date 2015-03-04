@@ -327,6 +327,8 @@ int main(int argc, char *argv[])
     struct cmd_args_t *cmd_args = &cmd_handle.cmd_args;
     SCEP_ERROR error;
     PKCS7 *request = NULL;
+    char *message = NULL;
+    SCEP_REPLY *reply = NULL;
     memset(&cmd_handle, 0, sizeof(cmd_handle));
     if((error = scep_init(&cmd_handle.handle)) != SCEPE_OK) {
         fprintf(stderr, "Failed to initialize basic SCEP structure: %s\n", scep_strerror(error));
@@ -356,7 +358,14 @@ int main(int argc, char *argv[])
                     &request
                     )) != SCEPE_OK)
                 exit(1);
+            if((error = scep_PKCS7_base64_encode(
+                    cmd_handle.handle,
+                    request, &message)) != SCEPE_OK)
+                exit(1);
             // send request
+            if((error = scep_send_request(&cmd_handle, "PKIOperation", message, &reply)) != SCEPE_OK)
+                exit(1);
+            fprintf(stderr, "Payload Response: %s\n", reply->payload);
             // parse response
             break;
         case SCEPOP_GETCERT:
