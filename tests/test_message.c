@@ -404,9 +404,6 @@ START_TEST(test_scep_pkcsreq)
 	ck_assert_str_eq(
 		MESSAGE_TYPE_PKCSREQ,
 		get_attribute_data(p7, handle->oids.messageType));
-
-	// how to verify this, what to test?
-	ck_assert(0);
 }
 END_TEST
 
