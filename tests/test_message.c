@@ -210,6 +210,21 @@ PKCS7 *make_gci_message(
 	return p7;
 }
 
+
+PKCS7 *make_gc_message(
+		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req,
+		X509 *enc_cert, const EVP_CIPHER *enc_alg, X509 *cacert)
+{
+	PKCS7 *p7;
+
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+
+	ck_assert(scep_get_cert(
+		handle, req, sig_cert, sig_key,
+		sig_cert, enc_cert, enc_alg, &p7) == SCEPE_OK);
+	return p7;
+}
+
 SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 	BIO *pkcs7bio = NULL;
 	PKCS7 *content = NULL;
@@ -277,6 +292,18 @@ void gci_setup()
 }
 
 void gci_teardown()
+{
+	generic_teardown();
+	PKCS7_free(p7);
+}
+
+void gc_setup()
+{
+	generic_setup();
+	p7 = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
+void gc_teardown()
 {
 	generic_teardown();
 	PKCS7_free(p7);
@@ -461,6 +488,28 @@ START_TEST(test_scep_gci)
 END_TEST
 
 
+START_TEST(test_scep_gc)
+{
+	BIO *data = get_decrypted_data(p7);
+
+	const unsigned char *data_buf;
+	int data_buf_len = BIO_get_mem_data(data, &data_buf);
+	ck_assert(data_buf_len);
+
+	ck_assert_str_eq(
+		MESSAGE_TYPE_GETCERT,
+		get_attribute_data(p7, handle->oids.messageType));
+
+	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
+	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
+	ck_assert(ias);
+	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
+	ck_assert_str_eq("15238307653902252243", i2s_ASN1_INTEGER(NULL, ias->serial));
+
+}
+END_TEST
+
+
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
@@ -490,6 +539,14 @@ Suite * scep_message_suite(void)
 	tcase_add_test(tc_gci_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_gci_msg, test_scep_gci);
 	suite_add_tcase(s, tc_gci_msg);
+
+	/* GetCert tests */
+	TCase *tc_gc_msg = tcase_create("GetCert Message");
+	tcase_add_checked_fixture(tc_gc_msg, gc_setup, gc_teardown);
+	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_gc_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gc_msg, test_scep_gc);
+	suite_add_tcase(s, tc_gc_msg);
 
 	return s;
 }
