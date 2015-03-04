@@ -210,10 +210,10 @@ finally:
 #undef OSSL_ERR
 }
 
-SCEP_ERROR scep_get_cert(
+static SCEP_ERROR _scep_get_cert_or_crl(
         SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
         X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
-        PKCS7 **pkiMessage)
+        char *messageType, PKCS7 **pkiMessage)
 {
 
     SCEP_ERROR error = SCEPE_OK;
@@ -269,7 +269,7 @@ SCEP_ERROR scep_get_cert(
     if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)))
         goto finally;
     if((error = scep_pkiMessage(
-            handle, MESSAGE_TYPE_GETCERT, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+            handle, messageType, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
         goto finally;
     if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
         goto finally;
@@ -281,6 +281,27 @@ finally:
 #undef OSSL_ERR
 }
 
+SCEP_ERROR scep_get_cert(
+        SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+        X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+        PKCS7 **pkiMessage)
+{
+    return _scep_get_cert_or_crl(
+        handle, req, sig_cert, sig_key,
+        req_cert, enc_cert, enc_alg,
+        MESSAGE_TYPE_GETCERT, pkiMessage);
+}
+
+SCEP_ERROR scep_get_crl(
+        SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+        X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+        PKCS7 **pkiMessage)
+{
+    return _scep_get_cert_or_crl(
+        handle, req, sig_cert, sig_key,
+        req_cert, enc_cert, enc_alg,
+        MESSAGE_TYPE_GETCRL, pkiMessage);
+}
 
 SCEP_ERROR scep_pkiMessage(
         SCEP *handle,
