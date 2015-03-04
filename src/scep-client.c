@@ -12,6 +12,7 @@ static struct argp_option options[] = {
     {"url", 'u', "url", 0, "SCEP server URL"},
     {"proxy", 'p', "host:port", 0, "Use proxy server at host:port"},
     {"configuration", 'f', "file", 0, "Use configuration file"},
+    {"ca-cert", 'c', "file", 0, "CA certificate file (write if OPERATION is getca)"},
     {"encryption-algorithm", 'E', "algorithm", 0, "PKCS#7 encryption algorithm (des|3des|blowfish)"},
     {"signature-algorithm", 'S', "algorithm", 0, "PKCS#7 signature algorithm (md5|sha1|sha256|sha512)"},
     {"verbose", 'v', 0, 0, "Verbose output"},
@@ -28,7 +29,7 @@ static struct argp_option options[] = {
     {"certificate-request", 'r', "file", 0, "Certificate request file", 3},
     {"signature-key", 'K', "file", 0, "Signature private key file, use with -O", 3},
     {"signature-cert", 'O', "file", 0, "Signature certificate (used instead of self-signed)", 3},
-    {"ca-cert", 'e', "file", 0, "Use different CA cert for encryption", 3},
+    {"encryption-cert", 'e', "file", 0, "Use different CA cert for encryption", 3},
     {"self-signed-target", 'L', "file", 0, "Write selfsigned certificate in file", 3},
     {"poll-interval", 't', "secs", 0, "Polling interval in seconds", 3},
     {"max-poll-time", 'T', "secs", 0, "Max polling time in seconds", 3},
@@ -83,6 +84,10 @@ parse_opt(int key, char *arg, struct argp_state *state)
     } else if(key == ARGP_KEY_END) {
         if(state->arg_num < 1)
             argp_failure(state, 1, 0, "Missing operation");
+        if(cmd_args.operation == SCEPOP_PKCSREQ) {
+            if(!cmd_args.pkcsreq.enc_cert)
+                cmd_args.pkcsreq.enc_cert = cmd_args.cacert;
+        }
     }
 
     if(cmd_args.operation == SCEPOP_NONE)
@@ -101,6 +106,14 @@ parse_opt(int key, char *arg, struct argp_state *state)
             break;
         case 'f':
             return ENOSYS; // NYI
+        case 'c':
+            if(cmd_args.operation == SCEPOP_GETCACERT) {
+                cmd_args.cacert_target = malloc(strlen(arg) + 1);
+                strncpy(cmd_args.cacert_target, arg, strlen(arg) + 1);
+            } else {
+                if((error = scep_read_cert(handle, &cmd_args.cacert, arg)) != SCEPE_CLIENT_OK)
+                    argp_failure(state, 1, 0, "Failed to load CA certificate: %s", scep_client_strerror(error));
+            }
             break;
         case 'E':
             if(strncmp(arg, "blowfish", 8) == 0)

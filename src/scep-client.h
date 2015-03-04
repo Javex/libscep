@@ -29,7 +29,10 @@ struct cmd_args_t
     SCEP_OPERATION operation;
     UriUriA *url;
     UriUriA *proxy;
-
+    union {
+        X509 *cacert;
+        char *cacert_target;
+    };
     union {
         struct {
             /* GetCA */
