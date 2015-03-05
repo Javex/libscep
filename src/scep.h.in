@@ -8,6 +8,7 @@
 #include <libgen.h>
 
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <openssl/evp.h>
 #include <openssl/pem.h>
 #include <openssl/rand.h>
@@ -30,6 +31,8 @@
 
 // number of nonce bytes, defined by protocol
 #define NONCE_LENGTH 16
+
+#define SCEP_SELFSIGNED_EXPIRE_DAYS 7
 
 #define SCEP_MIME_GETCA_RA "application/x-x509-ca-ra-cert"
 #define SCEP_MIME_GETCA "application/x-x509-ca-cert"
@@ -85,6 +88,7 @@ typedef enum {
     SCEPOP_GETCERT,
     SCEPOP_GETCRL,
     SCEPOP_GETNEXTCACERT,
+    SCEPOP_GETCERTINITIAL,
 } SCEP_OPERATION;
 
 enum {
@@ -160,23 +164,44 @@ SCEP_ERROR scep_init(SCEP **handle);
 void scep_cleanup(SCEP *handle);
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
 char *scep_strerror(SCEP_ERROR err);
+SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);
+SCEP_ERROR scep_new_selfsigned_X509(
+    SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert);
 
 SCEP_ERROR scep_pkcsreq(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage);
+SCEP_ERROR scep_get_cert_initial(
+    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    PKCS7 **pkiMessage);
+SCEP_ERROR scep_get_cert(
+    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    PKCS7 **pkiMessage);
+SCEP_ERROR scep_get_crl(
+    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    PKCS7 **pkiMessage);
 
 /* Internal functions */
+
+/* scep.c */
 SCEP_ERROR scep_create_oids(SCEP *);
 
+/* configuration.c */
 SCEP_ERROR scep_conf_init(SCEP *handle);
 void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 
+/* util.c */
 SCEP_ERROR scep_calculate_transaction_id(
     SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
         int line, char *format, ...);
+DECLARE_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)
 
+/* message.c */
 SCEP_ERROR scep_p7_client_init(
     SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key,
     struct p7_data_t *p7data);

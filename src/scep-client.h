@@ -29,7 +29,10 @@ struct cmd_args_t
     SCEP_OPERATION operation;
     UriUriA *url;
     UriUriA *proxy;
-
+    union {
+        X509 *cacert;
+        char *cacert_target;
+    };
     union {
         struct {
             /* GetCA */
@@ -38,17 +41,24 @@ struct cmd_args_t
         } getca;
 
         struct {
+            /* GetNextCA */
+            X509_STORE *ca_chain;
+            const EVP_MD *fp_algorithm;
+            char *taget_signer_cert_filename;
+        } getnextca;
+
+        struct {
             /* PKCSReq */
             EVP_PKEY *request_key;
             X509_REQ *request;
             EVP_PKEY *sig_key;
             X509 *sig_cert;
             X509 *enc_cert;
+            char *cert_target_filename;
             char *self_signed_target;
             unsigned int poll_interval;
             unsigned int max_poll_time;
             unsigned int max_poll_count;
-            int resume;
         } pkcsreq;
 
         struct {

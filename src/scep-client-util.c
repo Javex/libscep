@@ -36,6 +36,8 @@ SCEP_CLIENT_ERROR scep_send_request(
     url_length = cmd_args.url->pathTail->text.afterLast -
             cmd_args.url->scheme.first + 1; // + 1 for '?'
     full_url = malloc(url_length); // already includes space for '\0'!
+    if(!full_url)
+        return SCEPE_CLIENT_MEMORY;
     strncpy(full_url, cmd_args.url->scheme.first, url_length);
 
     // replace '\0' from strncpy with '?' for query
@@ -277,6 +279,14 @@ SCEP_CLIENT_ERROR scep_conf_set_url(struct cmd_handle_t *cmd_handle, char *url_s
         error = SCEPE_CLIENT_INVALID_URL;
         goto finally;
     }
+
+    if(!url->scheme.first || !url->scheme.afterLast)
+    {
+        error = SCEPE_CLIENT_INVALID_URL;
+        scep_log(handle, ERROR, "Need scheme (e.g. http://) in URL.\n");
+        goto finally;
+    }
+
     *target = url;
 
 finally:

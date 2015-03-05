@@ -2,6 +2,7 @@
 
 #include "scep.h"
 #include <stdio.h>
+#include <openssl/asn1t.h>
 
 char *scep_strerror(SCEP_ERROR err)
 {
@@ -188,3 +189,75 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		free(message);
 	}
 }
+
+SCEP_ERROR scep_new_selfsigned_X509(
+		SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	X509 *new_cert = NULL;
+	EVP_PKEY *pub_key;
+	X509_NAME *subject;
+	ASN1_INTEGER *serial;
+
+#define OSSL_ERR(msg)                                   \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg);                   \
+        goto finally;                                   \
+    } while(0)
+
+	pub_key = X509_REQ_get_pubkey(req);
+	if(!pub_key)
+		OSSL_ERR("Could not get public key from CSR.\n");
+
+	subject = X509_REQ_get_subject_name(req);
+	if(!subject)
+		OSSL_ERR("Could not get subject from CSR.\n");
+
+	new_cert = X509_new();
+	if(!new_cert)
+		OSSL_ERR("Could not create new certificate.\n");
+
+	if(!X509_set_version(new_cert, 2))
+		OSSL_ERR("Could not set certificate to V3.\n");
+
+	serial = s2i_ASN1_INTEGER(NULL, "1");
+	if(!serial)
+		OSSL_ERR("Could not create serial.\n");
+
+	if(!X509_set_serialNumber(new_cert, serial))
+		OSSL_ERR("Could not set serial number on cert.\n");
+
+	if(!X509_set_subject_name(new_cert, subject))
+		OSSL_ERR("Could not set subject name.\n");
+
+	if(!X509_set_issuer_name(new_cert, subject))
+		OSSL_ERR("Could not set issuer name.\n");
+
+	if(!X509_set_pubkey(new_cert, pub_key))
+		OSSL_ERR("Could not set public key.\n");
+
+	if(!X509_gmtime_adj(X509_get_notBefore(new_cert), 0))
+		OSSL_ERR("Could not set notBefore field.\n");
+	if(!X509_gmtime_adj(X509_get_notAfter(new_cert),
+			SCEP_SELFSIGNED_EXPIRE_DAYS * 24 * 60 * 60))
+		OSSL_ERR("Could not set notAfter field.\n");
+
+	if(!X509_sign(new_cert, req_key, handle->configuration->sigalg))
+		OSSL_ERR("Could not sign certificate with private key.\n");
+	*cert = new_cert;
+finally:
+	if(error != SCEPE_OK)
+		if(new_cert)
+			X509_free(new_cert);
+	return error;
+#undef OSSL_ERR
+}
+
+ASN1_SEQUENCE(PKCS7_ISSUER_AND_SUBJECT) = {
+	ASN1_SIMPLE(PKCS7_ISSUER_AND_SUBJECT, issuer, X509_NAME),
+	ASN1_SIMPLE(PKCS7_ISSUER_AND_SUBJECT, subject, X509_NAME)
+} ASN1_SEQUENCE_END(PKCS7_ISSUER_AND_SUBJECT)
+
+IMPLEMENT_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)
