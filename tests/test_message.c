@@ -7,6 +7,7 @@
 SCEP *handle;
 BIO *scep_log;
 PKCS7 *p7 = NULL;
+SCEP_DATA *pkiMessage = NULL;
 EVP_PKEY *dec_key;
 X509 *dec_cert;
 
@@ -189,6 +190,28 @@ PKCS7 *make_pkcsreq_message(
 	return p7;
 }
 
+SCEP_DATA *make_unwrap_message(
+		X509 *enc_cert, EVP_PKEY *enc_key)
+{
+	X509 *sig_cert = NULL;
+	EVP_PKEY *sig_key = NULL;
+	X509_REQ *req = NULL;
+	const EVP_CIPHER *enc_alg = NULL;
+	PKCS7 *p7;
+	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7);
+	SCEP_DATA *pkiMessage = NULL;
+	if(enc_key == NULL) {
+		BIO *b = BIO_new(BIO_s_mem());
+		BIO_puts(b, test_server_key);
+		PEM_read_bio_PrivateKey(b, enc_key, 0, 0);
+		BIO_free(b);
+	}
+	ck_assert(scep_unwrap(
+		handle, p7, enc_cert, enc_key, &pkiMessage) == SCEPE_OK);
+	return pkiMessage;
+}
+
 
 PKCS7 *make_gci_message(
 		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req,
@@ -288,6 +311,17 @@ BIO *get_decrypted_data(PKCS7 *p7)
 	return outbio;
 }
 
+void unwrap_setup()
+{
+	generic_setup();
+	pkiMessage = make_unwrap_message(NULL, NULL);
+}
+
+void unwrap_teardown()
+{
+	generic_teardown();
+}
+
 void pkcsreq_setup()
 {
 	generic_setup();
@@ -342,6 +376,19 @@ ASN1_STRING *get_attribute(PKCS7 *message, int nid) {
 char *get_attribute_data(PKCS7 *message, int nid) {
 	return ASN1_STRING_data(get_attribute(message, nid));
 }
+
+START_TEST(test_unwrap_message_existence)
+{
+	ck_assert_int_ne(NULL, pkiMessage);
+}
+END_TEST
+
+START_TEST(test_unwrap_message_selfsigned)
+{
+	ck_assert_int_eq(1, &(pkiMessage->initialEnrollment));
+}
+END_TEST
+
 
 START_TEST(test_scep_message_asn1_version)
 {
@@ -553,10 +600,18 @@ END_TEST
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
+	
+	/*test unwrapping*/
+	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
+	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_message_existence);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_message_selfsigned);
+	suite_add_tcase(s, tc_unwrap_msg);
 
 	/* PKCSReq tests */
 	TCase *tc_pkcsreq_msg = tcase_create("PKCSReq Message");
 	tcase_add_checked_fixture(tc_pkcsreq_msg, pkcsreq_setup, pkcsreq_teardown);
+	
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_asn1_version);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_sender_nonce);

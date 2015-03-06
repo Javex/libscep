@@ -16,6 +16,8 @@ SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cer
 
     if(!PKCS7_set_type(p7data->p7, NID_pkcs7_signed))
         OSSL_ERR("Could not set PKCS#7 type.\n");
+        
+    PKCS7_add_certificate(p7data->p7, sig_cert);
 
     p7data->signer_info = PKCS7_add_signature(
         p7data->p7, sig_cert, sig_key, handle->configuration->sigalg);
@@ -374,6 +376,185 @@ SCEP_ERROR scep_pkiMessage(
     if(!i2d_PKCS7_bio(p7data->bio, encdata))
         OSSL_ERR("Could not write encdata to PKCS#7 BIO.\n");
 
+finally:
+    return error;
+#undef OSSL_ERR
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#include<unistd.h>
+
+
+SCEP_ERROR scep_unwrap(
+    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey, SCEP_DATA *output)
+{
+	SCEP_ERROR error = SCEPE_OK;
+    /*should be in a separate init function*/
+    int nid_messageType = OBJ_create("2.16.840.1.113733.1.9.2", "messageType",
+        "messageType");
+    if (nid_messageType == 0) {
+        goto finally;
+    }
+
+    int nid_senderNonce = OBJ_create("2.16.840.1.113733.1.9.5", "senderNonce",
+        "senderNonce");
+    if (nid_senderNonce == 0) {
+        goto finally;
+    }
+
+    int nid_transId = OBJ_create("2.16.840.1.113733.1.9.7", "transId",
+        "transId");
+    if (nid_transId == 0) {
+        goto finally;
+    }
+
+    STACK_OF(PKCS7_SIGNER_INFO) *sk;
+    PKCS7_SIGNER_INFO           *si;
+    unsigned char				*buf;
+    ASN1_TYPE                   *messageType, *senderNonce, *transId;
+    char                        *issuer, *subject;
+    X509                        *signerCert;
+    STACK_OF(X509)              *certs;
+    BIO                         *encData, *decData;
+    X509_STORE                  *store;
+#define OSSL_ERR(msg)                                   \
+	do {                                                \
+		error = SCEPE_OPENSSL;                          \
+		ERR_print_errors(handle->configuration->log);   \
+		scep_log(handle, FATAL, msg);                   \
+		goto finally;                                   \
+	} while(0)
+
+    /*prepare trusted store*/
+    store = X509_STORE_new();
+    encData = NULL;
+    decData = NULL;
+    /*add trusted cert*/
+    X509_STORE_add_cert(store, cacert);
+    output->initialEnrollment = 0;
+    /*extract signer certificate (only one?) from pkiMessage*/
+    certs = PKCS7_get0_signers(pkiMessage, NULL, 0);
+    signerCert = sk_X509_value(certs, 0);
+    /*TODO: additional checks for generic attributes, version = 1 etc*/
+	
+    /* Message type*/
+    if(!(sk = PKCS7_get_signer_info(pkiMessage)))
+         OSSL_ERR("Failed to get signer info.\n");
+    if(!(si = sk_PKCS7_SIGNER_INFO_value(sk, 0)))
+         OSSL_ERR("Failed to get signer info value.\n");
+    if(!(messageType = PKCS7_get_signed_attribute(si, nid_messageType)))
+        OSSL_ERR("messageType is missing. Not a pkiMessage?.\n");
+	
+    /*luckily, standard defines unique types*/
+    ASN1_STRING_to_UTF8(&buf,messageType->value.printablestring);
+    output->messageType = (char*)buf;
+    
+    /*struct is redundant, however*/
+    output->messageType_int = atoi(output->messageType);
+    /*initial PKCSreq message could be selfsigned*/
+    if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
+        /*check for self-signed*/
+        /*oneline avoids to check every single element*/
+        issuer = X509_NAME_oneline(X509_get_issuer_name(signerCert), 0, 0);
+
+        subject = X509_NAME_oneline(X509_get_subject_name(signerCert), 0, 0);
+        if(*issuer == *subject)
+            output->initialEnrollment = 1;
+            X509_STORE_add_cert(store, signerCert);
+    }
+    
+    if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
+        goto finally;
+	
+    /*Message is a pkiMessage and consists of a valid signature. Lets see if we can decrypt it*/
+    if(encData) {
+        if(decrypt(handle, encData, cakey, cacert, decData) != SCEPE_OK)
+             goto finally;
+        if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
+            output->request = NULL; 
+            d2i_X509_REQ_bio(decData, &(output->request));
+            /*TODO: fine, but request needs machting parameter to outer PKCSreq*/
+        }
+        /*TODO: each type needs own handling, depending to various parameters*/
+    }
+    else{
+        /*TODO: no content to be encrypted, e.g. certrep failure, pending*/
+    }
+    
+    /*pkiMessage attributes*/ 
+
+    /*transaction id*/
+    if(!(transId = PKCS7_get_signed_attribute(si, nid_transId)))
+        OSSL_ERR("transaction ID is missiong.\n");
+	
+    ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
+    output->transactionID = (char*)buf;
+	
+    /*senderNonce*/
+    if(!(senderNonce = PKCS7_get_signed_attribute(si, nid_senderNonce)))
+        OSSL_ERR("sender Nonce is missiong.\n");
+     /*TODO: use ASN1_STRING_print_ex, write to bio, then from bio to hex string*/
+
+    /*type-depending attributes*/  
+    /*TODO*/
+
+finally:
+    return error;
+#undef OSSL_ERR
+
+}
+
+SCEP_ERROR verify(
+    SCEP *handle, PKCS7 *pkiMessage, X509_STORE * store, BIO *encData)
+{
+    //STACK_OF(X509) *certs;
+    //X509 * cert;
+    SCEP_ERROR error = SCEPE_OK;
+#define OSSL_ERR(msg)                                   \
+        do {                                                \
+            error = SCEPE_OPENSSL;                          \
+            ERR_print_errors(handle->configuration->log);   \
+            scep_log(handle, FATAL, msg);                   \
+            goto finally;                                   \
+        } while(0)
+    /*assuming cert is within pkiMessage*/
+    if (!PKCS7_verify(pkiMessage, NULL, store, NULL, encData, 0)) {
+        OSSL_ERR("verification failed");
+    }
+finally:
+    return error;
+#undef OSSL_ERR
+}
+
+SCEP_ERROR decrypt(
+    SCEP *handle, BIO *encData, EVP_PKEY *cakey, X509 *cacert, BIO *decData)
+{
+    PKCS7 * p7enc;
+    SCEP_ERROR error = SCEPE_OK;
+#define OSSL_ERR(msg)                                   \
+        do {                                                \
+            error = SCEPE_OPENSSL;                          \
+            ERR_print_errors(handle->configuration->log);   \
+            scep_log(handle, FATAL, msg);                   \
+            goto finally;                                   \
+        } while(0)
+    p7enc = d2i_PKCS7_bio(encData, NULL);
+    if(!PKCS7_decrypt(p7enc, cakey, cacert, decData, 0)) {
+        OSSL_ERR("decryption failed");
+    }
 finally:
     return error;
 #undef OSSL_ERR
