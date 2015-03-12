@@ -38,7 +38,7 @@ SCEP_ERROR scep_create_oids(SCEP *handle)
 #define OID_ERR(oid)                                    \
     do {                                                \
         ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, "Could not create new OID \"" oid "\".\n");	\
+        scep_log(handle, FATAL, "Could not create new OID \"" oid "\"");	\
         return SCEPE_OPENSSL;                                 \
     } while(0)
 

@@ -254,11 +254,11 @@ SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 
 	pkcs7bio = PKCS7_dataInit(p7, NULL);
 	if(!pkcs7bio)
-		OSSL_ERR("Could not create BIO for reading PKCS7 content.\n");
+		OSSL_ERR("Could not create BIO for reading PKCS7 content");
 
 	content = d2i_PKCS7_bio(pkcs7bio, NULL);
 	if(!content)
-		OSSL_ERR("Could not read from content BIO.\n");
+		OSSL_ERR("Could not read from content BIO");
 
 	*result = content;
 finally:	

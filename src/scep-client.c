@@ -377,7 +377,7 @@ int main(int argc, char *argv[])
         case SCEPOP_GETCERTINITIAL:
             break;
         case SCEPOP_NONE:
-            scep_log(cmd_handle.handle, FATAL, "Missing Operation\n");
+            scep_log(cmd_handle.handle, FATAL, "Missing Operation");
             exit(1);
     }
 
