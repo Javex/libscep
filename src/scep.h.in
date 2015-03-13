@@ -174,7 +174,7 @@ SCEP_ERROR scep_pkcsreq(
     X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage);
 SCEP_ERROR scep_unwrap(
     SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey,
-    SCEP_DATA *output);
+    SCEP_DATA **output);
 SCEP_ERROR scep_get_cert_initial(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,

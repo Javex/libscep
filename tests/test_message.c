@@ -7,7 +7,7 @@
 SCEP *handle;
 BIO *scep_log;
 PKCS7 *p7 = NULL;
-SCEP_DATA *pkiMessage = NULL;
+SCEP_DATA *pkiMessage;
 EVP_PKEY *dec_key;
 X509 *dec_cert;
 
@@ -204,7 +204,7 @@ SCEP_DATA *make_unwrap_message(
 	if(enc_key == NULL) {
 		BIO *b = BIO_new(BIO_s_mem());
 		BIO_puts(b, test_server_key);
-		PEM_read_bio_PrivateKey(b, enc_key, 0, 0);
+		PEM_read_bio_PrivateKey(b, &enc_key, 0, 0);
 		BIO_free(b);
 	}
 	ck_assert(scep_unwrap(
@@ -377,15 +377,16 @@ char *get_attribute_data(PKCS7 *message, int nid) {
 	return ASN1_STRING_data(get_attribute(message, nid));
 }
 
-START_TEST(test_unwrap_message_existence)
+START_TEST(test_unwrap_message)
 {
 	ck_assert_int_ne(NULL, pkiMessage);
-}
-END_TEST
-
-START_TEST(test_unwrap_message_selfsigned)
-{
-	ck_assert_int_eq(1, &(pkiMessage->initialEnrollment));
+	ck_assert_int_eq(1, pkiMessage->initialEnrollment);
+	ck_assert_str_eq(
+		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+		pkiMessage->transactionID);
+	ck_assert_str_eq("19", pkiMessage->messageType);	
+	ck_assert_int_eq(19, pkiMessage->messageType_int);
+    ck_assert_int_ne(NULL, pkiMessage->request);
 }
 END_TEST
 
@@ -604,8 +605,7 @@ Suite * scep_message_suite(void)
 	/*test unwrapping*/
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
-	tcase_add_test(tc_unwrap_msg, test_unwrap_message_existence);
-	tcase_add_test(tc_unwrap_msg, test_unwrap_message_selfsigned);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_message);
 	suite_add_tcase(s, tc_unwrap_msg);
 
 	/* PKCSReq tests */

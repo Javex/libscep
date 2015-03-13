@@ -1,4 +1,5 @@
 #include "scep.h"
+
 SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
 {
     SCEP_ERROR error = SCEPE_OK;
@@ -125,6 +126,7 @@ SCEP_ERROR scep_pkcsreq(
 
     if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)) != SCEPE_OK)
         goto finally;
+    
     if((error = scep_pkiMessage(
             handle, MESSAGE_TYPE_PKCSREQ,
             databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
@@ -323,6 +325,8 @@ SCEP_ERROR scep_pkiMessage(
         goto finally;                                   \
     } while(0)
 
+
+
     /* transaction ID */
     asn1_transaction_id = ASN1_PRINTABLESTRING_new();
     if(asn1_transaction_id == NULL)
@@ -368,7 +372,9 @@ SCEP_ERROR scep_pkiMessage(
     if(!sk_X509_push(enc_certs, enc_cert))
         OSSL_ERR("Could not push enc cert onto stack.\n");
 
+
     encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
+    
     if(!encdata)
         OSSL_ERR("Could not encrypt data.\n");
 
@@ -395,12 +401,13 @@ finally:
 
 
 
-#include<unistd.h>
+
 
 
 SCEP_ERROR scep_unwrap(
-    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey, SCEP_DATA *output)
+    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey, SCEP_DATA **output2)
 {
+	SCEP_DATA *output = malloc(sizeof(SCEP_DATA));
 	SCEP_ERROR error = SCEPE_OK;
     /*should be in a separate init function*/
     int nid_messageType = OBJ_create("2.16.840.1.113733.1.9.2", "messageType",
@@ -440,15 +447,21 @@ SCEP_ERROR scep_unwrap(
 
     /*prepare trusted store*/
     store = X509_STORE_new();
-    encData = NULL;
-    decData = NULL;
+    encData = BIO_new(BIO_s_mem());
+    decData = BIO_new(BIO_s_mem());
     /*add trusted cert*/
     X509_STORE_add_cert(store, cacert);
     output->initialEnrollment = 0;
+    
+    if(pkiMessage->d.sign == NULL) {
+		OSSL_ERR("pkiMessage MUST be content type signed-data.\n");
+	}
+	
     /*extract signer certificate (only one?) from pkiMessage*/
     certs = PKCS7_get0_signers(pkiMessage, NULL, 0);
     signerCert = sk_X509_value(certs, 0);
     /*TODO: additional checks for generic attributes, version = 1 etc*/
+    
 	
     /* Message type*/
     if(!(sk = PKCS7_get_signer_info(pkiMessage)))
@@ -457,6 +470,10 @@ SCEP_ERROR scep_unwrap(
          OSSL_ERR("Failed to get signer info value.\n");
     if(!(messageType = PKCS7_get_signed_attribute(si, nid_messageType)))
         OSSL_ERR("messageType is missing. Not a pkiMessage?.\n");
+	
+	if (!ASN1_INTEGER_get(si->version) == 1) {
+		OSSL_ERR("version MUST be 1.\n");
+	}
 	
     /*luckily, standard defines unique types*/
     ASN1_STRING_to_UTF8(&buf,messageType->value.printablestring);
@@ -473,19 +490,22 @@ SCEP_ERROR scep_unwrap(
         subject = X509_NAME_oneline(X509_get_subject_name(signerCert), 0, 0);
         if(*issuer == *subject)
             output->initialEnrollment = 1;
-            X509_STORE_add_cert(store, signerCert);
+            //TODO: only necessary if signerCert does not equal encryptioncert
+            //X509_STORE_add_cert(store, signerCert);
     }
     
     if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
         goto finally;
-	
+
     /*Message is a pkiMessage and consists of a valid signature. Lets see if we can decrypt it*/
     if(encData) {
+		
         if(decrypt(handle, encData, cakey, cacert, decData) != SCEPE_OK)
              goto finally;
         if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
             output->request = NULL; 
             d2i_X509_REQ_bio(decData, &(output->request));
+               
             /*TODO: fine, but request needs machting parameter to outer PKCSreq*/
         }
         /*TODO: each type needs own handling, depending to various parameters*/
@@ -498,19 +518,18 @@ SCEP_ERROR scep_unwrap(
 
     /*transaction id*/
     if(!(transId = PKCS7_get_signed_attribute(si, nid_transId)))
-        OSSL_ERR("transaction ID is missiong.\n");
+        OSSL_ERR("transaction ID is missing.\n");
 	
     ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
     output->transactionID = (char*)buf;
-	
     /*senderNonce*/
     if(!(senderNonce = PKCS7_get_signed_attribute(si, nid_senderNonce)))
-        OSSL_ERR("sender Nonce is missiong.\n");
+        OSSL_ERR("sender Nonce is missing.\n");
      /*TODO: use ASN1_STRING_print_ex, write to bio, then from bio to hex string*/
 
     /*type-depending attributes*/  
     /*TODO*/
-
+	*output2 = output;
 finally:
     return error;
 #undef OSSL_ERR
