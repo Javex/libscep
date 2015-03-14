@@ -34,6 +34,7 @@ START_TEST(test_scep_set_conf)
 	ck_assert(handle->configuration->verbosity == DEFAULT_VERBOSITY);
 	ck_assert(handle->configuration->sigalg == DEFAULT_SIGALG);
 	ck_assert(handle->configuration->encalg == DEFAULT_ENCALG);
+	ck_assert(handle->configuration->flags == 0);
 
 	error = scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
 	ck_assert(SCEPE_OK == error);
@@ -50,6 +51,12 @@ START_TEST(test_scep_set_conf)
 	error = scep_conf_set(handle, SCEPCFG_LOG, BIO_new(BIO_s_mem()));
 	ck_assert(SCEPE_OK == error);
 	ck_assert(handle->configuration->log != NULL);
+
+	ck_assert(scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT) == SCEPE_OK);
+	ck_assert(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT);
+
+	ck_assert(scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, NULL) == SCEPE_OK);
+	ck_assert(handle->configuration->flags == 0);
 
 	error = scep_conf_set(handle, -1, NULL);
 	ck_assert(SCEPE_UNKNOWN_CONFIGURATION == error);

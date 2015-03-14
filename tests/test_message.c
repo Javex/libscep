@@ -8,6 +8,7 @@ SCEP *handle;
 BIO *scep_log;
 PKCS7 *p7 = NULL;
 SCEP_DATA *pkiMessage;
+PKCS7 *p7_nosigcert = NULL; // no signer certificate on result PKCS#7
 EVP_PKEY *dec_key;
 X509 *dec_cert;
 
@@ -128,9 +129,9 @@ void generic_setup()
 
 void generic_teardown()
 {
-	scep_cleanup(handle);
 	BIO_flush(scep_log);
 	BIO_free(scep_log);
+	scep_cleanup(handle);
 }
 
 void make_message_data(
@@ -267,21 +268,14 @@ SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 	BIO *pkcs7bio = NULL;
 	PKCS7 *content = NULL;
 	SCEP_ERROR error = SCEPE_OK;
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
 	pkcs7bio = PKCS7_dataInit(p7, NULL);
 	if(!pkcs7bio)
-		OSSL_ERR("Could not create BIO for reading PKCS7 content.\n");
+		OSSL_ERR("Could not create BIO for reading PKCS7 content");
 
 	content = d2i_PKCS7_bio(pkcs7bio, NULL);
 	if(!content)
-		OSSL_ERR("Could not read from content BIO.\n");
+		OSSL_ERR("Could not read from content BIO");
 
 	*result = content;
 finally:	
@@ -292,7 +286,6 @@ finally:
 			PKCS7_free(content);
 	}
 	return error;
-#undef OSSL_ERR
 }
 
 BIO *get_decrypted_data(PKCS7 *p7)
@@ -326,42 +319,53 @@ void pkcsreq_setup()
 {
 	generic_setup();
 	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+	p7_nosigcert = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
 }
 
 void pkcsreq_teardown()
 {
-	generic_teardown();
 	PKCS7_free(p7);
+	PKCS7_free(p7_nosigcert);
+	generic_teardown();
 }
 
 void gci_setup()
 {
 	generic_setup();
 	p7 = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+	p7_nosigcert = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 void gci_teardown()
 {
-	generic_teardown();
 	PKCS7_free(p7);
+	PKCS7_free(p7_nosigcert);
+	generic_teardown();
 }
 
 void gc_setup()
 {
 	generic_setup();
 	p7 = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+	p7_nosigcert = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 void gc_teardown()
 {
-	generic_teardown();
 	PKCS7_free(p7);
+	PKCS7_free(p7_nosigcert);
+	generic_teardown();
 }
 
 void gcrl_setup()
 {
 	generic_setup();
 	p7 = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+	p7_nosigcert = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 ASN1_STRING *get_attribute(PKCS7 *message, int nid) {
@@ -384,7 +388,7 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage->transactionID);
-	ck_assert_str_eq("19", pkiMessage->messageType);	
+	ck_assert_str_eq("19", pkiMessage->messageType);
 	ck_assert_int_eq(19, pkiMessage->messageType_int);
     ck_assert_int_ne(NULL, pkiMessage->request);
 }
@@ -401,13 +405,13 @@ START_TEST(test_scep_message_transaction_id)
 {
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
-		get_attribute_data(p7, handle->oids.transId));
+		get_attribute_data(p7, handle->oids->transId));
 }
 END_TEST
 
 START_TEST(test_scep_message_sender_nonce)
 {
-	ck_assert(ASN1_STRING_length(get_attribute(p7, handle->oids.senderNonce)) == 16);
+	ck_assert(ASN1_STRING_length(get_attribute(p7, handle->oids->senderNonce)) == 16);
 }
 END_TEST
 
@@ -424,6 +428,23 @@ START_TEST(test_scep_message_content_type)
 }
 END_TEST
 
+START_TEST(test_scep_message_certificate)
+{
+	BIO *b = BIO_new(BIO_s_mem());
+	X509 *ref_cert = NULL;
+	BIO_puts(b, test_crt);
+	PEM_read_bio_X509(b, &ref_cert, 0, 0);
+	ck_assert(ref_cert);
+	BIO_free(b);
+
+	ck_assert(sk_X509_num(p7->d.sign->cert) == 1);
+	X509 *cert = sk_X509_value(p7->d.sign->cert, 0);
+	ck_assert(cert);
+	ck_assert(X509_cmp(cert, ref_cert) == 0);
+
+	ck_assert(sk_X509_num(p7_nosigcert->d.sign->cert) < 1); // -1 or 0
+}
+END_TEST
 
 START_TEST(test_scep_pkcsreq)
 {
@@ -451,7 +472,7 @@ START_TEST(test_scep_pkcsreq)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_PKCSREQ,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 }
 END_TEST
 
@@ -543,7 +564,7 @@ START_TEST(test_scep_gci)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCERTINITIAL,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SUBJECT(&ias, &data_buf, data_buf_len);
@@ -564,7 +585,7 @@ START_TEST(test_scep_gc)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCERT,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
@@ -586,7 +607,7 @@ START_TEST(test_scep_gcrl)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCRL,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
@@ -601,7 +622,7 @@ END_TEST
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
-	
+
 	/*test unwrapping*/
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
@@ -611,12 +632,13 @@ Suite * scep_message_suite(void)
 	/* PKCSReq tests */
 	TCase *tc_pkcsreq_msg = tcase_create("PKCSReq Message");
 	tcase_add_checked_fixture(tc_pkcsreq_msg, pkcsreq_setup, pkcsreq_teardown);
-	
+
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_asn1_version);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_type);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_content_type);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_certificate);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq);
 	suite_add_tcase(s, tc_pkcsreq_msg);
 
@@ -632,6 +654,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_gci_msg, gci_setup, gci_teardown);
 	tcase_add_test(tc_gci_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_gci_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gci_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gci_msg, test_scep_gci);
 	suite_add_tcase(s, tc_gci_msg);
 
@@ -640,6 +663,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_gc_msg, gc_setup, gc_teardown);
 	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_gc_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gc_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gc_msg, test_scep_gc);
 	suite_add_tcase(s, tc_gc_msg);
 
@@ -648,6 +672,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_gcrl_msg, gcrl_setup, gc_teardown);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gcrl_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gcrl_msg, test_scep_gcrl);
 	suite_add_tcase(s, tc_gcrl_msg);
 

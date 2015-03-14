@@ -40,6 +40,14 @@
 #define scep_log(handle, verbosity, format, ...) \
     _scep_log(handle, verbosity, __FILE__, __LINE__, format, ##__VA_ARGS__)
 
+#define OSSL_ERR(msg, ...)                              \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg, ##__VA_ARGS__);    \
+        goto finally;                                   \
+    } while(0)
+
 typedef enum {
     FATAL,
     ERROR,
@@ -54,6 +62,10 @@ typedef enum {
     SCEPCFG_SIGALG,
     SCEPCFG_ENCALG,
     SCEPCFG_LOG,
+
+    /* Flags to be set */
+    SCEPCFG_FLAG_CLEAR, // clear all flags
+    SCEPCFG_FLAG_SET,
 } SCEPCFG_TYPE;
 
 typedef enum {
@@ -72,6 +84,7 @@ typedef enum {
     SCEPE_MISSING_CRL_CERT,
 
     SCEPE_INVALID_CONTENT,
+    SCEPE_UNHANDLED,
 
     SCEPE_NYI,
     SCEPE_OPENSSL,
@@ -105,11 +118,17 @@ typedef enum {
     badCertId = 4,
 } SCEP_FAILINFO;
 
+typedef enum {
+    SCEP_SKIP_SIGNER_CERT           = 0x0001,
+    SCEP_ALLOW_MULTIPLE_SIGNER_CERT = 0x0002,
+} SCEP_FLAGS;
+
 typedef struct {
     SCEP_VERBOSITY verbosity;
     EVP_MD *sigalg;
     EVP_CIPHER *encalg;
     BIO *log;
+    SCEP_FLAGS flags;
 } SCEP_CONFIGURATION;
 
 typedef struct {
@@ -124,7 +143,7 @@ typedef struct {
 
 typedef struct {
     SCEP_CONFIGURATION *configuration;
-    SCEP_OIDS oids;
+    SCEP_OIDS *oids;
 } SCEP;
 
 typedef struct pkcs7_issuer_and_subject_st
@@ -216,11 +235,11 @@ SCEP_ERROR scep_pkiMessage(
     SCEP *handle, char *messageType, BIO *data,
     X509 *enc_cert, const EVP_CIPHER *enc_alg,
     struct p7_data_t *p7data);
-    
+
 SCEP_ERROR verify(
     SCEP *handle, PKCS7 *pkiMessage, X509_STORE * store, BIO *encData);
-    
+
 SCEP_ERROR decrypt(
     SCEP *handle, BIO *encData, EVP_PKEY *cakey, X509 *cacert, BIO *decData);
-    
+
 #endif /* SCEP_H_ */
