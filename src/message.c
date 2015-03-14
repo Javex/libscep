@@ -286,7 +286,7 @@ SCEP_ERROR scep_pkiMessage(
     if(!ASN1_STRING_set(asn1_transaction_id, p7data->transaction_id, -1))
         OSSL_ERR("Could not set ASN1 TID object");
     if(!PKCS7_add_signed_attribute(
-            p7data->signer_info, handle->oids.transId, V_ASN1_PRINTABLESTRING,
+            p7data->signer_info, handle->oids->transId, V_ASN1_PRINTABLESTRING,
             asn1_transaction_id))
         OSSL_ERR("Could not add attribute for transaction ID");
 
@@ -297,7 +297,7 @@ SCEP_ERROR scep_pkiMessage(
     if(!ASN1_STRING_set(asn1_message_type, messageType, -1))
         OSSL_ERR("Could not set ASN1 message type object");
     if(!PKCS7_add_signed_attribute(
-            p7data->signer_info, handle->oids.messageType, V_ASN1_PRINTABLESTRING,
+            p7data->signer_info, handle->oids->messageType, V_ASN1_PRINTABLESTRING,
             asn1_message_type))
         OSSL_ERR("Could not add attribute for message type");
 
@@ -308,7 +308,7 @@ SCEP_ERROR scep_pkiMessage(
     if(!ASN1_OCTET_STRING_set(asn1_sender_nonce, p7data->sender_nonce, NONCE_LENGTH))
         OSSL_ERR("Could not set ASN1 sender nonce object");
     if(!PKCS7_add_signed_attribute(
-            p7data->signer_info, handle->oids.senderNonce, V_ASN1_OCTET_STRING,
+            p7data->signer_info, handle->oids->senderNonce, V_ASN1_OCTET_STRING,
             asn1_sender_nonce))
         OSSL_ERR("Could not add attribute for sender nonce");
 
@@ -389,7 +389,7 @@ SCEP_ERROR scep_unwrap(
         OSSL_ERR("Unexpected number of signer infos");
     if(!(si = sk_PKCS7_SIGNER_INFO_value(sk, 0)))
          OSSL_ERR("Failed to get signer info value");
-    if(!(messageType = PKCS7_get_signed_attribute(si, handle->oids.messageType)))
+    if(!(messageType = PKCS7_get_signed_attribute(si, handle->oids->messageType)))
         OSSL_ERR("messageType is missing. Not a pkiMessage?");
 
 	if (!ASN1_INTEGER_get(si->version) == 1)
@@ -440,13 +440,13 @@ SCEP_ERROR scep_unwrap(
     /*pkiMessage attributes*/
 
     /*transaction id*/
-    if(!(transId = PKCS7_get_signed_attribute(si, handle->oids.transId)))
+    if(!(transId = PKCS7_get_signed_attribute(si, handle->oids->transId)))
         OSSL_ERR("transaction ID is missing");
 
     ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
     local_out->transactionID = (char*)buf;
     /*senderNonce*/
-    if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids.senderNonce)))
+    if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce)))
         OSSL_ERR("sender Nonce is missing");
      /*TODO: use ASN1_STRING_print_ex, write to bio, then from bio to hex string*/
 

@@ -129,9 +129,9 @@ void generic_setup()
 
 void generic_teardown()
 {
-	scep_cleanup(handle);
 	BIO_flush(scep_log);
 	BIO_free(scep_log);
+	scep_cleanup(handle);
 }
 
 void make_message_data(
@@ -325,9 +325,9 @@ void pkcsreq_setup()
 
 void pkcsreq_teardown()
 {
-	generic_teardown();
 	PKCS7_free(p7);
 	PKCS7_free(p7_nosigcert);
+	generic_teardown();
 }
 
 void gci_setup()
@@ -340,9 +340,9 @@ void gci_setup()
 
 void gci_teardown()
 {
-	generic_teardown();
 	PKCS7_free(p7);
 	PKCS7_free(p7_nosigcert);
+	generic_teardown();
 }
 
 void gc_setup()
@@ -355,9 +355,9 @@ void gc_setup()
 
 void gc_teardown()
 {
-	generic_teardown();
 	PKCS7_free(p7);
 	PKCS7_free(p7_nosigcert);
+	generic_teardown();
 }
 
 void gcrl_setup()
@@ -405,13 +405,13 @@ START_TEST(test_scep_message_transaction_id)
 {
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
-		get_attribute_data(p7, handle->oids.transId));
+		get_attribute_data(p7, handle->oids->transId));
 }
 END_TEST
 
 START_TEST(test_scep_message_sender_nonce)
 {
-	ck_assert(ASN1_STRING_length(get_attribute(p7, handle->oids.senderNonce)) == 16);
+	ck_assert(ASN1_STRING_length(get_attribute(p7, handle->oids->senderNonce)) == 16);
 }
 END_TEST
 
@@ -472,7 +472,7 @@ START_TEST(test_scep_pkcsreq)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_PKCSREQ,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 }
 END_TEST
 
@@ -564,7 +564,7 @@ START_TEST(test_scep_gci)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCERTINITIAL,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SUBJECT(&ias, &data_buf, data_buf_len);
@@ -585,7 +585,7 @@ START_TEST(test_scep_gc)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCERT,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
@@ -607,7 +607,7 @@ START_TEST(test_scep_gcrl)
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCRL,
-		get_attribute_data(p7, handle->oids.messageType));
+		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
