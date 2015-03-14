@@ -57,7 +57,7 @@ typedef enum {
 
     /* Flags to be set */
     SCEPCFG_FLAG_CLEAR, // clear all flags
-    SCEPCFG_FLAG_SKIP_SIGNER_CERT,
+    SCEPCFG_FLAG_SET,
 } SCEPCFG_TYPE;
 
 typedef enum {

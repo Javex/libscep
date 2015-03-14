@@ -52,7 +52,7 @@ START_TEST(test_scep_set_conf)
 	ck_assert(SCEPE_OK == error);
 	ck_assert(handle->configuration->log != NULL);
 
-	ck_assert(scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL) == SCEPE_OK);
+	ck_assert(scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT) == SCEPE_OK);
 	ck_assert(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT);
 
 	ck_assert(scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, NULL) == SCEPE_OK);

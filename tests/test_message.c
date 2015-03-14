@@ -293,7 +293,7 @@ void pkcsreq_setup()
 {
 	generic_setup();
 	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
-	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
 	p7_nosigcert = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
 }
 
@@ -308,7 +308,7 @@ void gci_setup()
 {
 	generic_setup();
 	p7 = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
-	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
 	p7_nosigcert = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
@@ -323,7 +323,7 @@ void gc_setup()
 {
 	generic_setup();
 	p7 = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
-	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
 	p7_nosigcert = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
@@ -338,7 +338,7 @@ void gcrl_setup()
 {
 	generic_setup();
 	p7 = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
-	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
 	p7_nosigcert = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
