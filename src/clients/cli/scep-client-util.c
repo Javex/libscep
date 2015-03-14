@@ -105,7 +105,7 @@ SCEP_CLIENT_ERROR scep_send_request(
     }
     strncpy(tmp_str, operation, tmp_str_len);
     query_list->value = tmp_str;
-    scep_log(handle, INFO, "Set operation to %s\n", operation);
+    scep_log(handle, INFO, "Set operation to %s", operation);
 
     if(message)
     {
@@ -136,7 +136,7 @@ SCEP_CLIENT_ERROR scep_send_request(
         }
         strncpy(tmp_str, message, tmp_str_len);
         query_list->value = tmp_str;
-        scep_log(handle, DEBUG, "Set message to %s\n", message);
+        scep_log(handle, DEBUG, "Set message to %s", message);
     }
 
     // get length of query string
@@ -161,7 +161,7 @@ SCEP_CLIENT_ERROR scep_send_request(
         error = SCEPE_CLIENT_QUERY_PARSE;
         goto finally;
     }
-    scep_log(handle, INFO, "Full request URL including query: \"%s\"\n",
+    scep_log(handle, INFO, "Full request URL including query: \"%s\"",
             full_url);
 
     curl_handle = curl_easy_init();
@@ -178,23 +178,23 @@ SCEP_CLIENT_ERROR scep_send_request(
     curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, scep_recieve_data);
     curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, local_reply);
 
-    scep_log(handle, INFO, "Sending request...\n");
+    scep_log(handle, INFO, "Sending request...");
     if((curl_error = curl_easy_perform(curl_handle)) != CURLE_OK)
     {
         error = SCEPE_CLIENT_CURL;
-        scep_log(handle, FATAL, "cURL error: %s\n",
+        scep_log(handle, FATAL, "cURL error: %s",
                 curl_easy_strerror(curl_error));
         goto finally;
     }
 
     curl_easy_getinfo(curl_handle, CURLINFO_RESPONSE_CODE,
             &(local_reply->status));
-    scep_log(handle, INFO, "Got reply status code %d\n", local_reply->status);
+    scep_log(handle, INFO, "Got reply status code %d", local_reply->status);
     if((curl_error = curl_easy_getinfo(curl_handle, CURLINFO_CONTENT_TYPE,
             &(tmp_str))) != CURLE_OK)
     {
         error = SCEPE_CLIENT_CURL;
-        scep_log(handle, FATAL, "cURL error: %s\n",
+        scep_log(handle, FATAL, "cURL error: %s",
                 curl_easy_strerror(curl_error));
         goto finally;
     }
@@ -205,11 +205,11 @@ SCEP_CLIENT_ERROR scep_send_request(
     if(!local_reply->content_type)
     {
         error = SCEPE_CLIENT_INVALID_RESPONSE;
-        scep_log(handle, FATAL, "Server did not send a content type.\n");
+        scep_log(handle, FATAL, "Server did not send a content type.");
         goto finally;
     }
 
-    scep_log(handle, INFO, "MIME content type: %s\n",
+    scep_log(handle, INFO, "MIME content type: %s",
             local_reply->content_type);
     *reply = local_reply;
 finally:
@@ -267,7 +267,7 @@ SCEP_CLIENT_ERROR scep_conf_set_url(struct cmd_handle_t *cmd_handle, char *url_s
     UriUriA *url;
     SCEP_CLIENT_ERROR error = SCEPE_CLIENT_OK;
 
-    scep_log(handle, DEBUG, "Setting URL to %s\n", url_str);
+    scep_log(handle, DEBUG, "Setting URL to %s", url_str);
     url = malloc(sizeof(UriUriA));
     if(!url) {
         error = SCEPE_CLIENT_MEMORY;
@@ -283,7 +283,7 @@ SCEP_CLIENT_ERROR scep_conf_set_url(struct cmd_handle_t *cmd_handle, char *url_s
     if(!url->scheme.first || !url->scheme.afterLast)
     {
         error = SCEPE_CLIENT_INVALID_URL;
-        scep_log(handle, ERROR, "Need scheme (e.g. http://) in URL.\n");
+        scep_log(handle, ERROR, "Need scheme (e.g. http://) in URL.");
         goto finally;
     }
 
@@ -300,12 +300,12 @@ finally:
 SCEP_CLIENT_ERROR scep_read_key(SCEP *handle, EVP_PKEY** key, char* filename) {
     FILE *file;
     if(!(file = fopen(filename, "r"))) {
-        scep_log(handle, FATAL, "cannot open private key file %s\n", filename);
+        scep_log(handle, FATAL, "cannot open private key file %s", filename);
         return SCEPE_CLIENT_FILE_DOES_NOT_EXIST;
     }
     if(!PEM_read_PrivateKey(file, key, NULL, NULL)) {
         ERR_print_errors(handle->configuration->log);
-        scep_log(handle, FATAL, "error while reading private key %s\n", filename);
+        scep_log(handle, FATAL, "error while reading private key %s", filename);
         return SCEPE_CLIENT_OPENSSL;
     }
     fclose(file);
@@ -315,12 +315,12 @@ SCEP_CLIENT_ERROR scep_read_key(SCEP *handle, EVP_PKEY** key, char* filename) {
 SCEP_CLIENT_ERROR scep_read_cert(SCEP *handle, X509 **cert, char *filename) {
     FILE *file;
     if(!(file = fopen(filename, "r"))) {
-        scep_log(handle, FATAL, "cannot open certificate file %s\n", filename);
+        scep_log(handle, FATAL, "cannot open certificate file %s", filename);
         return SCEPE_CLIENT_FILE_DOES_NOT_EXIST;
     }
     if(!PEM_read_X509(file, cert, NULL, NULL)) {
         ERR_print_errors(handle->configuration->log);
-        scep_log(handle, FATAL, "error while reading certificate %s\n", filename);
+        scep_log(handle, FATAL, "error while reading certificate %s", filename);
         return SCEPE_CLIENT_OPENSSL;
     }
     fclose(file);
@@ -330,12 +330,12 @@ SCEP_CLIENT_ERROR scep_read_cert(SCEP *handle, X509 **cert, char *filename) {
 SCEP_CLIENT_ERROR scep_read_request(SCEP *handle, X509_REQ **req, char *filename) {
     FILE *file;
     if(!(file = fopen(filename, "r"))) {
-        scep_log(handle, FATAL, "cannot open CSR file %s\n", filename);
+        scep_log(handle, FATAL, "cannot open CSR file %s", filename);
         return SCEPE_CLIENT_FILE_DOES_NOT_EXIST;
     }
     if(!PEM_read_X509_REQ(file, req, NULL, NULL)) {
         ERR_print_errors(handle->configuration->log);
-        scep_log(handle, FATAL, "error while reading CSR %s\n", filename);
+        scep_log(handle, FATAL, "error while reading CSR %s", filename);
         return SCEPE_CLIENT_OPENSSL;
     }
     fclose(file);

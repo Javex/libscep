@@ -85,29 +85,29 @@ SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, EVP_PKEY *pubkey, char **
 	}
 	
 	if(!i2d_PUBKEY_bio(bio, pubkey))
-		OSSL_ERR("Could not convert pubkey to DER.\n");
+		OSSL_ERR("Could not convert pubkey to DER");
 
 	len = BIO_get_mem_data(bio, &data);
 	if(len == 0)
-		OSSL_ERR("Could not get data from bio.\n");
+		OSSL_ERR("Could not get data from bio");
 	
 	SHA256(data, len, digest);
 	ctx = EVP_MD_CTX_create();
 	if(ctx == NULL)
-		OSSL_ERR("Could not create hash context.\n");
+		OSSL_ERR("Could not create hash context");
 
 	if(EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) == 0)
-		OSSL_ERR("Could not initialize hash context.\n");
+		OSSL_ERR("Could not initialize hash context");
 
 	if(EVP_DigestUpdate(ctx, data, len) == 0)
-		OSSL_ERR("Could not read data into context.\n");
+		OSSL_ERR("Could not read data into context");
 
 	if(EVP_DigestFinal_ex(ctx, digest, NULL) == 0)
-		OSSL_ERR("Could not finalize context.\n");
+		OSSL_ERR("Could not finalize context");
 
 	for(i=0; i < SHA256_DIGEST_LENGTH; ++i)
 		sprintf((*transaction_id) + i * 2, "%02X", digest[i]);
-	scep_log(handle, INFO, "Generated transaction id %s\n", *transaction_id);
+	scep_log(handle, INFO, "Generated transaction id %s", *transaction_id);
 finally:
 	if(error != SCEPE_OK)
 		if(*transaction_id)
@@ -135,14 +135,14 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 	BIO_set_close(outbio, BIO_NOCLOSE);
 	input_b64bio = BIO_push(BIO_new(BIO_f_base64()), outbio);
 	if(!input_b64bio || !outbio)
-		OSSL_ERR("Could not create B64 encoding BIO chain.\n");
+		OSSL_ERR("Could not create B64 encoding BIO chain");
 
 	if(!i2d_PKCS7_bio(input_b64bio, p7))
-		OSSL_ERR("Could read data into BIO.\n");
+		OSSL_ERR("Could read data into BIO");
 	BIO_flush(input_b64bio);
 
 	if(!BIO_get_mem_data(outbio, encoded))
-		OSSL_ERR("Could not copy data from BIO to output char *.\n");
+		OSSL_ERR("Could not copy data from BIO to output char *");
 
 finally:
 	BIO_free_all(input_b64bio);
@@ -178,7 +178,7 @@ inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		vsnprintf(message, message_len, format, args);
 		va_end(args);
 
-		full_message_len = snprintf(NULL, 0, "%s:%d: %s\n", filename, line, message);
+		full_message_len = snprintf(NULL, 0, "%s:%d: %s\n", filename, line, message) + 1;
 		full_message = malloc(full_message_len);
 		if(!full_message)
 			return;
@@ -209,43 +209,43 @@ SCEP_ERROR scep_new_selfsigned_X509(
 
 	pub_key = X509_REQ_get_pubkey(req);
 	if(!pub_key)
-		OSSL_ERR("Could not get public key from CSR.\n");
+		OSSL_ERR("Could not get public key from CSR");
 
 	subject = X509_REQ_get_subject_name(req);
 	if(!subject)
-		OSSL_ERR("Could not get subject from CSR.\n");
+		OSSL_ERR("Could not get subject from CSR");
 
 	new_cert = X509_new();
 	if(!new_cert)
-		OSSL_ERR("Could not create new certificate.\n");
+		OSSL_ERR("Could not create new certificate");
 
 	if(!X509_set_version(new_cert, 2))
-		OSSL_ERR("Could not set certificate to V3.\n");
+		OSSL_ERR("Could not set certificate to V3");
 
 	serial = s2i_ASN1_INTEGER(NULL, "1");
 	if(!serial)
-		OSSL_ERR("Could not create serial.\n");
+		OSSL_ERR("Could not create serial");
 
 	if(!X509_set_serialNumber(new_cert, serial))
-		OSSL_ERR("Could not set serial number on cert.\n");
+		OSSL_ERR("Could not set serial number on cert");
 
 	if(!X509_set_subject_name(new_cert, subject))
-		OSSL_ERR("Could not set subject name.\n");
+		OSSL_ERR("Could not set subject name");
 
 	if(!X509_set_issuer_name(new_cert, subject))
-		OSSL_ERR("Could not set issuer name.\n");
+		OSSL_ERR("Could not set issuer name");
 
 	if(!X509_set_pubkey(new_cert, pub_key))
-		OSSL_ERR("Could not set public key.\n");
+		OSSL_ERR("Could not set public key");
 
 	if(!X509_gmtime_adj(X509_get_notBefore(new_cert), 0))
-		OSSL_ERR("Could not set notBefore field.\n");
+		OSSL_ERR("Could not set notBefore field");
 	if(!X509_gmtime_adj(X509_get_notAfter(new_cert),
 			SCEP_SELFSIGNED_EXPIRE_DAYS * 24 * 60 * 60))
-		OSSL_ERR("Could not set notAfter field.\n");
+		OSSL_ERR("Could not set notAfter field");
 
 	if(!X509_sign(new_cert, req_key, handle->configuration->sigalg))
-		OSSL_ERR("Could not sign certificate with private key.\n");
+		OSSL_ERR("Could not sign certificate with private key");
 	*cert = new_cert;
 finally:
 	if(error != SCEPE_OK)

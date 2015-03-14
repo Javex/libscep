@@ -8,6 +8,7 @@ SCEP *handle;
 BIO *scep_log;
 PKCS7 *p7 = NULL;
 SCEP_DATA *pkiMessage;
+PKCS7 *p7_nosigcert = NULL; // no signer certificate on result PKCS#7
 EVP_PKEY *dec_key;
 X509 *dec_cert;
 
@@ -277,11 +278,11 @@ SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 
 	pkcs7bio = PKCS7_dataInit(p7, NULL);
 	if(!pkcs7bio)
-		OSSL_ERR("Could not create BIO for reading PKCS7 content.\n");
+		OSSL_ERR("Could not create BIO for reading PKCS7 content");
 
 	content = d2i_PKCS7_bio(pkcs7bio, NULL);
 	if(!content)
-		OSSL_ERR("Could not read from content BIO.\n");
+		OSSL_ERR("Could not read from content BIO");
 
 	*result = content;
 finally:	
@@ -326,42 +327,53 @@ void pkcsreq_setup()
 {
 	generic_setup();
 	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	p7_nosigcert = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
 }
 
 void pkcsreq_teardown()
 {
 	generic_teardown();
 	PKCS7_free(p7);
+	PKCS7_free(p7_nosigcert);
 }
 
 void gci_setup()
 {
 	generic_setup();
 	p7 = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	p7_nosigcert = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 void gci_teardown()
 {
 	generic_teardown();
 	PKCS7_free(p7);
+	PKCS7_free(p7_nosigcert);
 }
 
 void gc_setup()
 {
 	generic_setup();
 	p7 = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	p7_nosigcert = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 void gc_teardown()
 {
 	generic_teardown();
 	PKCS7_free(p7);
+	PKCS7_free(p7_nosigcert);
 }
 
 void gcrl_setup()
 {
 	generic_setup();
 	p7 = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	scep_conf_set(handle, SCEPCFG_FLAG_SKIP_SIGNER_CERT, NULL);
+	p7_nosigcert = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 ASN1_STRING *get_attribute(PKCS7 *message, int nid) {
@@ -424,6 +436,23 @@ START_TEST(test_scep_message_content_type)
 }
 END_TEST
 
+START_TEST(test_scep_message_certificate)
+{
+	BIO *b = BIO_new(BIO_s_mem());
+	X509 *ref_cert = NULL;
+	BIO_puts(b, test_crt);
+	PEM_read_bio_X509(b, &ref_cert, 0, 0);
+	ck_assert(ref_cert);
+	BIO_free(b);
+
+	ck_assert(sk_X509_num(p7->d.sign->cert) == 1);
+	X509 *cert = sk_X509_value(p7->d.sign->cert, 0);
+	ck_assert(cert);
+	ck_assert(X509_cmp(cert, ref_cert) == 0);
+
+	ck_assert(sk_X509_num(p7_nosigcert->d.sign->cert) < 1); // -1 or 0
+}
+END_TEST
 
 START_TEST(test_scep_pkcsreq)
 {
@@ -617,6 +646,7 @@ Suite * scep_message_suite(void)
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_type);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_content_type);
+	tcase_add_test(tc_pkcsreq_msg, test_scep_message_certificate);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_pkcsreq);
 	suite_add_tcase(s, tc_pkcsreq_msg);
 
@@ -632,6 +662,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_gci_msg, gci_setup, gci_teardown);
 	tcase_add_test(tc_gci_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_gci_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gci_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gci_msg, test_scep_gci);
 	suite_add_tcase(s, tc_gci_msg);
 
@@ -640,6 +671,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_gc_msg, gc_setup, gc_teardown);
 	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_gc_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gc_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gc_msg, test_scep_gc);
 	suite_add_tcase(s, tc_gc_msg);
 
@@ -648,6 +680,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_gcrl_msg, gcrl_setup, gc_teardown);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_sender_nonce);
+	tcase_add_test(tc_gcrl_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gcrl_msg, test_scep_gcrl);
 	suite_add_tcase(s, tc_gcrl_msg);
 

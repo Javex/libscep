@@ -48,11 +48,17 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 						ERROR,
 						"Overwriting the BIO log is not allowed and also not "
 						"recommended. BIOs can be modified in-place and "
-						"should never need to be swapped.\n");
+						"should never need to be swapped");
 				error = SCEPE_DUPLICATE_BIO;
 				break;
 			}
 			handle->configuration->log = va_arg(arg, BIO *);
+			break;
+		case SCEPCFG_FLAG_CLEAR:
+			handle->configuration->flags = 0;
+			break;
+		case SCEPCFG_FLAG_SKIP_SIGNER_CERT:
+			handle->configuration->flags |= SCEP_SKIP_SIGNER_CERT;
 			break;
 		default:
 			error = SCEPE_UNKNOWN_CONFIGURATION;
