@@ -158,7 +158,7 @@ typedef struct {
     char *transactionID;
     unsigned char *senderNonce;
     unsigned char *recipientNonce;
-    char *challenge_password;
+    unsigned char *challenge_password;
     X509 *signer_certificate;
     char *messageType;
     int messageType_int;
@@ -238,8 +238,4 @@ SCEP_ERROR scep_pkiMessage(
 
 SCEP_ERROR verify(
     SCEP *handle, PKCS7 *pkiMessage, X509_STORE * store, BIO *encData);
-
-SCEP_ERROR decrypt(
-    SCEP *handle, BIO *encData, EVP_PKEY *cakey, X509 *cacert, BIO *decData);
-
 #endif /* SCEP_H_ */
