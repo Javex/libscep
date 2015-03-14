@@ -1,5 +1,5 @@
 #include "scep.h"
-
+#include<unistd.h>
 SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
 {
     SCEP_ERROR error = SCEPE_OK;
@@ -420,15 +420,37 @@ SCEP_ERROR scep_unwrap(
     if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
         goto finally;
 
-    /*Message is a pkiMessage and consists of a valid signature. Lets see if we can decrypt it*/
+    /*Message is a pkiMessage and consists of a valid signature.*/
+    /*decrypt it*/
     if(encData) {
-
+		
+		PKCS7 *p7env = d2i_PKCS7_bio(encData, NULL);
+		//if(p7env->d.enveloped)
+			//sleep(3);
+		/*decrypt will only handle enveloped data which is a requirement in SCEP*/
         if(decrypt(handle, encData, cakey, cacert, decData) != SCEPE_OK)
              goto finally;
-        if(strncmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ, 2) == 0) {
-            local_out->request = NULL;
-            d2i_X509_REQ_bio(decData, &(local_out->request));
-
+        if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
+            output->request = NULL; 
+            d2i_X509_REQ_bio(decData, &(output->request));
+            
+            /*subject distinguished name*/
+            if(!(X509_REQ_get_subject_name(output->request))) {
+				OSSL_ERR("The CSR MUST contain a Subject Distinguished Name.\n");
+			}
+			
+			/*public key*/
+            if(!(X509_REQ_get_pubkey(output->request))) {
+				OSSL_ERR("The CSR MUST contain a public key.\n");
+			}
+			
+			/*challenge pasword*/
+            int passwd_index = X509_REQ_get_attr_by_NID(output->request, NID_pkcs9_challengePassword, -1);
+			if(passwd_index == -1) {
+				OSSL_ERR("The CSR MUST contain a challenge password.\n");
+			}
+			
+               
             /*TODO: fine, but request needs machting parameter to outer PKCSreq*/
         }
         /*TODO: each type needs own handling, depending to various parameters*/
@@ -439,6 +461,7 @@ SCEP_ERROR scep_unwrap(
 
     /*pkiMessage attributes*/
 
+
     /*transaction id*/
     if(!(transId = PKCS7_get_signed_attribute(si, handle->oids->transId)))
         OSSL_ERR("transaction ID is missing");
@@ -446,13 +469,22 @@ SCEP_ERROR scep_unwrap(
     ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
     local_out->transactionID = (char*)buf;
     /*senderNonce*/
-    if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce)))
-        OSSL_ERR("sender Nonce is missing");
-     /*TODO: use ASN1_STRING_print_ex, write to bio, then from bio to hex string*/
+    /*needed in every pkiMessage*/
+    if(!(senderNonce = PKCS7_get_signed_attribute(si, nid_senderNonce)))
+        OSSL_ERR("sender Nonce is missing.\n");
+    output->senderNonce = ASN1_STRING_data(senderNonce->value.octet_string);
 
-    /*type-depending attributes*/
+    /*type-depending attributes*/ 
+    
+    /*PKCSreq*/
+    if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
+		if(!encData) {
+			OSSL_ERR("Message type PKCSreq requires an encrypted content.\n");
+		}
+	}
     /*TODO*/
-	*output = local_out;
+    
+	*output2 = output;
 finally:
     return error;
 
