@@ -391,6 +391,8 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq("19", pkiMessage->messageType);
 	ck_assert_int_eq(19, pkiMessage->messageType_int);
     ck_assert_int_ne(NULL, pkiMessage->request);
+    ck_assert_int_ne(NULL, pkiMessage->senderNonce);
+    ck_assert_str_eq("FOOBARTESTPWD", pkiMessage->challenge_password);
 }
 END_TEST
 
