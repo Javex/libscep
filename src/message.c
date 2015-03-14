@@ -3,13 +3,6 @@
 SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
 {
     SCEP_ERROR error = SCEPE_OK;
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
     p7data->p7 = PKCS7_new();
     if(p7data->p7 == NULL)
@@ -59,19 +52,11 @@ finally:
             free(p7data->transaction_id);
     }
     return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7)
 {
     SCEP_ERROR error = SCEPE_OK;
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
     if(!PKCS7_dataFinal(p7data->p7, p7data->bio))
         OSSL_ERR("Could not finalize PKCS#7 data");
@@ -79,7 +64,6 @@ SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7)
     *p7 = p7data->p7;
 finally:
     return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR scep_pkcsreq(
@@ -94,14 +78,6 @@ SCEP_ERROR scep_pkcsreq(
     X509_NAME *subject;
     char *subject_str = NULL;
     int passwd_index;
-
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
     subject = X509_REQ_get_subject_name(req);
     subject_str = X509_NAME_oneline(subject, NULL, 0);
@@ -147,7 +123,6 @@ finally:
     if(req_pubkey)  // needed?
         EVP_PKEY_free(req_pubkey);
     return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR scep_get_cert_initial(
@@ -164,14 +139,6 @@ SCEP_ERROR scep_get_cert_initial(
     int ias_data_size;
     BIO *databio;
     char *subject_str = NULL, *issuer_str = NULL;
-
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
     req_pubkey = X509_REQ_get_pubkey(req);
     if(!req_pubkey) {
@@ -218,7 +185,6 @@ finally:
     if(databio)
         BIO_free(databio);
     return error;
-#undef OSSL_ERR
 }
 
 static SCEP_ERROR _scep_get_cert_or_crl(
@@ -235,14 +201,6 @@ static SCEP_ERROR _scep_get_cert_or_crl(
     int ias_data_size;
     BIO *databio;
     char *issuer_str = NULL;
-
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
     req_pubkey = X509_REQ_get_pubkey(req);
     if(!req_pubkey) {
@@ -287,7 +245,6 @@ finally:
     if(databio)
         BIO_free(databio);
     return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR scep_get_cert(
@@ -321,16 +278,6 @@ SCEP_ERROR scep_pkiMessage(
     SCEP_ERROR error = SCEPE_OK;
     STACK_OF(X509) *enc_certs;
     ASN1_PRINTABLESTRING *asn1_transaction_id, *asn1_message_type, *asn1_sender_nonce;
-
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
-
-
 
     /* transaction ID */
     asn1_transaction_id = ASN1_PRINTABLESTRING_new();
@@ -388,7 +335,6 @@ SCEP_ERROR scep_pkiMessage(
 
 finally:
     return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR scep_unwrap(
@@ -406,14 +352,6 @@ SCEP_ERROR scep_unwrap(
     STACK_OF(X509)              *certs;
     BIO                         *encData, *decData;
     X509_STORE                  *store;
-
-#define OSSL_ERR(msg)                                   \
-	do {                                                \
-		error = SCEPE_OPENSSL;                          \
-		ERR_print_errors(handle->configuration->log);   \
-		scep_log(handle, FATAL, msg);                   \
-		goto finally;                                   \
-	} while(0)
 
     /*prepare trusted store*/
     store = X509_STORE_new();
@@ -517,7 +455,6 @@ SCEP_ERROR scep_unwrap(
 	*output = local_out;
 finally:
     return error;
-#undef OSSL_ERR
 
 }
 
@@ -527,20 +464,12 @@ SCEP_ERROR verify(
     //STACK_OF(X509) *certs;
     //X509 * cert;
     SCEP_ERROR error = SCEPE_OK;
-#define OSSL_ERR(msg)                                   \
-        do {                                                \
-            error = SCEPE_OPENSSL;                          \
-            ERR_print_errors(handle->configuration->log);   \
-            scep_log(handle, FATAL, msg);                   \
-            goto finally;                                   \
-        } while(0)
     /*assuming cert is within pkiMessage*/
     if (!PKCS7_verify(pkiMessage, NULL, store, NULL, encData, 0)) {
         OSSL_ERR("verification failed");
     }
 finally:
     return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR decrypt(
@@ -548,18 +477,10 @@ SCEP_ERROR decrypt(
 {
     PKCS7 * p7enc;
     SCEP_ERROR error = SCEPE_OK;
-#define OSSL_ERR(msg)                                   \
-        do {                                                \
-            error = SCEPE_OPENSSL;                          \
-            ERR_print_errors(handle->configuration->log);   \
-            scep_log(handle, FATAL, msg);                   \
-            goto finally;                                   \
-        } while(0)
     p7enc = d2i_PKCS7_bio(encData, NULL);
     if(!PKCS7_decrypt(p7enc, cakey, cacert, decData, 0)) {
         OSSL_ERR("decryption failed");
     }
 finally:
     return error;
-#undef OSSL_ERR
 }

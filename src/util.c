@@ -70,14 +70,6 @@ SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, EVP_PKEY *pubkey, char **
 	int len, i;
 	EVP_MD_CTX *ctx;
 
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
-
 	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
 		return SCEPE_MEMORY;
 	memset(*transaction_id, 0, 2 * SHA256_DIGEST_LENGTH + 1);
@@ -119,21 +111,12 @@ finally:
 	if(bio)
 		BIO_free(bio);
 	return error;
-#undef OSSL_ERR
 }
 
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 {
 	BIO *outbio = NULL, *input_b64bio = NULL;
 	SCEP_ERROR error = SCEPE_OK;
-
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
 	outbio = BIO_new(BIO_s_mem());
 	BIO_set_close(outbio, BIO_NOCLOSE);
@@ -151,7 +134,6 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 finally:
 	BIO_free_all(input_b64bio);
 	return error;
-#undef OSSL_ERR
 }
 
 inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
@@ -203,14 +185,6 @@ SCEP_ERROR scep_new_selfsigned_X509(
 	X509_NAME *subject;
 	ASN1_INTEGER *serial;
 
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
-
 	pub_key = X509_REQ_get_pubkey(req);
 	if(!pub_key)
 		OSSL_ERR("Could not get public key from CSR");
@@ -256,7 +230,6 @@ finally:
 		if(new_cert)
 			X509_free(new_cert);
 	return error;
-#undef OSSL_ERR
 }
 
 ASN1_SEQUENCE(PKCS7_ISSUER_AND_SUBJECT) = {

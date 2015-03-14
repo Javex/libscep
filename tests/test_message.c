@@ -268,13 +268,6 @@ SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 	BIO *pkcs7bio = NULL;
 	PKCS7 *content = NULL;
 	SCEP_ERROR error = SCEPE_OK;
-#define OSSL_ERR(msg)                                   \
-    do {                                                \
-        error = SCEPE_OPENSSL;                          \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, msg);                   \
-        goto finally;                                   \
-    } while(0)
 
 	pkcs7bio = PKCS7_dataInit(p7, NULL);
 	if(!pkcs7bio)
@@ -293,7 +286,6 @@ finally:
 			PKCS7_free(content);
 	}
 	return error;
-#undef OSSL_ERR
 }
 
 BIO *get_decrypted_data(PKCS7 *p7)

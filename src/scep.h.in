@@ -40,6 +40,14 @@
 #define scep_log(handle, verbosity, format, ...) \
     _scep_log(handle, verbosity, __FILE__, __LINE__, format, ##__VA_ARGS__)
 
+#define OSSL_ERR(msg, ...)                              \
+    do {                                                \
+        error = SCEPE_OPENSSL;                          \
+        ERR_print_errors(handle->configuration->log);   \
+        scep_log(handle, FATAL, msg, ##__VA_ARGS__);    \
+        goto finally;                                   \
+    } while(0)
+
 typedef enum {
     FATAL,
     ERROR,
