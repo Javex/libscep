@@ -57,8 +57,8 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 		case SCEPCFG_FLAG_CLEAR:
 			handle->configuration->flags = 0;
 			break;
-		case SCEPCFG_FLAG_SKIP_SIGNER_CERT:
-			handle->configuration->flags |= SCEP_SKIP_SIGNER_CERT;
+		case SCEPCFG_FLAG_SET:
+			handle->configuration->flags |= va_arg(arg, SCEP_FLAGS);
 			break;
 		default:
 			error = SCEPE_UNKNOWN_CONFIGURATION;
