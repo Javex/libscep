@@ -133,7 +133,7 @@ SCEP_ERROR scep_pkcsreq(
 
     if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)) != SCEPE_OK)
         goto finally;
-    
+
     if((error = scep_pkiMessage(
             handle, MESSAGE_TYPE_PKCSREQ,
             databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
@@ -379,7 +379,6 @@ SCEP_ERROR scep_pkiMessage(
 
 
     encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
-    
     if(!encdata)
         OSSL_ERR("Could not encrypt data");
 
@@ -392,56 +391,22 @@ finally:
 #undef OSSL_ERR
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 SCEP_ERROR scep_unwrap(
-    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey, SCEP_DATA **output2)
+    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey,
+    SCEP_DATA **output)
 {
-	SCEP_DATA *output = malloc(sizeof(SCEP_DATA));
+	SCEP_DATA *local_out = malloc(sizeof(SCEP_DATA));
 	SCEP_ERROR error = SCEPE_OK;
-    /*should be in a separate init function*/
-    int nid_messageType = OBJ_create("2.16.840.1.113733.1.9.2", "messageType",
-        "messageType");
-    if (nid_messageType == 0) {
-        goto finally;
-    }
-
-    int nid_senderNonce = OBJ_create("2.16.840.1.113733.1.9.5", "senderNonce",
-        "senderNonce");
-    if (nid_senderNonce == 0) {
-        goto finally;
-    }
-
-    int nid_transId = OBJ_create("2.16.840.1.113733.1.9.7", "transId",
-        "transId");
-    if (nid_transId == 0) {
-        goto finally;
-    }
-
     STACK_OF(PKCS7_SIGNER_INFO) *sk;
     PKCS7_SIGNER_INFO           *si;
     unsigned char				*buf;
     ASN1_TYPE                   *messageType, *senderNonce, *transId;
-    char                        *issuer, *subject;
+    X509_NAME                   *issuer, *subject;
     X509                        *signerCert;
     STACK_OF(X509)              *certs;
     BIO                         *encData, *decData;
     X509_STORE                  *store;
+
 #define OSSL_ERR(msg)                                   \
 	do {                                                \
 		error = SCEPE_OPENSSL;                          \
@@ -456,61 +421,76 @@ SCEP_ERROR scep_unwrap(
     decData = BIO_new(BIO_s_mem());
     /*add trusted cert*/
     X509_STORE_add_cert(store, cacert);
-    output->initialEnrollment = 0;
-    
-    if(pkiMessage->d.sign == NULL) {
-		OSSL_ERR("pkiMessage MUST be content type signed-data.\n");
-	}
-	
-    /*extract signer certificate (only one?) from pkiMessage*/
+    local_out->initialEnrollment = 0;
+
+    if(!PKCS7_type_is_signed(pkiMessage))
+		OSSL_ERR("pkiMessage MUST be content type signed-data");
+
+    /* TODO: additional checks for generic attributes */
+
+    /* Extract signer certificate from pkiMessage */
     certs = PKCS7_get0_signers(pkiMessage, NULL, 0);
+    if(sk_X509_num(certs) < 1)
+        OSSL_ERR("Signer certificate missing");
+    if(sk_X509_num(certs) > 1) {
+        if(handle->configuration->flags & SCEP_ALLOW_MULTIPLE_SIGNER_CERT) {
+            scep_log(handle, WARN, "Multiple signer certs present. Ignoring as per configuration");
+        } else {
+            error = SCEPE_UNHANDLED;
+            scep_log(handle, FATAL, "More than one signer certificate. Don't know how to handle this");
+            goto finally;
+        }
+    }
     signerCert = sk_X509_value(certs, 0);
-    /*TODO: additional checks for generic attributes, version = 1 etc*/
-    
-	
+
+
     /* Message type*/
     if(!(sk = PKCS7_get_signer_info(pkiMessage)))
-         OSSL_ERR("Failed to get signer info.\n");
+         OSSL_ERR("Failed to get signer info");
+     if(sk_X509_num(sk) != 1)
+        OSSL_ERR("Unexpected number of signer infos");
     if(!(si = sk_PKCS7_SIGNER_INFO_value(sk, 0)))
-         OSSL_ERR("Failed to get signer info value.\n");
-    if(!(messageType = PKCS7_get_signed_attribute(si, nid_messageType)))
-        OSSL_ERR("messageType is missing. Not a pkiMessage?.\n");
-	
-	if (!ASN1_INTEGER_get(si->version) == 1) {
-		OSSL_ERR("version MUST be 1.\n");
-	}
-	
+         OSSL_ERR("Failed to get signer info value");
+    if(!(messageType = PKCS7_get_signed_attribute(si, handle->oids.messageType)))
+        OSSL_ERR("messageType is missing. Not a pkiMessage?");
+
+	if (!ASN1_INTEGER_get(si->version) == 1)
+		OSSL_ERR("version MUST be 1");
+
     /*luckily, standard defines unique types*/
     ASN1_STRING_to_UTF8(&buf,messageType->value.printablestring);
-    output->messageType = (char*)buf;
-    
-    /*struct is redundant, however*/
-    output->messageType_int = atoi(output->messageType);
-    /*initial PKCSreq message could be selfsigned*/
-    if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
-        /*check for self-signed*/
-        /*oneline avoids to check every single element*/
-        issuer = X509_NAME_oneline(X509_get_issuer_name(signerCert), 0, 0);
+    local_out->messageType = (char*)buf;
 
-        subject = X509_NAME_oneline(X509_get_subject_name(signerCert), 0, 0);
-        if(*issuer == *subject)
-            output->initialEnrollment = 1;
+    /*struct is redundant, however*/
+    local_out->messageType_int = atoi(local_out->messageType);
+    /*initial PKCSreq message could be selfsigned*/
+    if(strncmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ, 2) == 0) {
+        /*check for self-signed*/
+        issuer = X509_get_issuer_name(signerCert);
+        if(!issuer)
+            OSSL_ERR("Failed to extract issuer from certificate");
+        subject = X509_get_subject_name(signerCert);
+        if(!subject)
+            OSSL_ERR("Failed to extract subject from certificate");
+
+        if(X509_NAME_cmp(subject, issuer) == 0)
+            local_out->initialEnrollment = 1;
             //TODO: only necessary if signerCert does not equal encryptioncert
             //X509_STORE_add_cert(store, signerCert);
     }
-    
+
     if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
         goto finally;
 
     /*Message is a pkiMessage and consists of a valid signature. Lets see if we can decrypt it*/
     if(encData) {
-		
+
         if(decrypt(handle, encData, cakey, cacert, decData) != SCEPE_OK)
              goto finally;
-        if(strcmp(output->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
-            output->request = NULL; 
-            d2i_X509_REQ_bio(decData, &(output->request));
-               
+        if(strncmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ, 2) == 0) {
+            local_out->request = NULL;
+            d2i_X509_REQ_bio(decData, &(local_out->request));
+
             /*TODO: fine, but request needs machting parameter to outer PKCSreq*/
         }
         /*TODO: each type needs own handling, depending to various parameters*/
@@ -518,23 +498,23 @@ SCEP_ERROR scep_unwrap(
     else{
         /*TODO: no content to be encrypted, e.g. certrep failure, pending*/
     }
-    
-    /*pkiMessage attributes*/ 
+
+    /*pkiMessage attributes*/
 
     /*transaction id*/
-    if(!(transId = PKCS7_get_signed_attribute(si, nid_transId)))
-        OSSL_ERR("transaction ID is missing.\n");
-	
+    if(!(transId = PKCS7_get_signed_attribute(si, handle->oids.transId)))
+        OSSL_ERR("transaction ID is missing");
+
     ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
-    output->transactionID = (char*)buf;
+    local_out->transactionID = (char*)buf;
     /*senderNonce*/
-    if(!(senderNonce = PKCS7_get_signed_attribute(si, nid_senderNonce)))
-        OSSL_ERR("sender Nonce is missing.\n");
+    if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids.senderNonce)))
+        OSSL_ERR("sender Nonce is missing");
      /*TODO: use ASN1_STRING_print_ex, write to bio, then from bio to hex string*/
 
-    /*type-depending attributes*/  
+    /*type-depending attributes*/
     /*TODO*/
-	*output2 = output;
+	*output = local_out;
 finally:
     return error;
 #undef OSSL_ERR

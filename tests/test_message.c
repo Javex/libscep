@@ -396,7 +396,7 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage->transactionID);
-	ck_assert_str_eq("19", pkiMessage->messageType);	
+	ck_assert_str_eq("19", pkiMessage->messageType);
 	ck_assert_int_eq(19, pkiMessage->messageType_int);
     ck_assert_int_ne(NULL, pkiMessage->request);
 }
@@ -630,7 +630,7 @@ END_TEST
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
-	
+
 	/*test unwrapping*/
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
@@ -640,7 +640,7 @@ Suite * scep_message_suite(void)
 	/* PKCSReq tests */
 	TCase *tc_pkcsreq_msg = tcase_create("PKCSReq Message");
 	tcase_add_checked_fixture(tc_pkcsreq_msg, pkcsreq_setup, pkcsreq_teardown);
-	
+
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_asn1_version);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_transaction_id);
 	tcase_add_test(tc_pkcsreq_msg, test_scep_message_sender_nonce);

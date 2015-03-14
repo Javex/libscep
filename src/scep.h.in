@@ -76,6 +76,7 @@ typedef enum {
     SCEPE_MISSING_CRL_CERT,
 
     SCEPE_INVALID_CONTENT,
+    SCEPE_UNHANDLED,
 
     SCEPE_NYI,
     SCEPE_OPENSSL,
@@ -110,7 +111,8 @@ typedef enum {
 } SCEP_FAILINFO;
 
 typedef enum {
-    SCEP_SKIP_SIGNER_CERT = 0x0001,
+    SCEP_SKIP_SIGNER_CERT           = 0x0001,
+    SCEP_ALLOW_MULTIPLE_SIGNER_CERT = 0x0002,
 } SCEP_FLAGS;
 
 typedef struct {
@@ -225,11 +227,11 @@ SCEP_ERROR scep_pkiMessage(
     SCEP *handle, char *messageType, BIO *data,
     X509 *enc_cert, const EVP_CIPHER *enc_alg,
     struct p7_data_t *p7data);
-    
+
 SCEP_ERROR verify(
     SCEP *handle, PKCS7 *pkiMessage, X509_STORE * store, BIO *encData);
-    
+
 SCEP_ERROR decrypt(
     SCEP *handle, BIO *encData, EVP_PKEY *cakey, X509 *cacert, BIO *decData);
-    
+
 #endif /* SCEP_H_ */

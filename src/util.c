@@ -41,6 +41,10 @@ char *scep_strerror(SCEP_ERROR err)
 		case SCEPE_INVALID_CONTENT:
 			return "The content did not match protocol specifications. "
 					"Consult log for additional information.";
+		case SCEPE_UNHANDLED:
+			return "The library could not handle this specific case and "
+				   "does not know how to proceed. Please contact the developers "
+				   "of the project.";
 		case SCEPE_NYI:
 			return "Action is defined by protocol but client does not yet "
 					"support it. See log for details on which action is "
