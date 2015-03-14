@@ -54,6 +54,10 @@ typedef enum {
     SCEPCFG_SIGALG,
     SCEPCFG_ENCALG,
     SCEPCFG_LOG,
+
+    /* Flags to be set */
+    SCEPCFG_FLAG_CLEAR, // clear all flags
+    SCEPCFG_FLAG_SKIP_SIGNER_CERT,
 } SCEPCFG_TYPE;
 
 typedef enum {
@@ -105,11 +109,16 @@ typedef enum {
     badCertId = 4,
 } SCEP_FAILINFO;
 
+typedef enum {
+    SCEP_SKIP_SIGNER_CERT = 0x0001,
+} SCEP_FLAGS;
+
 typedef struct {
     SCEP_VERBOSITY verbosity;
     EVP_MD *sigalg;
     EVP_CIPHER *encalg;
     BIO *log;
+    SCEP_FLAGS flags;
 } SCEP_CONFIGURATION;
 
 typedef struct {

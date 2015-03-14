@@ -22,6 +22,15 @@ SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cer
     if(p7data->signer_info == NULL)
         OSSL_ERR("Could not create new PKCS#7 signature");
 
+    /* Certificate to verify signature
+     * See the discussion at https://github.com/Javex/libscep/issues/3
+     * on this issue about when, how and why we need this. It is not required
+     * by either PKCS#7 or SCEP
+     */
+    if(!(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT))
+        if(!PKCS7_add_certificate(p7data->p7, sig_cert))
+            OSSL_ERR("Could not add signer certificate");
+
     /* transaction ID */
     if((error = scep_calculate_transaction_id(handle, req_pubkey, &p7data->transaction_id)) != SCEPE_OK) {
         scep_log(handle, FATAL, "Could create transaction ID");
