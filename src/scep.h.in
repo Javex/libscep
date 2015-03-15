@@ -220,7 +220,7 @@ SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 /* util.c */
 SCEP_ERROR scep_calculate_transaction_id(
     SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
-inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
+void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
         int line, char *format, ...);
 DECLARE_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)
 

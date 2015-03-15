@@ -136,7 +136,7 @@ finally:
 	return error;
 }
 
-inline void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
+void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		int line, char *format, ...)
 {
 	char *full_message;
