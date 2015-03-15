@@ -58,7 +58,7 @@ START_TEST(test_scep_strerror)
 {
 	int i;
 	for(i=SCEPE_OK; i < SCEPE_DUMMY_LAST_ERROR; i++)
-		ck_assert(strlen(scep_strerror(i)));
+		ck_assert_int_ne(strlen(scep_strerror(i)), 0);
 	for(i=SCEPE_DUMMY_LAST_ERROR; i <= SCEPE_DUMMY_LAST_ERROR + 1; ++i)
 		TEST_ERRMSG(i, "Unknown error");
 }
@@ -145,19 +145,19 @@ START_TEST(test_scep_new_selfsigned)
 	X509 *cert;
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_csr);
-	ck_assert(PEM_read_bio_X509_REQ(data, &req, 0, 0));
+	ck_assert_int_ne(PEM_read_bio_X509_REQ(data, &req, 0, 0), 0);
 	BIO_free(data);
 
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_key);
-	ck_assert(PEM_read_bio_PrivateKey(data, &req_key, 0, 0));
+	ck_assert_int_ne(PEM_read_bio_PrivateKey(data, &req_key, 0, 0), 0);
 	BIO_free(data);
 
 	ck_assert(scep_new_selfsigned_X509(handle, req, req_key, &cert) == SCEPE_OK);
 	ck_assert_str_eq(X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
 	ck_assert_str_eq(X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
 	ck_assert_str_eq(i2s_ASN1_INTEGER(NULL, X509_get_serialNumber(cert)), "1");
-	ck_assert(X509_verify(cert, req_key));
+	ck_assert_int_ne(X509_verify(cert, req_key), 0);
 }
 END_TEST
 

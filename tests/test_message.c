@@ -413,7 +413,7 @@ END_TEST
 
 START_TEST(test_scep_message_sender_nonce)
 {
-	ck_assert(ASN1_STRING_length(get_attribute(p7, handle->oids->senderNonce)) == 16);
+	ck_assert_int_eq(ASN1_STRING_length(get_attribute(p7, handle->oids->senderNonce)), 16);
 }
 END_TEST
 
@@ -436,12 +436,12 @@ START_TEST(test_scep_message_certificate)
 	X509 *ref_cert = NULL;
 	BIO_puts(b, test_crt);
 	PEM_read_bio_X509(b, &ref_cert, 0, 0);
-	ck_assert(ref_cert);
+	ck_assert(ref_cert != NULL);
 	BIO_free(b);
 
 	ck_assert(sk_X509_num(p7->d.sign->cert) == 1);
 	X509 *cert = sk_X509_value(p7->d.sign->cert, 0);
-	ck_assert(cert);
+	ck_assert(cert != NULL);
 	ck_assert(X509_cmp(cert, ref_cert) == 0);
 
 	ck_assert(sk_X509_num(p7_nosigcert->d.sign->cert) < 1); // -1 or 0
@@ -454,7 +454,7 @@ START_TEST(test_scep_pkcsreq)
 
 	unsigned char *data_buf;
 	int data_buf_len = BIO_get_mem_data(data, &data_buf);
-	ck_assert(data_buf_len);
+	ck_assert_int_ne(data_buf_len, 0);
 
 	X509_REQ *ref_csr = X509_REQ_new();
 	data = BIO_new(BIO_s_mem());
@@ -468,9 +468,9 @@ START_TEST(test_scep_pkcsreq)
 	int ref_buf_len = BIO_get_mem_data(data, &ref_buf);
 	BIO_free(data);
 
-	ck_assert(ref_buf_len);
+	ck_assert_int_ne(ref_buf_len, 0);
 	ck_assert(ref_buf_len == data_buf_len);
-	ck_assert(memcmp(ref_buf, data_buf, ref_buf_len));
+	ck_assert_int_eq(memcmp(ref_buf, data_buf, ref_buf_len), 0);
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_PKCSREQ,
@@ -481,17 +481,17 @@ END_TEST
 START_TEST(test_scep_pkcsreq_missing_dn)
 {
 	BIGNUM *bne = BN_new();
-	ck_assert(BN_set_word(bne, RSA_F4));
+	ck_assert_int_eq(BN_set_word(bne, RSA_F4), 1);
 	RSA *r = RSA_new();
-	ck_assert(RSA_generate_key_ex(r, 2048, bne, NULL));
+	ck_assert_int_ne(RSA_generate_key_ex(r, 2048, bne, NULL), 0);
 
 	X509_REQ *req = X509_REQ_new();
-	ck_assert(X509_REQ_set_version(req, 1));
+	ck_assert_int_ne(X509_REQ_set_version(req, 1), 0);
 
 	EVP_PKEY *key = EVP_PKEY_new();
 	EVP_PKEY_assign_RSA(key, r);
-	ck_assert(X509_REQ_set_pubkey(req, key));
-	ck_assert(X509_REQ_sign(req, key, EVP_sha1()));
+	ck_assert_int_ne(X509_REQ_set_pubkey(req, key), 0);
+	ck_assert_int_ne(X509_REQ_sign(req, key, EVP_sha1()), 0);
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
@@ -505,19 +505,19 @@ END_TEST
 START_TEST(test_scep_pkcsreq_missing_pubkey)
 {
 	BIGNUM *bne = BN_new();
-	ck_assert(BN_set_word(bne, RSA_F4));
+	ck_assert_int_eq(BN_set_word(bne, RSA_F4), 1);
 	RSA *r = RSA_new();
-	ck_assert(RSA_generate_key_ex(r, 2048, bne, NULL));
+	ck_assert_int_ne(RSA_generate_key_ex(r, 2048, bne, NULL), 0);
 
 	X509_REQ *req = X509_REQ_new();
-	ck_assert(X509_REQ_set_version(req, 1));
+	ck_assert_int_ne(X509_REQ_set_version(req, 1), 0);
 
 	X509_NAME *name = X509_REQ_get_subject_name(req);
-	ck_assert(X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, "DE", -1, -1, 0));
+	ck_assert_int_ne(X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, "DE", -1, -1, 0), 0);
 
 	EVP_PKEY *key = EVP_PKEY_new();
 	EVP_PKEY_assign_RSA(key, r);
-	ck_assert(X509_REQ_sign(req, key, EVP_sha1()));
+	ck_assert_int_ne(X509_REQ_sign(req, key, EVP_sha1()), 0);
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
@@ -531,20 +531,20 @@ END_TEST
 START_TEST(test_scep_pkcsreq_missing_challenge_password)
 {
 	BIGNUM *bne = BN_new();
-	ck_assert(BN_set_word(bne, RSA_F4));
+	ck_assert_int_eq(BN_set_word(bne, RSA_F4), 1);
 	RSA *r = RSA_new();
-	ck_assert(RSA_generate_key_ex(r, 2048, bne, NULL));
+	ck_assert_int_ne(RSA_generate_key_ex(r, 2048, bne, NULL), 0);
 
 	X509_REQ *req = X509_REQ_new();
-	ck_assert(X509_REQ_set_version(req, 1));
+	ck_assert_int_ne(X509_REQ_set_version(req, 1), 0);
 
 	X509_NAME *name = X509_REQ_get_subject_name(req);
-	ck_assert(X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, "DE", -1, -1, 0));
+	ck_assert_int_ne(X509_NAME_add_entry_by_txt(name, "C", MBSTRING_ASC, "DE", -1, -1, 0), 0);
 
 	EVP_PKEY *key = EVP_PKEY_new();
 	EVP_PKEY_assign_RSA(key, r);
-	ck_assert(X509_REQ_set_pubkey(req, key));
-	ck_assert(X509_REQ_sign(req, key, EVP_sha1()));
+	ck_assert_int_ne(X509_REQ_set_pubkey(req, key), 0);
+	ck_assert_int_ne(X509_REQ_sign(req, key, EVP_sha1()), 0);
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
@@ -562,7 +562,7 @@ START_TEST(test_scep_gci)
 
 	const unsigned char *data_buf;
 	int data_buf_len = BIO_get_mem_data(data, &data_buf);
-	ck_assert(data_buf_len);
+	ck_assert_int_ne(data_buf_len, 0);
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCERTINITIAL,
@@ -570,7 +570,7 @@ START_TEST(test_scep_gci)
 
 	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SUBJECT(&ias, &data_buf, data_buf_len);
-	ck_assert(ias);
+	ck_assert(ias != NULL);
 	ck_assert_str_eq(X509_NAME_oneline(ias->subject, NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
 	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
 }
@@ -583,7 +583,7 @@ START_TEST(test_scep_gc)
 
 	const unsigned char *data_buf;
 	int data_buf_len = BIO_get_mem_data(data, &data_buf);
-	ck_assert(data_buf_len);
+	ck_assert_int_ne(data_buf_len, 0);
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCERT,
@@ -591,7 +591,7 @@ START_TEST(test_scep_gc)
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
-	ck_assert(ias);
+	ck_assert(ias != NULL);
 	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
 	ck_assert_str_eq("15238307653902252243", i2s_ASN1_INTEGER(NULL, ias->serial));
 
@@ -605,7 +605,7 @@ START_TEST(test_scep_gcrl)
 
 	const unsigned char *data_buf;
 	int data_buf_len = BIO_get_mem_data(data, &data_buf);
-	ck_assert(data_buf_len);
+	ck_assert_int_ne(data_buf_len, 0);
 
 	ck_assert_str_eq(
 		MESSAGE_TYPE_GETCRL,
@@ -613,7 +613,7 @@ START_TEST(test_scep_gcrl)
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
-	ck_assert(ias);
+	ck_assert(ias != NULL);
 	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
 	ck_assert_str_eq("15238307653902252243", i2s_ASN1_INTEGER(NULL, ias->serial));
 
