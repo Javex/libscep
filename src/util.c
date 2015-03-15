@@ -119,7 +119,7 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 	SCEP_ERROR error = SCEPE_OK;
 
 	outbio = BIO_new(BIO_s_mem());
-	//BIO_set_close(outbio, BIO_NOCLOSE);
+	BIO_set_close(outbio, BIO_NOCLOSE);
 	input_b64bio = BIO_push(BIO_new(BIO_f_base64()), outbio);
 	if(!input_b64bio || !outbio)
 		OSSL_ERR("Could not create B64 encoding BIO chain");
