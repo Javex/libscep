@@ -147,12 +147,13 @@ START_TEST(test_scep_new_selfsigned)
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_csr);
 	req = PEM_read_bio_X509_REQ(data, NULL, 0, 0);
-	ck_assert_msg(req != NULL, ERR_error_string(ERR_get_error(), NULL));
+	ck_assert(req != NULL);
 	BIO_free(data);
 
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_key);
-	ck_assert_int_ne(req_key = PEM_read_bio_PrivateKey(data, NULL, 0, 0), 0);
+	req_key = PEM_read_bio_PrivateKey(data, NULL, 0, 0);
+	ck_assert(req_key != NULL);
 	BIO_free(data);
 
 	ck_assert(scep_new_selfsigned_X509(handle, req, req_key, &cert) == SCEPE_OK);
@@ -168,12 +169,14 @@ START_TEST(test_X509_REQ_cmp)
 	X509_REQ *a, *b;
 	BIO *data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_csr);
-	ck_assert_int_ne(a = PEM_read_bio_X509_REQ(data, NULL, 0, 0), 0);
+	a = PEM_read_bio_X509_REQ(data, NULL, 0, 0);
+	ck_assert(a != NULL);
 	BIO_free(data);
 
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_csr);
-	ck_assert_int_ne(b = PEM_read_bio_X509_REQ(data, NULL, 0, 0), 0);
+	b = PEM_read_bio_X509_REQ(data, NULL, 0, 0);
+	ck_assert(b != NULL);
 	BIO_free(data);
 
 	ck_assert_int_eq(X509_REQ_cmp(a, b), 0);
