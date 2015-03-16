@@ -93,7 +93,6 @@ SCEP_ERROR scep_pkcsreq(
         scep_log(handle, ERROR, "Need public key on CSR");
         return SCEPE_INVALID_CONTENT;
     }
-
     passwd_index = X509_REQ_get_attr_by_NID(req, NID_pkcs9_challengePassword, -1);
     if(passwd_index == -1) {
         scep_log(handle, ERROR, "Need challenge password field on CSR");
@@ -109,7 +108,6 @@ SCEP_ERROR scep_pkcsreq(
 
     if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)) != SCEPE_OK)
         goto finally;
-
     if((error = scep_pkiMessage(
             handle, MESSAGE_TYPE_PKCSREQ,
             databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
@@ -123,6 +121,14 @@ finally:
     if(req_pubkey)  // needed?
         EVP_PKEY_free(req_pubkey);
     return error;
+}
+
+SCEP_ERROR scep_certrep(
+    SCEP *handle, PKCS7 *pkcsreq, char * pkiStatus, char *failInfo, X509 *issuedCert, X509 *sig_cert, EVP_PKEY *sig_key,
+        X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	return error;
 }
 
 SCEP_ERROR scep_get_cert_initial(
@@ -278,9 +284,9 @@ SCEP_ERROR scep_pkiMessage(
     SCEP_ERROR error = SCEPE_OK;
     STACK_OF(X509) *enc_certs;
     ASN1_PRINTABLESTRING *asn1_transaction_id, *asn1_message_type, *asn1_sender_nonce;
-
     /* transaction ID */
     asn1_transaction_id = ASN1_PRINTABLESTRING_new();
+    
     if(asn1_transaction_id == NULL)
         OSSL_ERR("Could not create ASN1 TID object");
     if(!ASN1_STRING_set(asn1_transaction_id, p7data->transaction_id, -1))
@@ -316,29 +322,24 @@ SCEP_ERROR scep_pkiMessage(
     // since we currently are a client, we always have data
     // however, if we want to support server in the future as well
     // we sould make data optional.
-
     // certificate to encrypt data with
     enc_certs = sk_X509_new_null();
     if(!enc_certs)
         OSSL_ERR("Could not create enc cert stack");
     if(!sk_X509_push(enc_certs, enc_cert))
         OSSL_ERR("Could not push enc cert onto stack");
-
-
     encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
     if(!encdata)
         OSSL_ERR("Could not encrypt data");
-
     // put encrypted data into p7
     if(!i2d_PKCS7_bio(p7data->bio, encdata))
         OSSL_ERR("Could not write encdata to PKCS#7 BIO");
-
 finally:
     return error;
 }
 
 SCEP_ERROR scep_unwrap(
-    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, EVP_PKEY *cakey,
+    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
     SCEP_DATA **output)
 {
 	SCEP_DATA *local_out = malloc(sizeof(SCEP_DATA));
@@ -358,7 +359,7 @@ SCEP_ERROR scep_unwrap(
     encData = BIO_new(BIO_s_mem());
     decData = BIO_new(BIO_s_mem());
     /*add trusted cert*/
-    X509_STORE_add_cert(store, cacert);
+    X509_STORE_add_cert(store, sig_cacert);
     local_out->initialEnrollment = 0;
 
     if(!PKCS7_type_is_signed(pkiMessage))

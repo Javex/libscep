@@ -9,39 +9,21 @@ BIO *scep_log;
 PKCS7 *p7 = NULL;
 SCEP_DATA *pkiMessage;
 PKCS7 *p7_nosigcert = NULL; // no signer certificate on result PKCS#7
+/*TODO: Do we need them*/
 EVP_PKEY *dec_key;
 X509 *dec_cert;
 
-char *test_crt = "-----BEGIN CERTIFICATE-----\n"
-"MIICLzCCAZgCCQDTeVgTQPW40zANBgkqhkiG9w0BAQUFADBbMQswCQYDVQQGEwJE\n"
-"RTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0\n"
-"cyBQdHkgTHRkMRQwEgYDVQQDEwtmb28uYmFyLmNvbTAgFw0xNTAyMjYxMjAwMzla\n"
-"GA8yMTE1MDIwMjEyMDAzOVowWzELMAkGA1UEBhMCREUxEzARBgNVBAgTClNvbWUt\n"
-"U3RhdGUxITAfBgNVBAoTGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEUMBIGA1UE\n"
-"AxMLZm9vLmJhci5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANFEiTNr\n"
-"xDGehD636meTlC2yAmINuZn7pU9CC4BudfdDAI2YdoB9h9YqRk773EYAveAfSMYg\n"
-"/ySzMlzz+yb8skZwctrocJYGpgB4N0BpmkGt7VSK9qwT4mRXqL6G2Cvvifi4BBYP\n"
-"Q4c5JvYP43cDd7/Yb7Hg3Do8tG16Zo6AXaFpAgMBAAEwDQYJKoZIhvcNAQEFBQAD\n"
-"gYEAbUXoPS+AhHuO7T7KRdgwJDLyr15dwUplGwtZT+MoOnnDMRWv/0VG4QUbBwvP\n"
-"5Jrrk/lRHKajXLmzrqaoiadGzj6vCOh+zuf/KAOhQjvYtZyL0b727W1Sf2i7Cij+\n"
-"ublOOHR0hldn/XqR7hKfZ/uIPnznQeKkVGjrEs223vtf7cI=\n"
-"-----END CERTIFICATE-----\n";
 
-char *test_key = "-----BEGIN RSA PRIVATE KEY-----\n"
-"MIICXgIBAAKBgQDRRIkza8QxnoQ+t+pnk5QtsgJiDbmZ+6VPQguAbnX3QwCNmHaA\n"
-"fYfWKkZO+9xGAL3gH0jGIP8kszJc8/sm/LJGcHLa6HCWBqYAeDdAaZpBre1Uivas\n"
-"E+JkV6i+htgr74n4uAQWD0OHOSb2D+N3A3e/2G+x4Nw6PLRtemaOgF2haQIDAQAB\n"
-"AoGBAM9w9eRwLmLVdNhLLeSQqXGGpNAYNOTMTDk+CfK9DNkXpQO3n7iNN0r4Swve\n"
-"pKML9yylNlmYufLiY8k63brvAbP/Tfg2cbzg47fv+kacqYgaH6aoII++UEAoF+pM\n"
-"HgdINRIRn+wknsNxdxE+YEJW/+XfhHiwD31RKBFOYw0NL3PRAkEA+pTwf1CfXBLP\n"
-"Ujap10y883PQpX+lLyFzMT2BEu5C1WfUSjHiyzZyb6utYZ9U1PlTvaUXSJ3guNcl\n"
-"VVvwjll/rQJBANXK6H9xy959Y7EKfxT41BDHQoXfmEIcLSz1wgWSeKwgbFF4+n3g\n"
-"JoHG1n4hQ7D6OV41oh18XXYFBE9Ienyw8C0CQEHs0WENev+kSzsb+o8UN1ntjGUe\n"
-"Mf02VbIMtlqeqKKwkF98xGgmSPEsP49BdfYaKnfoaTnHn4nBwKa2a5Fn5nkCQQCr\n"
-"nApwcmnRGBlzvRcxQGMJbMjrKQXQ20kv871gN6iBki0gYNnBPLHsLi1yZUUuxExU\n"
-"YPzWakOjPnetJGKdwHGpAkEAnMDbIjYpg9WYtx4l5q8R8u1USf8ndybDQehite7W\n"
-"nzpG25y4ERn1b0M8TJ0xK0y2b8pMWBYlavUYkCYCfWOAsw==\n"
-"-----END RSA PRIVATE KEY-----";
+X509 *sig_cert;
+EVP_PKEY *sig_key;
+X509 *enc_cert;
+EVP_PKEY *enc_key;
+X509 *sig_cacert;
+EVP_PKEY *sig_cakey;
+X509 *enc_cacert;
+EVP_PKEY *enc_cakey;
+X509_REQ *req;
+const EVP_CIPHER *enc_alg;
 
 char *test_new_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "MIICXAIBAAKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56nhL3\n"
@@ -72,59 +54,125 @@ char *test_new_csr = "-----BEGIN CERTIFICATE REQUEST-----\n"
 "SLYGjIEJ2RwX\n"
 "-----END CERTIFICATE REQUEST-----";
 
-char *test_server_cert = "-----BEGIN CERTIFICATE-----\n"
-"MIICLzCCAZgCCQDTeVgTQPW40zANBgkqhkiG9w0BAQUFADBbMQswCQYDVQQGEwJE\n"
-"RTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0\n"
-"cyBQdHkgTHRkMRQwEgYDVQQDEwtmb28uYmFyLmNvbTAgFw0xNTAyMjYxMjAwMzla\n"
-"GA8yMTE1MDIwMjEyMDAzOVowWzELMAkGA1UEBhMCREUxEzARBgNVBAgTClNvbWUt\n"
-"U3RhdGUxITAfBgNVBAoTGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEUMBIGA1UE\n"
-"AxMLZm9vLmJhci5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANFEiTNr\n"
-"xDGehD636meTlC2yAmINuZn7pU9CC4BudfdDAI2YdoB9h9YqRk773EYAveAfSMYg\n"
-"/ySzMlzz+yb8skZwctrocJYGpgB4N0BpmkGt7VSK9qwT4mRXqL6G2Cvvifi4BBYP\n"
-"Q4c5JvYP43cDd7/Yb7Hg3Do8tG16Zo6AXaFpAgMBAAEwDQYJKoZIhvcNAQEFBQAD\n"
-"gYEAbUXoPS+AhHuO7T7KRdgwJDLyr15dwUplGwtZT+MoOnnDMRWv/0VG4QUbBwvP\n"
-"5Jrrk/lRHKajXLmzrqaoiadGzj6vCOh+zuf/KAOhQjvYtZyL0b727W1Sf2i7Cij+\n"
-"ublOOHR0hldn/XqR7hKfZ/uIPnznQeKkVGjrEs223vtf7cI=\n"
+char *enc_cacert_str = "-----BEGIN CERTIFICATE-----\n"
+"MIIBmzCCAUWgAwIBAgIBAjANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTMwMjIyWhcNMTYwMzE0MTMwMjIyWjBJMQswCQYD\n"
+"VQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTEYMBYGA1UECgwPZW5jcnlwdGlv\n"
+"biBjZXJ0MQswCQYDVQQDDAJjYTBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQCWdhTh\n"
+"BrT7C1f6EtOKPl5nqBd/9YkTUwDt9qAUBNM6AH6tDFIy85Gk1k60ZwYBYyIZT7kN\n"
+"2EqnK4zEBRyo2k4jAgMBAAGjGjAYMAkGA1UdEwQCMAAwCwYDVR0PBAQDAgXgMA0G\n"
+"CSqGSIb3DQEBBQUAA0EAbce5uBBXc7BPVIcQCqIqbkSEBQ735gmV9FB1XJ4tNl+/\n"
+"qjhv1MBVgGB5CAoETs8mJGHwo2c+5JgDkfMJ6gsIEA==\n"
 "-----END CERTIFICATE-----\n";
 
-char *test_server_ca_cert = "-----BEGIN CERTIFICATE-----\n"
-"MIICLzCCAZgCCQDTeVgTQPW40zANBgkqhkiG9w0BAQUFADBbMQswCQYDVQQGEwJE\n"
-"RTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQgV2lkZ2l0\n"
-"cyBQdHkgTHRkMRQwEgYDVQQDEwtmb28uYmFyLmNvbTAgFw0xNTAyMjYxMjAwMzla\n"
-"GA8yMTE1MDIwMjEyMDAzOVowWzELMAkGA1UEBhMCREUxEzARBgNVBAgTClNvbWUt\n"
-"U3RhdGUxITAfBgNVBAoTGEludGVybmV0IFdpZGdpdHMgUHR5IEx0ZDEUMBIGA1UE\n"
-"AxMLZm9vLmJhci5jb20wgZ8wDQYJKoZIhvcNAQEBBQADgY0AMIGJAoGBANFEiTNr\n"
-"xDGehD636meTlC2yAmINuZn7pU9CC4BudfdDAI2YdoB9h9YqRk773EYAveAfSMYg\n"
-"/ySzMlzz+yb8skZwctrocJYGpgB4N0BpmkGt7VSK9qwT4mRXqL6G2Cvvifi4BBYP\n"
-"Q4c5JvYP43cDd7/Yb7Hg3Do8tG16Zo6AXaFpAgMBAAEwDQYJKoZIhvcNAQEFBQAD\n"
-"gYEAbUXoPS+AhHuO7T7KRdgwJDLyr15dwUplGwtZT+MoOnnDMRWv/0VG4QUbBwvP\n"
-"5Jrrk/lRHKajXLmzrqaoiadGzj6vCOh+zuf/KAOhQjvYtZyL0b727W1Sf2i7Cij+\n"
-"ublOOHR0hldn/XqR7hKfZ/uIPnznQeKkVGjrEs223vtf7cI=\n"
+char *enc_cakey_str = "-----BEGIN PRIVATE KEY-----\n"
+"MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAlnYU4Qa0+wtX+hLT\n"
+"ij5eZ6gXf/WJE1MA7fagFATTOgB+rQxSMvORpNZOtGcGAWMiGU+5DdhKpyuMxAUc\n"
+"qNpOIwIDAQABAkBKZWabgap5OzmsECUDBSW+0VGVVr4JjRA3mau7WktrMNNYx32t\n"
+"+w9fWT4G+Bvcp+E3i8Fh0hZTFQQIyHRfAikpAiEAxoU3w/HfON7oN+xwW3KgSVrZ\n"
+"rC+/vbB5EMHccxrfWx8CIQDCBpys3PDhfNOKvmdIRHy6JNRqoNfnVqfv3R6k1asw\n"
+"fQIgfuGgXcVWlYOqyit9OIWPurKtUycFltiW2EX/fzYasaMCIEqJsbzy8BMgGkCN\n"
+"3y2zKdt09Km1+tujvcZ3QyN99lMdAiEArTBuOBncwPRJsJDo3DSR5/qwyToJk47w\n"
+"K/TyUGmr7pU=\n"
+"-----END PRIVATE KEY-----\n";
+
+char *sig_cacert_str ="-----BEGIN CERTIFICATE-----\n"
+"MIIB1zCCAYGgAwIBAgIJAIxnK+AvQtveMA0GCSqGSIb3DQEBBQUAMEcxCzAJBgNV\n"
+"BAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYDVQQKDARh\n"
+"c2RmMQswCQYDVQQDDAJjYTAeFw0xNTAzMTUxMjIxNThaFw0xODAxMDIxMjIxNTha\n"
+"MEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0w\n"
+"CwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYTBcMA0GCSqGSIb3DQEBAQUAA0sAMEgC\n"
+"QQC2ZbZXN6Q+k4yECXUBrv3x/zF0F16G9Yx+b9qxdhkP/+BkA5gyRFNEWL+EovU2\n"
+"00F/mSpYsFW+VlIGW0x0rBvJAgMBAAGjUDBOMB0GA1UdDgQWBBTGyK1AVoV5v/Ou\n"
+"4FmWrxNg3Aqv5zAfBgNVHSMEGDAWgBTGyK1AVoV5v/Ou4FmWrxNg3Aqv5zAMBgNV\n"
+"HRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA0EAFZJdlgEgGTOzRdtPsRY0ezWVow26\n"
+"1OUUf1Z6x0e9z/Nzkoo2kfI4iDafebvQ1yMqSWKbUjLGAi/YCq2m3p5tHA==\n"
 "-----END CERTIFICATE-----\n";
 
-char *test_server_key = "-----BEGIN RSA PRIVATE KEY-----\n"
-"MIICXgIBAAKBgQDRRIkza8QxnoQ+t+pnk5QtsgJiDbmZ+6VPQguAbnX3QwCNmHaA\n"
-"fYfWKkZO+9xGAL3gH0jGIP8kszJc8/sm/LJGcHLa6HCWBqYAeDdAaZpBre1Uivas\n"
-"E+JkV6i+htgr74n4uAQWD0OHOSb2D+N3A3e/2G+x4Nw6PLRtemaOgF2haQIDAQAB\n"
-"AoGBAM9w9eRwLmLVdNhLLeSQqXGGpNAYNOTMTDk+CfK9DNkXpQO3n7iNN0r4Swve\n"
-"pKML9yylNlmYufLiY8k63brvAbP/Tfg2cbzg47fv+kacqYgaH6aoII++UEAoF+pM\n"
-"HgdINRIRn+wknsNxdxE+YEJW/+XfhHiwD31RKBFOYw0NL3PRAkEA+pTwf1CfXBLP\n"
-"Ujap10y883PQpX+lLyFzMT2BEu5C1WfUSjHiyzZyb6utYZ9U1PlTvaUXSJ3guNcl\n"
-"VVvwjll/rQJBANXK6H9xy959Y7EKfxT41BDHQoXfmEIcLSz1wgWSeKwgbFF4+n3g\n"
-"JoHG1n4hQ7D6OV41oh18XXYFBE9Ienyw8C0CQEHs0WENev+kSzsb+o8UN1ntjGUe\n"
-"Mf02VbIMtlqeqKKwkF98xGgmSPEsP49BdfYaKnfoaTnHn4nBwKa2a5Fn5nkCQQCr\n"
-"nApwcmnRGBlzvRcxQGMJbMjrKQXQ20kv871gN6iBki0gYNnBPLHsLi1yZUUuxExU\n"
-"YPzWakOjPnetJGKdwHGpAkEAnMDbIjYpg9WYtx4l5q8R8u1USf8ndybDQehite7W\n"
-"nzpG25y4ERn1b0M8TJ0xK0y2b8pMWBYlavUYkCYCfWOAsw==\n"
-"-----END RSA PRIVATE KEY-----";
+char *sig_cakey_str ="-----BEGIN RSA PRIVATE KEY-----\n"
+"MIIBOwIBAAJBALZltlc3pD6TjIQJdQGu/fH/MXQXXob1jH5v2rF2GQ//4GQDmDJE\n"
+"U0RYv4Si9TbTQX+ZKliwVb5WUgZbTHSsG8kCAwEAAQJAJ/wuN/qDsBAqiruEAgV5\n"
+"uDZogfmpiE6GKSWePK8WGXJw4HKay/WcFRVhOmBKskPz0TWon+fykgCXUBS0f9jg\n"
+"vQIhANocMJCuZm0k51AGUHzHH0+e3KNqdkYtfzFgMUzJexz7AiEA1hVMzCIo/F2s\n"
+"33O/F2dw+yQC0w83d/dG06kjssoVBwsCIQCy/FEqWcP6Kz+bXyMr0mgyeaaMgDBB\n"
+"FNL9HPg4EFt0gwIgH31ylnRP4w9EZnn4GdE1ZTuezrzmQ9czq96tSZdAEJECIQCQ\n"
+"luNLdgk6/rH8iHtN54nKJhTNr4qZWI6b2xSpBAkerw==\n"
+"-----END RSA PRIVATE KEY-----\n";
 
+char *enc_cert_str ="-----BEGIN CERTIFICATE-----\n"
+"MIIBmjCCAUSgAwIBAgIBAzANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTMwMzI4WhcNMTYwMzE0MTMwMzI4WjBIMQswCQYD\n"
+"VQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTETMBEGA1UECgwKRW5jcnlwdGlv\n"
+"bjEPMA0GA1UEAwwGY2xpZW50MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBALhqBpcv\n"
+"JC/0cdUGgFXzGIwwUxHUpK17LDtigQerl69FBGJJns8NZ0oKVT51/3fgLYlXDEZ9\n"
+"kIbw7jcH2NLq30MCAwEAAaMaMBgwCQYDVR0TBAIwADALBgNVHQ8EBAMCBeAwDQYJ\n"
+"KoZIhvcNAQEFBQADQQAdBpZ1QuDcnbbJj3yPH85y5cOYL/9d5c1utDeQEIqOFah3\n"
+"n+Hm9q37a9O3404+jkNZjOwQtANC72KR5QtRtkhq\n"
+"-----END CERTIFICATE-----\n";
 
+char *enc_key_str ="-----BEGIN PRIVATE KEY-----\n"
+"MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAuGoGly8kL/Rx1QaA\n"
+"VfMYjDBTEdSkrXssO2KBB6uXr0UEYkmezw1nSgpVPnX/d+AtiVcMRn2QhvDuNwfY\n"
+"0urfQwIDAQABAkAo1/q7s0otgNNRXg5AewXdzronQdRzQ8uJH4j6XOvMenl571Sp\n"
+"Wp3y0owl+exEo+Q66QTn6orqbfOk7KYES1mRAiEA3UaGkQB5mkL9CVSK07G46+iu\n"
+"1hDeOFPtzJwanbYcDpsCIQDVWqQXMgJqE55KTK8l8aSoPiH/e7QkNMK4TBoitDto\n"
+"eQIger87uMY9rsBIY9udI2/sOBmcmy1CSJbuTFmwPhqel88CIQCXFishqe5/xAjS\n"
+"QN+/lRGveuCElcuJ4DsMXAgeD1gKsQIhAJwkG1Q5CFsYbAsFsU0Dd7ZI6aiMDi8w\n"
+"iX5k7rlRcZzQ\n"
+"-----END PRIVATE KEY-----\n";
+
+char *sig_cert_str ="-----BEGIN CERTIFICATE-----\n"
+"MIIBqDCCAVKgAwIBAgIBATANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTI1NTA5WhcNMTYwMzE0MTI1NTA5WjBWMQswCQYD\n"
+"VQQGEwJERTETMBEGA1UECAwKU29tZS1TdGF0ZTEhMB8GA1UECgwYSW50ZXJuZXQg\n"
+"V2lkZ2l0cyBQdHkgTHRkMQ8wDQYDVQQDDAZjbGllbnQwXDANBgkqhkiG9w0BAQEF\n"
+"AANLADBIAkEA04Eoe6STCMGPcc4znCh6KlKnK5eCtrjX3ZlO7hh7RLBPEX1NdAMp\n"
+"Gg7dwOtypmsMSf9yIkoyp9Ad+zO4bXDfeQIDAQABoxowGDAJBgNVHRMEAjAAMAsG\n"
+"A1UdDwQEAwIF4DANBgkqhkiG9w0BAQUFAANBAA0+zqbgx+bgtV449kHKfWObgtFO\n"
+"aK0BeVoKscmmcsRw+xMVgEcJLLHjY6sMdf4AyxT1DhaCOJngIqkMi7r0QFI=\n"
+"-----END CERTIFICATE-----\n";
+
+char *sig_key_str ="-----BEGIN PRIVATE KEY-----\n"
+"MIIBVgIBADANBgkqhkiG9w0BAQEFAASCAUAwggE8AgEAAkEA04Eoe6STCMGPcc4z\n"
+"nCh6KlKnK5eCtrjX3ZlO7hh7RLBPEX1NdAMpGg7dwOtypmsMSf9yIkoyp9Ad+zO4\n"
+"bXDfeQIDAQABAkBEUINy7EVRnrNmXuPsnGZZJTk5q0ZdHnca7FnCLcYi+Pk1PdEu\n"
+"KD2jmKIZ97WAxfMb7+EwtP9OuGT5VC9wHvgBAiEA7i2cIskNm3TwB7Slc6A8PICp\n"
+"+wyC4x2vzCtgoR+mjukCIQDjVJrZQM618XoZWrczKp2j1te5pFAdYNFTudktT40S\n"
+"EQIhAI82IYHQ/juRLpqThkBmApImkw5+0Vyahw/urSV0kIOxAiEAr/8mSyBDaNTk\n"
+"xJBY2QIbPWbtaMnvRG9aYEm3+75k5yECIQDj7FLP17i8LGa2sp3qrXP+3cTb4yK/\n"
+"XgTC1Ra2VYVYSQ==\n"
+"-----END PRIVATE KEY-----\n";
+
+char *issuedCert_str ="-----BEGIN CERTIFICATE-----\n"
+"MIIB7TCCAZegAwIBAgIBBDANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTQyMzI1WhcNMTYwMzE0MTQyMzI1WjBXMQswCQYD\n"
+"VQQGEwJBVTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQg\n"
+"V2lkZ2l0cyBQdHkgTHRkMRAwDgYDVQQDEwdmb28uYmFyMIGfMA0GCSqGSIb3DQEB\n"
+"AQUAA4GNADCBiQKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56\n"
+"nhL3X1Xuv+3e6HWS74IOWbwuZXADdSWswFMefJuh6D4tRACzvgbOuXaxxopj9PYn\n"
+"ieNunATNl1O1fy1QG3uJiy+QuQe3/xfIIwIVtvsx5ckMfRHk4g4lsOJwLofIvwID\n"
+"AQABoxowGDAJBgNVHRMEAjAAMAsGA1UdDwQEAwIF4DANBgkqhkiG9w0BAQUFAANB\n"
+"AGZRYophSHisfLzjA0EV766X+e7hAK1J+G3IZHHn4WvxRGEGRZmEYMwbV3/gIRW8\n"
+"bIEcl2LeuPgUGWhLIowjKF0=\n"
+"-----END CERTIFICATE-----\n";
+
+char *pkiStatus_str = "PENDING";
+//char *pkiStatus_str ="SUCCESS";
+//char *pkiStatus_str ="FAILURE";
+char *failInfo_str = NULL;
+/*TODO: various failInfos when checking failure */
+void make_message_data();
 void generic_setup()
 {
 	ck_assert(scep_init(&handle) == SCEPE_OK);
 	scep_log = BIO_new_fp(stdout, BIO_NOCLOSE);
 	scep_conf_set(handle, SCEPCFG_LOG, scep_log);
 	scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
+	make_message_data();
 }
 
 void generic_teardown()
@@ -134,133 +182,159 @@ void generic_teardown()
 	scep_cleanup(handle);
 }
 
-void make_message_data(
-		X509 **sig_cert, EVP_PKEY **sig_key, X509_REQ **req, 
-		X509 **enc_cert, const EVP_CIPHER **enc_alg)
+void make_message_data()
 {
 	BIO *b;
-	if(*sig_cert == NULL || *sig_key == NULL) {
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_key);
-		PEM_read_bio_PrivateKey(b, sig_key, 0, 0);
-		BIO_free(b);
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, sig_key_str);
+	sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	ck_assert(sig_key != NULL);
+	BIO_free(b);
 
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_crt);
-		PEM_read_bio_X509(b, &dec_cert, 0, 0);
-		BIO_free(b);
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, sig_cert_str);
+	sig_cert = PEM_read_bio_X509(b, NULL, 0, 0);
+	ck_assert(sig_cert != NULL);
+	BIO_free(b);
+
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, enc_cert_str);
+	enc_cert = PEM_read_bio_X509(b, NULL, 0, 0);
+	ck_assert(enc_cert != NULL);
+	BIO_free(b);
 		
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_key);
-		PEM_read_bio_PrivateKey(b, &dec_key, 0, 0);
-		BIO_free(b);
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, enc_key_str);
+	enc_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	ck_assert(enc_key != NULL);
+	BIO_free(b);
 
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_crt);
-		PEM_read_bio_X509(b, sig_cert, 0, 0);
-		BIO_free(b);
-	}
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, sig_cakey_str);
+	sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	ck_assert(sig_cakey != NULL);
+	BIO_free(b);
 
-	if(*req == NULL) {
-		*req = X509_REQ_new();
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_new_csr);
-		PEM_read_bio_X509_REQ(b, req, 0, 0);
-		BIO_free(b);
-	}
-
-	if(*enc_cert == NULL) {
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_server_cert);
-		PEM_read_bio_X509(b, enc_cert, 0, 0);
-		BIO_free(b);
-	}
-
-	if(*enc_alg == NULL)
-		*enc_alg = EVP_des_ede3_cbc();
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, sig_cacert_str);
+	sig_cacert = PEM_read_bio_X509(b, NULL, 0, 0);
+	ck_assert(sig_cacert != NULL);
+	BIO_free(b);
+	
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, enc_cacert_str);
+	enc_cacert = PEM_read_bio_X509(b, NULL, 0, 0);
+	ck_assert(enc_cacert != NULL);
+	BIO_free(b);	
+	
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, enc_cakey_str);
+	enc_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	ck_assert(enc_cakey != NULL);
+	BIO_free(b);
+	
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, test_new_csr);
+	req = PEM_read_bio_X509_REQ(b, NULL, 0, 0);
+	ck_assert(req != NULL);
+	BIO_free(b);
+	
+	enc_alg = EVP_des_ede3_cbc();
+	ck_assert(enc_alg != NULL);
 }
 
-PKCS7 *make_pkcsreq_message(
-		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req, 
-		X509 *enc_cert, const EVP_CIPHER *enc_alg)
+void make_pkcsreq_message()
 {
-	PKCS7 *p7;
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
-	ck_assert(scep_pkcsreq(
-		handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_OK);
-	return p7;
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
+	SCEP_ERROR s = scep_pkcsreq(
+		handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7);
+	ck_assert(s == SCEPE_OK);
 }
 
-SCEP_DATA *make_unwrap_message(
-		X509 *enc_cert, EVP_PKEY *enc_key)
+void make_pkcsreq_message_nosigcert()
 {
-	X509 *sig_cert = NULL;
-	EVP_PKEY *sig_key = NULL;
-	X509_REQ *req = NULL;
-	const EVP_CIPHER *enc_alg = NULL;
-	PKCS7 *p7;
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
-	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7);
-	SCEP_DATA *pkiMessage = NULL;
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
+	
+	SCEP_ERROR s = scep_pkcsreq(
+		handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7_nosigcert);
+	ck_assert(s == SCEPE_OK);
+}
+
+PKCS7 *make_certrep_message(
+		PKCS7 *scep_message, char * pkiStatus, char *failInfo, X509 *issuedCert,
+		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req, X509 *enc_cert,
+		const EVP_CIPHER *enc_alg, EVP_PKEY *enc_key)
+{
+	PKCS7 *certrep;
+	/*build basics*/
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
+	/*build pkcsreq*/
+	/*TODO: build other request types*/
+	if(scep_message == NULL)
+		ck_assert(scep_pkcsreq(
+			handle, req, sig_cert, sig_key, enc_cert, enc_alg, &scep_message) == SCEPE_OK);
+	/*read in the rest*/
+	if(failInfo == NULL)
+		failInfo = failInfo_str;
+	if(pkiStatus == NULL)
+		pkiStatus = pkiStatus_str;
+	BIO *b;
+	if(issuedCert == NULL) {
+		b = BIO_new(BIO_s_mem());
+		BIO_puts(b, issuedCert_str);
+		PEM_read_bio_X509(b, &issuedCert, 0, 0);
+		BIO_free(b);
+	}
+	/*can be replaced using make message data*/
 	if(enc_key == NULL) {
-		BIO *b = BIO_new(BIO_s_mem());
-		BIO_puts(b, test_server_key);
+		b = BIO_new(BIO_s_mem());
+		BIO_puts(b, enc_cakey_str);
 		PEM_read_bio_PrivateKey(b, &enc_key, 0, 0);
 		BIO_free(b);
 	}
+	ck_assert(scep_certrep(handle, scep_message, pkiStatus, failInfo,
+			issuedCert, sig_cert, sig_key, enc_cert, enc_alg,
+			&certrep) == SCEPE_OK);
+	return certrep;
+}
+
+SCEP_DATA *make_unwrap_message()
+{
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg)
+	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7);
+	ck_assert(p7 != NULL);
+	SCEP_DATA *pkiMessage = NULL;
 	ck_assert(scep_unwrap(
-		handle, p7, enc_cert, enc_key, &pkiMessage) == SCEPE_OK);
+		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
 	return pkiMessage;
 }
 
-
-PKCS7 *make_gci_message(
-		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg, X509 *cacert)
+PKCS7 *make_gci_message()
 {
 	PKCS7 *p7;
-	BIO *b;
-
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
-
-	b = BIO_new(BIO_s_mem());
-	BIO_puts(b, test_server_ca_cert);
-	PEM_read_bio_X509(b, &cacert, 0, 0);
-	BIO_free(b);
-
 	ck_assert(scep_get_cert_initial(
 		handle, req, sig_cert, sig_key,
-		cacert, enc_cert, enc_alg, &p7) == SCEPE_OK);
+		sig_cacert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
 	return p7;
 }
 
 
-PKCS7 *make_gc_message(
-		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg, X509 *cacert)
+PKCS7 *make_gc_message()
 {
 	PKCS7 *p7;
-
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
-
 	ck_assert(scep_get_cert(
 		handle, req, sig_cert, sig_key,
-		sig_cert, enc_cert, enc_alg, &p7) == SCEPE_OK);
+		sig_cert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
 	return p7;
 }
 
 
-PKCS7 *make_gcrl_message(
-		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg, X509 *cacert)
+PKCS7 *make_gcrl_message()
 {
 	PKCS7 *p7;
-
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
-
 	ck_assert(scep_get_crl(
 		handle, req, sig_cert, sig_key,
-		sig_cert, enc_cert, enc_alg, &p7) == SCEPE_OK);
+		sig_cert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
 	return p7;
 }
 
@@ -290,7 +364,7 @@ finally:
 
 BIO *get_decrypted_data(PKCS7 *p7)
 {
-	// currently failing because we cannot extract data from PKCS#7 data type
+	/*client only*/
 	PKCS7 *p7enc = NULL, *p7_inner;
 	BIO *outbio;
 	ck_assert(PKCS7_get_content(p7, &p7enc) == SCEPE_OK);
@@ -300,14 +374,26 @@ BIO *get_decrypted_data(PKCS7 *p7)
 	ck_assert_str_eq("0", i2s_ASN1_INTEGER(NULL, p7enc->d.enveloped->version));
 
 	// decrypt and check content
-	PKCS7_decrypt(p7enc, dec_key, dec_cert, outbio, 0);
+	PKCS7_decrypt(p7enc, enc_cakey, enc_cacert, outbio, 0);
+	ERR_print_errors_fp(stderr);
 	return outbio;
+}
+
+void certrep_setup()
+{
+	generic_setup();
+	p7 = make_certrep_message(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+}
+
+void certrep_teardown()
+{
+	generic_teardown();
 }
 
 void unwrap_setup()
 {
 	generic_setup();
-	pkiMessage = make_unwrap_message(NULL, NULL);
+	pkiMessage = make_unwrap_message();
 }
 
 void unwrap_teardown()
@@ -318,9 +404,9 @@ void unwrap_teardown()
 void pkcsreq_setup()
 {
 	generic_setup();
-	p7 = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
+	make_pkcsreq_message();
 	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-	p7_nosigcert = make_pkcsreq_message(NULL, NULL, NULL, NULL, NULL);
+	make_pkcsreq_message_nosigcert();
 }
 
 void pkcsreq_teardown()
@@ -333,9 +419,9 @@ void pkcsreq_teardown()
 void gci_setup()
 {
 	generic_setup();
-	p7 = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7 = make_gci_message();
 	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-	p7_nosigcert = make_gci_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7_nosigcert = make_gci_message();
 }
 
 void gci_teardown()
@@ -348,9 +434,9 @@ void gci_teardown()
 void gc_setup()
 {
 	generic_setup();
-	p7 = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7 = make_gc_message();
 	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-	p7_nosigcert = make_gc_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7_nosigcert = make_gc_message();
 }
 
 void gc_teardown()
@@ -363,9 +449,9 @@ void gc_teardown()
 void gcrl_setup()
 {
 	generic_setup();
-	p7 = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7 = make_gcrl_message();
 	scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-	p7_nosigcert = make_gcrl_message(NULL, NULL, NULL, NULL, NULL, NULL);
+	p7_nosigcert = make_gcrl_message();
 }
 
 ASN1_STRING *get_attribute(PKCS7 *message, int nid) {
@@ -384,7 +470,7 @@ char *get_attribute_data(PKCS7 *message, int nid) {
 START_TEST(test_unwrap_message)
 {
 	ck_assert_int_ne(NULL, pkiMessage);
-	ck_assert_int_eq(1, pkiMessage->initialEnrollment);
+	ck_assert_int_eq(0, pkiMessage->initialEnrollment);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage->transactionID);
@@ -434,7 +520,7 @@ START_TEST(test_scep_message_certificate)
 {
 	BIO *b = BIO_new(BIO_s_mem());
 	X509 *ref_cert = NULL;
-	BIO_puts(b, test_crt);
+	BIO_puts(b, sig_cert_str);
 	PEM_read_bio_X509(b, &ref_cert, 0, 0);
 	ck_assert(ref_cert != NULL);
 	BIO_free(b);
@@ -484,7 +570,7 @@ START_TEST(test_scep_pkcsreq_missing_dn)
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
 	const EVP_CIPHER *enc_alg = NULL;
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
 	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
 }
@@ -510,7 +596,7 @@ START_TEST(test_scep_pkcsreq_missing_pubkey)
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
 	const EVP_CIPHER *enc_alg = NULL;
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
 	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
 }
@@ -537,7 +623,7 @@ START_TEST(test_scep_pkcsreq_missing_challenge_password)
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
 	const EVP_CIPHER *enc_alg = NULL;
-	make_message_data(&sig_cert, &sig_key, &req, &enc_cert, &enc_alg);
+	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
 	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
 }
@@ -560,7 +646,7 @@ START_TEST(test_scep_gci)
 	d2i_PKCS7_ISSUER_AND_SUBJECT(&ias, &data_buf, data_buf_len);
 	ck_assert(ias != NULL);
 	ck_assert_str_eq(X509_NAME_oneline(ias->subject, NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
-	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
+	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
 }
 END_TEST
 
@@ -568,7 +654,6 @@ END_TEST
 START_TEST(test_scep_gc)
 {
 	BIO *data = get_decrypted_data(p7);
-
 	const unsigned char *data_buf;
 	int data_buf_len = BIO_get_mem_data(data, &data_buf);
 	ck_assert_int_ne(data_buf_len, 0);
@@ -580,8 +665,8 @@ START_TEST(test_scep_gc)
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
 	ck_assert(ias != NULL);
-	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
-	ck_assert_str_eq("15238307653902252243", i2s_ASN1_INTEGER(NULL, ias->serial));
+	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
+	ck_assert_str_eq("1", i2s_ASN1_INTEGER(NULL, ias->serial));
 
 }
 END_TEST
@@ -602,8 +687,8 @@ START_TEST(test_scep_gcrl)
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
 	ck_assert(ias != NULL);
-	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar.com");
-	ck_assert_str_eq("15238307653902252243", i2s_ASN1_INTEGER(NULL, ias->serial));
+	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
+	ck_assert_str_eq("1", i2s_ASN1_INTEGER(NULL, ias->serial));
 
 }
 END_TEST
@@ -613,6 +698,12 @@ Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
 
+	/*test Certrep*/
+	TCase *tc_certrep_msg = tcase_create("Certrep Message");
+	tcase_add_checked_fixture(tc_certrep_msg, certrep_setup, certrep_teardown);
+	//tcase_add_test(tc_certrep_msg, test_certrep_message);
+	suite_add_tcase(s, tc_certrep_msg);
+	
 	/*test unwrapping*/
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
