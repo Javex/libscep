@@ -392,7 +392,7 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_eq(19, pkiMessage->messageType_int);
     ck_assert_int_ne(NULL, pkiMessage->request);
     ck_assert_int_ne(NULL, pkiMessage->senderNonce);
-    ck_assert_str_eq("FOOBARTESTPWD", pkiMessage->challenge_password);
+	ck_assert_str_eq("FOOBARTESTPWD", ASN1_STRING_data(pkiMessage->challenge_password->value.printablestring));
 }
 END_TEST
 

@@ -465,8 +465,13 @@ SCEP_ERROR scep_unwrap(
 			}
 			
 			X509_ATTRIBUTE *attr = X509_REQ_get_attr(local_out->request, passwd_index);
-			ASN1_TYPE *ext = sk_ASN1_TYPE_value(attr->value.set, 0);
-			local_out->challenge_password = ASN1_STRING_data(ext->value.printablestring);
+            if(attr->single == 0) { // set
+                if(sk_ASN1_TYPE_num(attr->value.set) != 1)
+                    OSSL_ERR("Unexpected number of elements in challenge passowrd");
+                local_out->challenge_password = sk_ASN1_TYPE_value(attr->value.set, 0);
+            } else { // single
+                local_out->challenge_password = attr->value.single;
+            }
         }
         /*TODO: other types besides PKCSreq dealing with encrypted content*/
     }
