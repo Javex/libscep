@@ -52,18 +52,18 @@ void scep_cleanup(SCEP *handle)
 
 SCEP_ERROR scep_create_oids(SCEP *handle)
 {
-#define OID_ERR(oid)                                    \
-    do {                                                \
-        ERR_print_errors(handle->configuration->log);   \
-        scep_log(handle, FATAL, "Could not create new OID \"" oid "\"");	\
-        return SCEPE_OPENSSL;                                 \
-    } while(0)
+#define OID_ERR(oid)									\
+	do {												\
+		ERR_print_errors(handle->configuration->log);   \
+		scep_log(handle, FATAL, "Could not create new OID \"" oid "\"");	\
+		return SCEPE_OPENSSL;								 \
+	} while(0)
 
-    if(_scep_oids == NULL) {
-	    _scep_oids = malloc(sizeof(SCEP_OIDS));
-	    if(!_scep_oids)
-	    	return SCEPE_MEMORY;
-	    memset(_scep_oids, 0, sizeof(SCEP_OIDS));
+	if(_scep_oids == NULL) {
+		_scep_oids = malloc(sizeof(SCEP_OIDS));
+		if(!_scep_oids)
+			return SCEPE_MEMORY;
+		memset(_scep_oids, 0, sizeof(SCEP_OIDS));
 
 		_scep_oids->messageType = OBJ_create(
 			"2.16.840.1.113733.1.9.2", "messageType", "messageType");
