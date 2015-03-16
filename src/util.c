@@ -168,6 +168,7 @@ void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
 		full_message = malloc(full_message_len);
 		if(!full_message)
 			return;
+		memset(full_message, 0, full_message_len);
 		snprintf(full_message, full_message_len, "%s:%d: %s\n", filename, line, message);
 		BIO_puts(handle->configuration->log, full_message);
 		free(filecopy);
