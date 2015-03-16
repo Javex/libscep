@@ -125,14 +125,14 @@ START_TEST(test_scep_log)
 	scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
 
 	bio = BIO_new(BIO_s_mem());
-	//bio = BIO_new_fp(stdout, BIO_NOCLOSE);
 	scep_conf_set(handle, SCEPCFG_LOG, bio);
 	// hack needed for log testing
 	lineno = __LINE__; scep_log(handle, WARN, "This is a test");
-	log_str_len = BIO_get_mem_data(bio, &log_str);
 	int ref_len = snprintf(NULL, 0, "test_util.c:%d: This is a test\n", lineno) + 1;
 	check_str = malloc(ref_len);
 	snprintf(check_str, ref_len, "test_util.c:%d: This is a test\n", lineno);
+	log_str = malloc(ref_len);
+	BIO_gets(bio, log_str, ref_len);
 	ck_assert_str_eq(check_str, log_str);
 }
 END_TEST
