@@ -1,5 +1,6 @@
 libscep - A Client Side SCEP Library
 ====================================
+[![Build Status](https://travis-ci.org/Javex/libscep.svg?branch=develop)](https://travis-ci.org/Javex/libscep)
 
 `libscep` implements the 
 [SCEP protocol](http://tools.ietf.org/html/draft-nourse-scep-23) as a C library
