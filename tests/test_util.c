@@ -161,6 +161,23 @@ START_TEST(test_scep_new_selfsigned)
 }
 END_TEST
 
+START_TEST(test_X509_REQ_cmp)
+{
+	X509_REQ *a, *b;
+	BIO *data = BIO_new(BIO_s_mem());
+	BIO_puts(data, test_new_csr);
+	ck_assert_int_ne( a = PEM_read_bio_X509_REQ(data, NULL, 0, 0), 0);
+	BIO_free(data);
+
+	data = BIO_new(BIO_s_mem());
+	BIO_puts(data, test_new_csr);
+	ck_assert_int_ne(b = PEM_read_bio_X509_REQ(data, NULL, 0, 0), 0);
+	BIO_free(data);
+
+	ck_assert_int_eq(X509_REQ_cmp(a, b), 0);
+}
+END_TEST
+
 Suite * scep_util_suite(void)
 {
 	Suite *s = suite_create("Util");
@@ -173,6 +190,7 @@ Suite * scep_util_suite(void)
 	tcase_add_test(tc_core, test_scep_PKCS7_base64_encode);
 	tcase_add_test(tc_core, test_scep_log);
 	tcase_add_test(tc_core, test_scep_new_selfsigned);
+	tcase_add_test(tc_core, test_X509_REQ_cmp);
 
 	suite_add_tcase(s, tc_core);
 

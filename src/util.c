@@ -232,6 +232,13 @@ finally:
 	return error;
 }
 
+int X509_REQ_cmp(X509_REQ *req1, X509_REQ *req2)
+{
+	int rv = 0;
+	rv |= ASN1_STRING_cmp(req1->signature, req2->signature);
+	return rv;
+}
+
 ASN1_SEQUENCE(PKCS7_ISSUER_AND_SUBJECT) = {
 	ASN1_SIMPLE(PKCS7_ISSUER_AND_SUBJECT, issuer, X509_NAME),
 	ASN1_SIMPLE(PKCS7_ISSUER_AND_SUBJECT, subject, X509_NAME)

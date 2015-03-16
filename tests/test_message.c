@@ -451,27 +451,15 @@ END_TEST
 START_TEST(test_scep_pkcsreq)
 {
 	BIO *data = get_decrypted_data(p7);
+	X509_REQ *csr = d2i_X509_REQ_bio(data, NULL);
+	ck_assert(csr != NULL);
 
-	unsigned char *data_buf;
-	int data_buf_len = BIO_get_mem_data(data, &data_buf);
-	ck_assert_int_ne(data_buf_len, 0);
-
-	X509_REQ *ref_csr = X509_REQ_new();
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_csr);
-	PEM_read_bio_X509_REQ(data, &ref_csr, 0, 0);
+	X509_REQ *ref_csr = PEM_read_bio_X509_REQ(data, NULL, 0, 0);
 	BIO_free(data);
 
-	data = BIO_new(BIO_s_mem());
-	ck_assert(i2d_X509_REQ_bio(data, ref_csr));
-	unsigned char *ref_buf;
-	int ref_buf_len = BIO_get_mem_data(data, &ref_buf);
-	BIO_free(data);
-
-	ck_assert_int_ne(ref_buf_len, 0);
-	ck_assert(ref_buf_len == data_buf_len);
-	ck_assert_int_eq(memcmp(ref_buf, data_buf, ref_buf_len), 0);
-
+	ck_assert_int_eq(X509_REQ_cmp(csr, ref_csr), 0);
 	ck_assert_str_eq(
 		MESSAGE_TYPE_PKCSREQ,
 		get_attribute_data(p7, handle->oids->messageType));
