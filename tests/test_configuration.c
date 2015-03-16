@@ -103,7 +103,7 @@ END_TEST
 
 START_TEST(test_scep_conf_sanity_check)
 {
-       ck_assert(scep_conf_sanity_check(handle) == SCEPE_OK);
+	   ck_assert(scep_conf_sanity_check(handle) == SCEPE_OK);
 }
 END_TEST
 
