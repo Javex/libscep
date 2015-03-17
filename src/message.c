@@ -344,16 +344,16 @@ SCEP_ERROR scep_unwrap(
 {
 	SCEP_DATA *local_out = malloc(sizeof(SCEP_DATA));
 	SCEP_ERROR error = SCEPE_OK;
-	STACK_OF(PKCS7_SIGNER_INFO) *sk;
-	PKCS7_SIGNER_INFO		   *si;
+	STACK_OF(PKCS7_SIGNER_INFO)	*sk;
+	PKCS7_SIGNER_INFO			*si;
 	unsigned char				*buf;
-	ASN1_TYPE				   *messageType, *senderNonce, *transId;
-	X509_NAME				   *issuer, *subject;
+	ASN1_TYPE					*messageType, *senderNonce, *recipientNonce, *transId, *pkiStatus;
+	X509_NAME					*issuer, *subject;
 	X509						*signerCert;
-	STACK_OF(X509)			  *certs;
-	BIO						 *encData, *decData;
-	X509_STORE				  *store;
-
+	STACK_OF(X509)				*certs;
+	BIO							*encData, *decData;
+	X509_STORE					*store;
+	PKCS7 						*p7env;
 	/*prepare trusted store*/
 	store = X509_STORE_new();
 	encData = BIO_new(BIO_s_mem());
@@ -361,7 +361,6 @@ SCEP_ERROR scep_unwrap(
 	/*add trusted cert*/
 	X509_STORE_add_cert(store, sig_cacert);
 	local_out->initialEnrollment = 0;
-
 	if(!PKCS7_type_is_signed(pkiMessage))
 		OSSL_ERR("pkiMessage MUST be content type signed-data");
 
@@ -381,7 +380,6 @@ SCEP_ERROR scep_unwrap(
 		}
 	}
 	signerCert = sk_X509_value(certs, 0);
-	
 	/* Message type*/
 	if(!(sk = PKCS7_get_signer_info(pkiMessage)))
 		 OSSL_ERR("Failed to get signer info");
@@ -398,10 +396,10 @@ SCEP_ERROR scep_unwrap(
 	/*luckily, standard defines unique types*/
 	ASN1_STRING_to_UTF8(&buf,messageType->value.printablestring);
 	local_out->messageType = (char*)buf;
-
 	/*struct is redundant, however*/
 	local_out->messageType_int = atoi(local_out->messageType);
 	/*initial PKCSreq message could be selfsigned*/
+
 	if(strncmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ, 2) == 0) {
 		/*check for self-signed*/
 		issuer = X509_get_issuer_name(signerCert);
@@ -413,6 +411,7 @@ SCEP_ERROR scep_unwrap(
 
 		if(X509_NAME_cmp(subject, issuer) == 0)
 			local_out->initialEnrollment = 1;
+
 			//TODO: only necessary if signerCert does not equal encryptioncert
 			//X509_STORE_add_cert(store, signerCert);
 	}
@@ -420,11 +419,45 @@ SCEP_ERROR scep_unwrap(
 	if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
 		goto finally;
 
+
+	/*pkiMessage attributes*/
+
+	/*transaction id*/
+	if(!(transId = PKCS7_get_signed_attribute(si, handle->oids->transId)))
+		OSSL_ERR("transaction ID is missing");
+
+	ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
+	local_out->transactionID = (char*)buf;
+
+	/*senderNonce*/
+	/*needed in every pkiMessage*/
+	if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce)))
+		OSSL_ERR("sender Nonce is missing.\n");
+	ASN1_TYPE_get_octetstring(senderNonce, local_out->senderNonce, 16);
+
+
+	/*type-specific attributes*/
+	if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
+		/*recipientNonce*/
+		if(!(recipientNonce = PKCS7_get_signed_attribute(si, handle->oids->recipientNonce)))
+			OSSL_ERR("recipient Nonce is missing.\n");
+		ASN1_TYPE_get_octetstring(recipientNonce, local_out->recipientNonce, 16);
+
+		/*pkiStatus*/
+		if(!(pkiStatus = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus)))
+			OSSL_ERR("PKI Status is missing.\n");
+		local_out->pkiStatus = ASN1_STRING_data(pkiStatus->value.printablestring);
+	}
+
+		/*TODO: certrep failure*/
+	
 	/*Message is a pkiMessage and consists of a valid signature.*/
 	/*decrypt it*/
-	if(encData) {
-		
-		PKCS7 *p7env = d2i_PKCS7_bio(encData, NULL);
+	if((p7env = d2i_PKCS7_bio(encData, NULL))){
+		/*Sort out invalid Certrep PENDING requests*/
+		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0)
+			if(local_out->pkiStatus == 3)
+				OSSL_ERR("PENDING Certreps MUST NOT have encrypted content.\n");
 		if(ASN1_INTEGER_get(p7env->d.enveloped->version) != 0) {
 			OSSL_ERR("Version of the enveloped parst MUST be 0.\n");
 		}
@@ -468,7 +501,7 @@ SCEP_ERROR scep_unwrap(
 			X509_ATTRIBUTE *attr = X509_REQ_get_attr(local_out->request, passwd_index);
 			if(attr->single == 0) { // set
 				if(sk_ASN1_TYPE_num(attr->value.set) != 1)
-					OSSL_ERR("Unexpected number of elements in challenge passowrd");
+					OSSL_ERR("Unexpected number of elements in challenge password");
 				local_out->challenge_password = sk_ASN1_TYPE_value(attr->value.set, 0);
 			} else { // single
 				local_out->challenge_password = attr->value.single;
@@ -483,25 +516,12 @@ SCEP_ERROR scep_unwrap(
 				OSSL_ERR("Message type PKCSreq requires an encrypted content.\n");
 			}
 		}
-		/*TODO: no content to be encrypted, e.g. certrep failure, pending*/
 	}
 
-	/*pkiMessage attributes*/
-
-	/*transaction id*/
-	if(!(transId = PKCS7_get_signed_attribute(si, handle->oids->transId)))
-		OSSL_ERR("transaction ID is missing");
-
-	ASN1_STRING_to_UTF8(&buf,transId->value.printablestring);
-	local_out->transactionID = (char*)buf;
-	/*senderNonce*/
-	/*needed in every pkiMessage*/
-	if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids->messageType)))
-		OSSL_ERR("sender Nonce is missing.\n");
-	local_out->senderNonce = ASN1_STRING_data(senderNonce->value.octet_string);
-	
 	*output = local_out;
+
 finally:
+	ERR_print_errors_fp(stderr);
 	return error;
 
 }

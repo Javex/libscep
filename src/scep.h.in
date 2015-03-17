@@ -24,7 +24,7 @@
 #define libscep_VERSION_STR(major, minor) "scep-client v" libscep_STR(major) "." libscep_STR(minor)
 
 #define MESSAGE_TYPE_PKCSREQ "19"
-#define MESSAGE_TYPE_CERTREQ "3"
+#define MESSAGE_TYPE_CERTREP "3"
 #define MESSAGE_TYPE_GETCERTINITIAL "20"
 #define MESSAGE_TYPE_GETCERT "21"
 #define MESSAGE_TYPE_GETCRL "22"
@@ -155,9 +155,10 @@ typedef struct pkcs7_issuer_and_subject_st
 /* public return value containing all relevant values of a request */
 typedef struct {
 	int initialEnrollment;
+    int pkiStatus;
     char *transactionID;
-    unsigned char *senderNonce;
-    unsigned char *recipientNonce;
+    unsigned char senderNonce[16];
+    unsigned char recipientNonce[16];
     ASN1_TYPE *challenge_password;
     X509 *signer_certificate;
     char *messageType;
