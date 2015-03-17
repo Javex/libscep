@@ -416,7 +416,8 @@ SCEP_ERROR scep_unwrap(
 			//X509_STORE_add_cert(store, signerCert);
 	}
 
-	if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
+	error = verify(handle, pkiMessage, store, encData);
+	if(error != SCEPE_OK)
 		goto finally;
 
 

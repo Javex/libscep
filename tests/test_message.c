@@ -434,7 +434,6 @@ void certrep_teardown()
 void unwrap_setup()
 {
 	generic_setup();
-	make_unwrap_message();
 }
 
 void unwrap_teardown()
@@ -510,6 +509,7 @@ char *get_attribute_data(PKCS7 *message, int nid) {
 
 START_TEST(test_unwrap_message)
 {
+	make_unwrap_message();
 	ck_assert_int_ne(NULL, pkiMessage_certrep);
 	/*TODO: smart to store intitialenrollment for every case?*/
 	ck_assert_int_eq(0, pkiMessage_certrep->initialEnrollment);
@@ -535,6 +535,18 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_ne(NULL, pkiMessage->request);
 	ck_assert_int_ne(NULL, pkiMessage->senderNonce);
 	ck_assert_str_eq("FOOBARTESTPWD", ASN1_STRING_data(pkiMessage->challenge_password->value.printablestring));
+
+}
+END_TEST
+
+START_TEST(test_invalid_sig)
+{
+	PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_pending), 0);
+	ASN1_TYPE *t = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
+	ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, "A", -1), 0);
+	ck_assert(scep_unwrap(
+		handle, certrep_pending, enc_cert, sig_cacert, enc_key,
+		&pkiMessage_certrep) == SCEPE_OPENSSL);
 
 }
 END_TEST
@@ -764,6 +776,7 @@ Suite * scep_message_suite(void)
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
 	tcase_add_test(tc_unwrap_msg, test_unwrap_message);
+	tcase_add_test(tc_unwrap_msg, test_invalid_sig);
 	suite_add_tcase(s, tc_unwrap_msg);
 
 	/* PKCSReq tests */
