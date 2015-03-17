@@ -18,6 +18,8 @@ char *scep_strerror(SCEP_ERROR err)
 			return "Operation is unknown or no operation specified";
 		case SCEPE_DUPLICATE_BIO:
 			return "Overwriting BIO not allowed. Check error log for details";
+		case SCEPE_PROTOCOL:
+			return "Invalid protocol operation";
 		case SCEPE_MISSING_CSR:
 			return "You have to provide a CSR for the PKCSReq operation";
 		case SCEPE_MISSING_REQ_KEY:

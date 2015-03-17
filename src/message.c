@@ -447,7 +447,18 @@ SCEP_ERROR scep_unwrap(
 		/*pkiStatus*/
 		if(!(pkiStatus = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus)))
 			OSSL_ERR("PKI Status is missing.\n");
-		local_out->pkiStatus = ASN1_STRING_data(pkiStatus->value.printablestring);
+		char *pki_status_str = (char *) ASN1_STRING_data(pkiStatus->value.printablestring);
+		if(strncmp(pki_status_str, SCEP_PKISTATUS_SUCCESS, sizeof(SCEP_PKISTATUS_SUCCESS)) == 0)
+			local_out->pkiStatus = SCEP_SUCCESS;
+		else if(strncmp(pki_status_str, SCEP_PKISTATUS_FAILURE, sizeof(SCEP_PKISTATUS_FAILURE)) == 0)
+			local_out->pkiStatus = SCEP_FAILURE;
+		else if(strncmp(pki_status_str, SCEP_PKISTATUS_PENDING, sizeof(SCEP_PKISTATUS_PENDING)) == 0)
+			local_out->pkiStatus = SCEP_PENDING;
+		else {
+			error = SCEPE_PROTOCOL;
+			scep_log(handle, FATAL, "Invalid pkiStatus '%s'", pki_status_str);
+			goto finally;
+		}
 	}
 
 		/*TODO: certrep failure*/
