@@ -516,6 +516,13 @@ SCEP_ERROR scep_unwrap(
 		if(!PKCS7_decrypt(p7env, cakey, cacert, decData, 0)) {
 			OSSL_ERR("decryption failed");
 		}
+		
+		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
+			/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
+			local_out->degenP7 = NULL;
+			d2i_PKCS7_bio(decData, &(local_out->degenP7));
+		}
+
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
 			local_out->request = NULL;
 			
@@ -547,6 +554,7 @@ SCEP_ERROR scep_unwrap(
 				local_out->challenge_password = attr->value.single;
 			}
 		}
+
 		/*TODO: other types besides PKCSreq dealing with encrypted content*/
 	}
 	else{
@@ -571,7 +579,6 @@ SCEP_ERROR scep_unwrap(
 	*output = local_out;
 
 finally:
-	ERR_print_errors_fp(stderr);
 	return error;
 
 }

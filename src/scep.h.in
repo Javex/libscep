@@ -177,6 +177,7 @@ typedef struct {
     char *messageType;
     int messageType_int;
     union {
+        PKCS7 *degenP7; //CertRep
         X509_REQ *request;  // PKCSReq
         X509_CRL *crl;  // GetCRL
         PKCS7_ISSUER_AND_SERIAL *issuer_and_serial; // GetCert
