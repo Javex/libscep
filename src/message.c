@@ -424,7 +424,8 @@ SCEP_ERROR scep_unwrap(
 			//X509_STORE_add_cert(store, signerCert);
 	}
 
-	if(verify(handle, pkiMessage, store, encData) != SCEPE_OK)
+	error = verify(handle, pkiMessage, store, encData);
+	if(error != SCEPE_OK)
 		goto finally;
 
 
@@ -455,18 +456,38 @@ SCEP_ERROR scep_unwrap(
 		/*pkiStatus*/
 		if(!(pkiStatus = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus)))
 			OSSL_ERR("PKI Status is missing.\n");
-		local_out->pkiStatus = atoi((const char*)ASN1_STRING_data(pkiStatus->value.printablestring));
-		if(local_out->pkiStatus < 0 || local_out->pkiStatus > 3)	{
-				OSSL_ERR("invalid pkiStatus\n");
-			}
+		char *pki_status_str = (char *) ASN1_STRING_data(pkiStatus->value.printablestring);
+		if(strncmp(pki_status_str, SCEP_PKISTATUS_SUCCESS, sizeof(SCEP_PKISTATUS_SUCCESS)) == 0)
+			local_out->pkiStatus = SCEP_SUCCESS;
+		else if(strncmp(pki_status_str, SCEP_PKISTATUS_FAILURE, sizeof(SCEP_PKISTATUS_FAILURE)) == 0)
+			local_out->pkiStatus = SCEP_FAILURE;
+		else if(strncmp(pki_status_str, SCEP_PKISTATUS_PENDING, sizeof(SCEP_PKISTATUS_PENDING)) == 0)
+			local_out->pkiStatus = SCEP_PENDING;
+		else {
+			error = SCEPE_PROTOCOL;
+			scep_log(handle, FATAL, "Invalid pkiStatus '%s'", pki_status_str);
+			goto finally;
+		}
 
 		/*failInfo*/
-		if(local_out->pkiStatus == 2) {
+		if(local_out->pkiStatus == SCEP_FAILURE) {
 			if(!(failInfo = PKCS7_get_signed_attribute(si, handle->oids->failInfo)))
 				OSSL_ERR("failInfo is missing.\n");
-			local_out->failInfo = atoi((const char*)ASN1_STRING_data(failInfo->value.printablestring));
-			if(local_out->failInfo < 0 || local_out->failInfo > 4)	{
-				OSSL_ERR("invalid failInfo\n");
+			char *failInfo_str = (char *) ASN1_STRING_data(failInfo->value.printablestring);
+			if(strncmp(failInfo_str, SCEP_FAILINFO_BADALG, sizeof(SCEP_FAILINFO_BADALG)) == 0)
+				local_out->failInfo = badAlg;
+			else if(strncmp(failInfo_str, SCEP_FAILINFO_BADMESSAGECHECK, sizeof(SCEP_FAILINFO_BADMESSAGECHECK)) == 0)
+				local_out->failInfo = badMessageCheck;
+			else if(strncmp(failInfo_str, SCEP_FAILINFO_BADREQUEST, sizeof(SCEP_FAILINFO_BADREQUEST)) == 0)
+				local_out->failInfo = badRequest;
+			else if(strncmp(failInfo_str, SCEP_FAILINFO_BADTIME, sizeof(SCEP_FAILINFO_BADTIME)) == 0)
+				local_out->failInfo = badTime;
+			else if(strncmp(failInfo_str, SCEP_FAILINFO_BADCERTID, sizeof(SCEP_FAILINFO_BADCERTID)) == 0)
+				local_out->failInfo = badCertId;
+			else {
+				error = SCEPE_PROTOCOL;
+				scep_log(handle, FATAL, "Invalid failInfo '%s'", failInfo_str);
+				goto finally;
 			}
 		}
 	}

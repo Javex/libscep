@@ -470,7 +470,6 @@ void certrep_teardown()
 void unwrap_setup()
 {
 	generic_setup();
-	make_unwrap_message();
 }
 
 void unwrap_teardown()
@@ -546,10 +545,11 @@ char *get_attribute_data(PKCS7 *message, int nid) {
 
 START_TEST(test_unwrap_message)
 {
+	make_unwrap_message();
 	ck_assert_int_ne(NULL, pkiMessage_failure);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
-		pkiMessage_certrep->transactionID);
+		pkiMessage_failure->transactionID);
 	ck_assert_str_eq("3", pkiMessage_failure->messageType);
 	ck_assert_int_eq(3, pkiMessage_failure->messageType_int);
 	/*TODO: check improving, some values might be not NULL and still invalid*/
@@ -557,11 +557,11 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_failure->recipientNonce));
 	//next test shoud work on own implementation but not necessary on other ones
 	//ck_assert_str_eq((char*)(pkiMessage_failure->senderNonce), (char*)(pkiMessage_failure->recipientNonce));
-	ck_assert_int_eq(2, pkiMessage_failure->pkiStatus);
+	ck_assert_int_eq(SCEP_FAILURE, pkiMessage_failure->pkiStatus);
 	ck_assert_int_eq(0, pkiMessage_failure->failInfo);
 
-	ck_assert_int_ne(NULL, pkiMessage_failure);
-	/*TODO: smart to store intitialenrollment for every case?*/
+	
+	ck_assert_int_ne(NULL, pkiMessage_certrep);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage_certrep->transactionID);
@@ -572,8 +572,9 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_certrep->recipientNonce));
 	//next test shoud work on own implementation but not necessary on other ones
 	//ck_assert_str_eq((char*)(pkiMessage_certrep->senderNonce), (char*)(pkiMessage_certrep->recipientNonce));
-	ck_assert_int_eq(3, pkiMessage_certrep->pkiStatus);
-	
+
+	ck_assert_int_eq(SCEP_PENDING, pkiMessage_certrep->pkiStatus);
+
 	ck_assert_int_ne(NULL, pkiMessage);
 	ck_assert_int_eq(0, pkiMessage->initialEnrollment);
 	ck_assert_str_eq(
@@ -585,6 +586,35 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_ne(NULL, pkiMessage->senderNonce);
 	ck_assert_str_eq("FOOBARTESTPWD", ASN1_STRING_data(pkiMessage->challenge_password->value.printablestring));
 
+}
+END_TEST
+
+START_TEST(test_invalid_sig)
+{
+	PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_pending), 0);
+	ASN1_TYPE *t = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
+	ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, "A", -1), 0);
+	ck_assert(scep_unwrap(
+		handle, certrep_pending, enc_cert, sig_cacert, enc_key,
+		&pkiMessage_certrep) == SCEPE_OPENSSL);
+
+}
+END_TEST
+
+START_TEST(test_unwrap_invalid_pkiStatus)
+{
+	PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_pending), 0);
+	ASN1_TYPE *t = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
+	ck_assert(t != NULL);
+	ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, "foobar", -1), 0);
+	ck_assert_int_ne(PKCS7_SIGNER_INFO_set(si, sig_cert, sig_key, handle->configuration->sigalg), 0);
+	ck_assert_int_ne(PKCS7_add_certificate(certrep_pending, sig_cert), 0);
+	int res = PKCS7_SIGNER_INFO_sign(si);
+	ERR_print_errors_fp(stderr);
+	ck_assert_int_ne(res, 0);
+	ck_assert_int_eq(scep_unwrap(
+		handle, certrep_pending, enc_cert, sig_cacert, enc_key,
+		&pkiMessage_certrep), SCEPE_PROTOCOL);
 }
 END_TEST
 
@@ -813,6 +843,8 @@ Suite * scep_message_suite(void)
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
 	tcase_add_test(tc_unwrap_msg, test_unwrap_message);
+	tcase_add_test(tc_unwrap_msg, test_invalid_sig);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_invalid_pkiStatus);
 	suite_add_tcase(s, tc_unwrap_msg);
 
 	/* PKCSReq tests */

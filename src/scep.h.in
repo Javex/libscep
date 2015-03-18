@@ -29,6 +29,17 @@
 #define MESSAGE_TYPE_GETCERT "21"
 #define MESSAGE_TYPE_GETCRL "22"
 
+#define SCEP_PKISTATUS_SUCCESS "0"
+#define SCEP_PKISTATUS_FAILURE "2"
+#define SCEP_PKISTATUS_PENDING "3"
+
+
+#define SCEP_FAILINFO_BADALG "0"
+#define SCEP_FAILINFO_BADMESSAGECHECK "1"
+#define SCEP_FAILINFO_BADREQUEST "2"
+#define SCEP_FAILINFO_BADTIME "3"
+#define SCEP_FAILINFO_BADCERTID "4"
+
 // number of nonce bytes, defined by protocol
 #define NONCE_LENGTH 16
 
@@ -74,6 +85,7 @@ typedef enum {
     SCEPE_UNKNOWN_CONFIGURATION,
     SCEPE_UNKOWN_OPERATION,
     SCEPE_DUPLICATE_BIO,
+    SCEPE_PROTOCOL,
 
     SCEPE_MISSING_CSR,
     SCEPE_MISSING_REQ_KEY,
@@ -104,10 +116,10 @@ typedef enum {
     SCEPOP_GETCERTINITIAL,
 } SCEP_OPERATION;
 
-enum {
-    SUCCESS = 0,
-    FAILURE = 2,
-    PENDING = 3,
+typedef enum {
+    SCEP_SUCCESS = 0,
+    SCEP_FAILURE = 2,
+    SCEP_PENDING = 3,
 } SCEP_PKISTATUS;
 
 typedef enum {
@@ -155,8 +167,8 @@ typedef struct pkcs7_issuer_and_subject_st
 /* public return value containing all relevant values of a request */
 typedef struct {
 	int initialEnrollment;
-    int pkiStatus;
-    int failInfo;
+    SCEP_FAILINFO failInfo;
+    SCEP_PKISTATUS pkiStatus;
     char *transactionID;
     unsigned char senderNonce[16];
     unsigned char recipientNonce[16];
