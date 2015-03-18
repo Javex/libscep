@@ -347,7 +347,7 @@ SCEP_ERROR scep_unwrap(
 	STACK_OF(PKCS7_SIGNER_INFO)	*sk;
 	PKCS7_SIGNER_INFO			*si;
 	unsigned char				*buf;
-	ASN1_TYPE					*messageType, *senderNonce, *recipientNonce, *transId, *pkiStatus;
+	ASN1_TYPE					*messageType, *senderNonce, *recipientNonce, *transId, *pkiStatus, *failInfo;
 	X509_NAME					*issuer, *subject;
 	X509						*signerCert;
 	STACK_OF(X509)				*certs;
@@ -360,7 +360,6 @@ SCEP_ERROR scep_unwrap(
 	decData = BIO_new(BIO_s_mem());
 	/*add trusted cert*/
 	X509_STORE_add_cert(store, sig_cacert);
-	local_out->initialEnrollment = 0;
 	if(!PKCS7_type_is_signed(pkiMessage))
 		OSSL_ERR("pkiMessage MUST be content type signed-data");
 
@@ -393,14 +392,23 @@ SCEP_ERROR scep_unwrap(
 	if (!ASN1_INTEGER_get(si->version) == 1)
 		OSSL_ERR("version MUST be 1");
 
-	/*luckily, standard defines unique types*/
+	/*luckily, standard defines single types*/
 	ASN1_STRING_to_UTF8(&buf,messageType->value.printablestring);
 	local_out->messageType = (char*)buf;
 	/*struct is redundant, however*/
 	local_out->messageType_int = atoi(local_out->messageType);
+	if(!(local_out->messageType_int == 3 ||
+		local_out->messageType_int == 19 ||
+		local_out->messageType_int == 20 ||
+		local_out->messageType_int == 21 ||
+		local_out->messageType_int == 22))
+	{
+		OSSL_ERR("invalid messageType");
+	}
 	/*initial PKCSreq message could be selfsigned*/
 
 	if(strncmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ, 2) == 0) {
+		local_out->initialEnrollment = 0;
 		/*check for self-signed*/
 		issuer = X509_get_issuer_name(signerCert);
 		if(!issuer)
@@ -434,6 +442,7 @@ SCEP_ERROR scep_unwrap(
 	if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce)))
 		OSSL_ERR("sender Nonce is missing.\n");
 	ASN1_TYPE_get_octetstring(senderNonce, local_out->senderNonce, 16);
+	/*TODO: check if nonce is shorter or longer*/
 
 
 	/*type-specific attributes*/
@@ -446,17 +455,27 @@ SCEP_ERROR scep_unwrap(
 		/*pkiStatus*/
 		if(!(pkiStatus = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus)))
 			OSSL_ERR("PKI Status is missing.\n");
-		local_out->pkiStatus = ASN1_STRING_data(pkiStatus->value.printablestring);
+		local_out->pkiStatus = atoi((const char*)ASN1_STRING_data(pkiStatus->value.printablestring));
+		if(local_out->pkiStatus < 0 || local_out->pkiStatus > 3)	{
+				OSSL_ERR("invalid pkiStatus\n");
+			}
+
+		/*failInfo*/
+		if(local_out->pkiStatus == 2) {
+			if(!(failInfo = PKCS7_get_signed_attribute(si, handle->oids->failInfo)))
+				OSSL_ERR("failInfo is missing.\n");
+			local_out->failInfo = atoi((const char*)ASN1_STRING_data(failInfo->value.printablestring));
+			if(local_out->failInfo < 0 || local_out->failInfo > 4)	{
+				OSSL_ERR("invalid failInfo\n");
+			}
+		}
 	}
 
-		/*TODO: certrep failure*/
-	
-	/*Message is a pkiMessage and consists of a valid signature.*/
 	/*decrypt it*/
 	if((p7env = d2i_PKCS7_bio(encData, NULL))){
-		/*Sort out invalid Certrep PENDING requests*/
+		/*Sort out invalid Certrep PENDING or FAILURE requests*/
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0)
-			if(local_out->pkiStatus == 3)
+			if(local_out->pkiStatus == 3 || local_out->pkiStatus == 2)
 				OSSL_ERR("PENDING Certreps MUST NOT have encrypted content.\n");
 		if(ASN1_INTEGER_get(p7env->d.enveloped->version) != 0) {
 			OSSL_ERR("Version of the enveloped parst MUST be 0.\n");
@@ -511,6 +530,16 @@ SCEP_ERROR scep_unwrap(
 	}
 	else{
 		/*sort out any types which MUST contain encrypted data*/
+		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
+			if(!(local_out->pkiStatus == 3 || local_out->pkiStatus == 2)) {
+					OSSL_ERR("Message type requires an encrypted content.\n");
+			}
+		}
+		else {
+			OSSL_ERR("Message type requires an encrypted content.\n");
+		}
+
+
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
 			if(!encData) {
 				OSSL_ERR("Message type PKCSreq requires an encrypted content.\n");

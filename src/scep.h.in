@@ -156,6 +156,7 @@ typedef struct pkcs7_issuer_and_subject_st
 typedef struct {
 	int initialEnrollment;
     int pkiStatus;
+    int failInfo;
     char *transactionID;
     unsigned char senderNonce[16];
     unsigned char recipientNonce[16];
