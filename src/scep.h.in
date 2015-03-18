@@ -166,7 +166,6 @@ typedef struct pkcs7_issuer_and_subject_st
 
 /* public return value containing all relevant values of a request */
 typedef struct {
-	int initialEnrollment;
     SCEP_FAILINFO failInfo;
     SCEP_PKISTATUS pkiStatus;
     char *transactionID;
@@ -176,11 +175,23 @@ typedef struct {
     X509 *signer_certificate;
     char *messageType;
     int messageType_int;
+    /* Different types of message content for different operations.
+     * Contains the required data for the specified operation
+     * if there is data attached to the request/response
+     */
     union {
-        X509_REQ *request;  // PKCSReq
-        X509_CRL *crl;  // GetCRL
+        struct {
+            X509_REQ *request;  // PKCSReq
+            int initialEnrollment;
+        };
         PKCS7_ISSUER_AND_SERIAL *issuer_and_serial; // GetCert
         PKCS7_ISSUER_AND_SUBJECT *issuer_and_subject; // GetCertInitial
+
+        /* CertRep depends on request type */
+        STACK_OF(X509) *certs;  /* all except GetCRL response */
+        X509_CRL *crl; /* for GetCRL */
+
+        PKCS7 *messageData; /* internal */
     };
 } SCEP_DATA;
 
