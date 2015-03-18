@@ -338,6 +338,71 @@ finally:
 	return error;
 }
 
+SCEP_ERROR scep_unwrap_response(
+		SCEP *handle, PKCS7 *pkiMessage, X509 *sig_cacert,
+		X509 *request_cert, EVP_PKEY *request_key,
+		SCEP_OPERATION request_type, SCEP_DATA **output)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	SCEP_DATA *local_out = malloc(sizeof(SCEP_DATA));
+	if(!local_out) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
+	memset(local_out, 0, sizeof(SCEP_DATA));
+
+	error = scep_unwrap(
+		handle, pkiMessage, request_cert, sig_cacert, request_key,
+		&local_out);
+	if(error != SCEPE_OK)
+		goto finally;
+
+	if(local_out->pkiStatus == SCEP_SUCCESS) {
+		/* ensure type is correct */
+		if(!PKCS7_type_is_signed(local_out->messageData))
+			OSSL_ERR("Type of inner PKCS#7 must be signed (degenerate)");
+
+		switch(request_type) {
+			case SCEPOP_GETCACERT:
+			case SCEPOP_PKCSREQ:
+			case SCEPOP_GETCERT:
+			case SCEPOP_GETNEXTCACERT:
+			case SCEPOP_GETCERTINITIAL: ; // Small necessary hack
+				/* ensure there are certs (at least 1) */
+				STACK_OF(X509) *certs = local_out->messageData->d.sign->cert;
+				if(sk_X509_num(certs) < 1)
+					OSSL_ERR("Invalid number of certificates");
+
+				/* set the output param */
+				local_out->certs = certs;
+				break;
+
+			case SCEPOP_GETCRL: ; // hack again...
+				/* ensure only one CRL */
+				STACK_OF(X509_CRL) *crls = local_out->messageData->d.sign->crl;
+				if(sk_X509_CRL_num(crls) != 1)
+					OSSL_ERR("Invalid number of CRLs");
+
+				/* set output param */
+				local_out->crl = sk_X509_CRL_value(crls, 0);
+				if(local_out->crl == NULL)
+					OSSL_ERR("Unable to retrieve CRL from stack");
+				break;
+
+			default:
+				error = SCEPE_UNKOWN_OPERATION;
+				scep_log(handle, FATAL, "Invalid operation, cannot parse content");
+				goto finally;
+		}
+	}
+
+	*output = local_out;
+finally:
+	if(error != SCEPE_OK)
+		free(local_out);
+	return error;
+}
+
 SCEP_ERROR scep_unwrap(
 	SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
 	SCEP_DATA **output)
@@ -554,6 +619,9 @@ SCEP_ERROR scep_unwrap(
 			} else { // single
 				local_out->challenge_password = attr->value.single;
 			}
+		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_CERTREP, sizeof(MESSAGE_TYPE_CERTREP))) {
+			if(!d2i_PKCS7_bio(decData, &local_out->messageData))
+				OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
 		}
 		/*TODO: other types besides PKCSreq dealing with encrypted content*/
 	}

@@ -222,6 +222,10 @@ SCEP_ERROR scep_pkcsreq(
 SCEP_ERROR scep_unwrap(
     SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
     SCEP_DATA **output);
+SCEP_ERROR scep_unwrap_response(
+    SCEP *handle, PKCS7 *pkiMessage, X509 *sig_cacert,
+    X509 *request_cert, EVP_PKEY *request_key,
+    SCEP_OPERATION request_type, SCEP_DATA **output);
 SCEP_ERROR scep_get_cert_initial(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,

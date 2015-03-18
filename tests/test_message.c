@@ -380,11 +380,11 @@ void make_unwrap_message()
 
 	pkiMessage_certrep = NULL;
 	/*complementary parameters correct?*/
-	ck_assert(scep_unwrap(
-		handle, certrep_pending, enc_cert, sig_cacert, enc_key, &pkiMessage_certrep) == SCEPE_OK);
+	ck_assert(scep_unwrap_response(
+		handle, certrep_pending, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_certrep) == SCEPE_OK);
 
-	ck_assert(scep_unwrap(
-		handle, certrep_failure, enc_cert, sig_cacert, enc_key, &pkiMessage_failure) == SCEPE_OK);
+	ck_assert(scep_unwrap_response(
+		handle, certrep_failure, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_failure) == SCEPE_OK);
 }
 
 PKCS7 *make_gci_message()
@@ -559,6 +559,7 @@ START_TEST(test_unwrap_message)
 	//ck_assert_str_eq((char*)(pkiMessage_failure->senderNonce), (char*)(pkiMessage_failure->recipientNonce));
 	ck_assert_int_eq(SCEP_FAILURE, pkiMessage_failure->pkiStatus);
 	ck_assert_int_eq(0, pkiMessage_failure->failInfo);
+	ck_assert_int_eq(pkiMessage_failure->certs, NULL);
 
 	
 	ck_assert_int_ne(NULL, pkiMessage_certrep);
@@ -574,6 +575,7 @@ START_TEST(test_unwrap_message)
 	//ck_assert_str_eq((char*)(pkiMessage_certrep->senderNonce), (char*)(pkiMessage_certrep->recipientNonce));
 
 	ck_assert_int_eq(SCEP_PENDING, pkiMessage_certrep->pkiStatus);
+	ck_assert_int_eq(pkiMessage_certrep->certs, NULL);
 
 	ck_assert_int_ne(NULL, pkiMessage);
 	ck_assert_int_eq(0, pkiMessage->initialEnrollment);
