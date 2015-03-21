@@ -410,6 +410,13 @@ void make_certrep_message() {
 
 	ck_assert(scep_unwrap(
 		handle, own_certrep_failure, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_failure) == SCEPE_OK);
+	
+	/*will be a part of certrep SUCCESS but works!*/
+	/*PKCS7 *degenp7;
+	STACK_OF(X509) *cert_stack = sk_X509_new_null();
+	sk_X509_push(cert_stack, sig_cacert);
+	make_degenP7(handle, issuedCert, cert_stack, NULL, &degenp7);
+	PEM_write_PKCS7(stderr, degenp7);*/
 }
 
 void make_unwrap_message()

@@ -761,3 +761,58 @@ SCEP_ERROR verify(
 finally:
 	return error;
 }
+
+SCEP_ERROR make_degenP7(
+ 	SCEP *handle, X509 *cert, STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **p7)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	PKCS7 *local_p7 = NULL;
+	PKCS7_SIGNED *p7s = NULL;
+	STACK_OF(X509) *cert_stack = NULL;
+	STACK_OF(X509_CRL) *crl_stack = NULL;
+	X509 *currCert = NULL;
+	int i;
+
+	/*input validation*/
+	if(!((cert == NULL) ^ (crl == NULL)))
+		OSSL_ERR("cert and crl are mutually exclusive");
+
+	/*quickly assemble degenerate pkcs7 signed-data structure*/
+	if ((local_p7 = PKCS7_new()) == NULL)
+        OSSL_ERR("could not create PKCS7 structure");
+    if ((p7s = PKCS7_SIGNED_new()) == NULL)
+        OSSL_ERR("could not create PKCS7 signed structure");
+    local_p7->type = OBJ_nid2obj(NID_pkcs7_signed);
+    local_p7->d.sign = p7s;
+    /*TODO: not sure if this must be ommited, or if additionally empty content must be added*/
+    p7s->contents->type = OBJ_nid2obj(NID_pkcs7_data);
+
+    if (!ASN1_INTEGER_set(p7s->version, 1))
+        OSSL_ERR("could not set version");
+
+    if(cert) {
+	    if ((cert_stack = sk_X509_new_null()) == NULL)
+	    	OSSL_ERR("could create cert stack");
+
+	    p7s->cert = cert_stack;
+
+	    sk_X509_push(cert_stack, cert);
+
+	    for (i = 0; i < sk_X509_num(additionalCerts); i++) {
+	    	currCert = sk_X509_shift(additionalCerts);
+	    	sk_X509_push(cert_stack, currCert);
+	    }
+	}
+	else if(crl) {
+		if ((crl_stack = sk_X509_CRL_new_null()) == NULL)
+        	OSSL_ERR("could create crl stack");
+
+        p7s->crl = crl_stack;
+        sk_X509_CRL_push(crl_stack, crl);
+	}
+
+    *p7 = local_p7;
+
+finally:
+	return error;	
+}

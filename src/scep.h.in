@@ -257,4 +257,7 @@ SCEP_ERROR scep_pkiMessage(
 
 SCEP_ERROR verify(
     SCEP *handle, PKCS7 *pkiMessage, X509_STORE * store, BIO *encData);
+
+SCEP_ERROR make_degenP7(
+    SCEP *handle, X509 *cert, STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **p7);
 #endif /* SCEP_H_ */
