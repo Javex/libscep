@@ -131,6 +131,7 @@ SCEP_ERROR scep_certrep(
 	X509 *sig_cert, EVP_PKEY *sig_key, /*required*/
 	X509 *enc_cert, const EVP_CIPHER *enc_alg, /*required iff success, alternative:read out from request, alternative 2: put into SCEP_DATA when unwrapping*/
 	STACK_OF(X509) *additionalCerts, /*optional (in success case): additional certs to be included*/
+	X509_CRL *crl, /*mutually exclusive to requestedCert*/
 	PKCS7 **pkiMessage) /*return pkcs7*/ 
 	/*Note: additionalCerts does not include requestedCert in order to ensure that requestedCert is first in list*/
 {	ASN1_PRINTABLESTRING *asn1_recipient_nonce, *asn1_pkiStatus, *asn1_failInfo;
@@ -159,6 +160,10 @@ SCEP_ERROR scep_certrep(
 			OSSL_ERR("SUCCESS requires an encryption cert");
 		if(enc_alg == NULL)
 			OSSL_ERR("SUCCESS requires an encryption alg");
+		if(!(requestedCert == NULL) ^ (crl == NULL))
+			OSSL_ERR("requested cert and crl are mutually exclusive");
+		if((additionalCerts != NULL) && (requestedCert == NULL))
+			OSSL_ERR("additional certs can only be added if a requested cert is included");
 	}
 
 	/*TODO: way more checks e.g. whether SCEP_DATA contains transID etc*/
@@ -219,8 +224,7 @@ SCEP_ERROR scep_certrep(
 				asn1_pkiStatus))
 			OSSL_ERR("Could not add attribute for pkiStatus");
 	}
-
-	if(strcmp(pkiStatus,"FAILURE") == 0) {
+	else if(strcmp(pkiStatus,"FAILURE") == 0) {
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
@@ -267,6 +271,40 @@ SCEP_ERROR scep_certrep(
 				p7data->signer_info, handle->oids->failInfo, V_ASN1_PRINTABLESTRING,
 				asn1_failInfo))
 			OSSL_ERR("Could not add attribute for failInfo");
+	}
+	else if(strcmp(pkiStatus,"SUCCESS") == 0) {
+		/*create degen p7*/
+		PKCS7 *degenP7 = NULL;
+		if(!(make_degenP7(
+ 				handle, requestedCert, additionalCerts, crl, &degenP7) == SCEPE_OK))
+			OSSL_ERR("Could not create degenP7");
+
+		/*make it to BIO for encryption*/
+		BIO *databio = BIO_new(BIO_s_mem());
+		if(!databio)
+			OSSL_ERR("Could not create data BIO");
+		if(i2d_PKCS7_bio(databio, degenP7) <= 0)
+			OSSL_ERR("Could not read degenP7 into data BIO");
+
+		if((error = scep_pkiMessage(
+				handle, MESSAGE_TYPE_CERTREP,
+				databio, enc_cert, enc_alg, p7data)) != SCEPE_OK)
+			goto finally;
+
+		/* pkiStatus */
+		asn1_pkiStatus = ASN1_PRINTABLESTRING_new();
+		if(asn1_pkiStatus == NULL)
+			OSSL_ERR("Could not create ASN1 pkiStatus object");
+		if(!ASN1_STRING_set(asn1_pkiStatus, SCEP_PKISTATUS_SUCCESS, -1))
+			OSSL_ERR("Could not set ASN1 pkiStatus object");
+		if(!PKCS7_add_signed_attribute(
+				p7data->signer_info, handle->oids->pkiStatus, V_ASN1_PRINTABLESTRING,
+				asn1_pkiStatus))
+			OSSL_ERR("Could not add attribute for pkiStatus");
+
+	}
+	else {
+		OSSL_ERR("unknown pkiStatus");
 	}
 
 
@@ -798,10 +836,12 @@ SCEP_ERROR make_degenP7(
 
 	    sk_X509_push(cert_stack, cert);
 
-	    for (i = 0; i < sk_X509_num(additionalCerts); i++) {
-	    	currCert = sk_X509_shift(additionalCerts);
-	    	sk_X509_push(cert_stack, currCert);
-	    }
+	    if(additionalCerts) {
+		    for (i = 0; i = sk_X509_num(additionalCerts); i++) {
+		    	currCert = sk_X509_shift(additionalCerts);
+		    	sk_X509_push(cert_stack, currCert);
+		    }
+		}
 	}
 	else if(crl) {
 		if ((crl_stack = sk_X509_CRL_new_null()) == NULL)

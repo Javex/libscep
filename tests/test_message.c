@@ -7,7 +7,7 @@
 SCEP *handle;
 BIO *scep_log;
 PKCS7 *p7 = NULL;
-SCEP_DATA *pkiMessage, *pkiMessage_certrep, *pkiMessage_failure, *pkiMessage_success, *unwrap_own_certrep_pending, *unwrap_own_certrep_failure;
+SCEP_DATA *pkiMessage, *pkiMessage_certrep, *pkiMessage_failure, *pkiMessage_success, *unwrap_own_certrep_pending, *unwrap_own_certrep_failure, *unwrap_own_certrep_success;
 PKCS7 *p7_nosigcert = NULL; // no signer certificate on result PKCS#7
 /*TODO: Do we need them*/
 EVP_PKEY *dec_key;
@@ -29,6 +29,8 @@ PKCS7 *certrep_failure;
 PKCS7 *certrep_success;
 PKCS7 *own_certrep_pending;
 PKCS7 *own_certrep_failure;
+PKCS7 *own_certrep_success;
+
 
 char *test_new_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "MIICXAIBAAKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56nhL3\n"
@@ -258,11 +260,6 @@ char *certrep_success_str ="-----BEGIN PKCS7-----\n"
 "phbTlq5K3BlTmUFrdo+SqhmJB8TuN2WZUmeCZQ==\n"
 "-----END PKCS7-----\n";
 
-char *pkiStatus_str = "PENDING";
-//char *pkiStatus_str ="SUCCESS";
-//char *pkiStatus_str ="FAILURE";
-char *failInfo_str = NULL;
-/*TODO: various failInfos when checking failure */
 void make_message_data();
 void generic_setup()
 {
@@ -396,8 +393,8 @@ void make_certrep_message() {
 	BIO_free(b);
 
 	own_certrep_pending = NULL;
-	ck_assert(scep_certrep(handle, scep_message, pkiStatus_str, failInfo_str,
-			issuedCert, sig_cacert, sig_cakey, enc_cert, enc_alg, NULL,
+	ck_assert(scep_certrep(handle, scep_message, "PENDING", NULL,
+			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL,
 			&own_certrep_pending) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
@@ -405,18 +402,22 @@ void make_certrep_message() {
 
 	own_certrep_failure = NULL;
 	ck_assert(scep_certrep(handle, scep_message, "FAILURE", "badAlg",
-			issuedCert, sig_cacert, sig_cakey, enc_cert, enc_alg, NULL,
+			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL,
 			&own_certrep_failure) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
 		handle, own_certrep_failure, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_failure) == SCEPE_OK);
 	
-	/*will be a part of certrep SUCCESS but works!*/
-	/*PKCS7 *degenp7;
+	own_certrep_success = NULL;
 	STACK_OF(X509) *cert_stack = sk_X509_new_null();
 	sk_X509_push(cert_stack, sig_cacert);
-	make_degenP7(handle, issuedCert, cert_stack, NULL, &degenp7);
-	PEM_write_PKCS7(stderr, degenp7);*/
+	ck_assert(scep_certrep(handle, scep_message, "SUCCESS", NULL,
+			issuedCert, sig_cacert, sig_cakey, enc_cert, enc_alg, cert_stack, NULL,
+			&own_certrep_success) == SCEPE_OK);
+
+	ck_assert(scep_unwrap(
+		handle, own_certrep_success, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_success) == SCEPE_OK);
+
 }
 
 void make_unwrap_message()
@@ -623,6 +624,18 @@ START_TEST(test_certrep_message)
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_failure->recipientNonce);
 	ck_assert_int_eq(SCEP_FAILURE, unwrap_own_certrep_failure->pkiStatus);
 	ck_assert_int_eq(0, unwrap_own_certrep_failure->failInfo);
+
+	ck_assert_int_ne(NULL, unwrap_own_certrep_success);
+	ck_assert_str_eq(
+		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+		unwrap_own_certrep_success->transactionID);
+	ck_assert_str_eq("3", unwrap_own_certrep_success->messageType);
+	ck_assert_int_eq(3, unwrap_own_certrep_success->messageType_int);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->senderNonce);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->recipientNonce);
+	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
+	BIO *b = BIO_new(BIO_s_mem());
+	ck_assert(PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->degenP7) != NULL);
 }	
 END_TEST
 
