@@ -422,7 +422,6 @@ void make_certrep_message() {
 
 void make_unwrap_message()
 {
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg)
 	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7);
 	
 	ck_assert(p7 != NULL);
@@ -635,7 +634,7 @@ START_TEST(test_certrep_message)
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->recipientNonce);
 	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
 	BIO *b = BIO_new(BIO_s_mem());
-	ck_assert(PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->degenP7) != NULL);
+	ck_assert_int_ne(0, PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->degenP7));
 }	
 END_TEST
 
