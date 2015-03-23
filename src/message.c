@@ -124,10 +124,210 @@ finally:
 }
 
 SCEP_ERROR scep_certrep(
-	SCEP *handle, PKCS7 *pkcsreq, char * pkiStatus, char *failInfo, X509 *issuedCert, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage)
-{
+	SCEP *handle, SCEP_DATA *request, /*must at least contain a transaction id*/
+	char * pkiStatus, /*required*/
+	char *failInfo, /*required, if pkiStatus = failure*/
+	X509 *requestedCert, /*iff success, issuedCert (PKCSReq, GetCertInitial, or other one if GetCert*/
+	X509 *sig_cert, EVP_PKEY *sig_key, /*required*/
+	X509 *enc_cert, const EVP_CIPHER *enc_alg, /*required iff success, alternative:read out from request, alternative 2: put into SCEP_DATA when unwrapping*/
+	STACK_OF(X509) *additionalCerts, /*optional (in success case): additional certs to be included*/
+	X509_CRL *crl, /*mutually exclusive to requestedCert*/
+	PKCS7 **pkiMessage) /*return pkcs7*/ 
+	/*Note: additionalCerts does not include requestedCert in order to ensure that requestedCert is first in list*/
+{	ASN1_PRINTABLESTRING *asn1_recipient_nonce, *asn1_pkiStatus, *asn1_failInfo;
 	SCEP_ERROR error = SCEPE_OK;
+	char *failInfo_nr;
+
+	if(sig_cert == NULL)
+		OSSL_ERR("signer Cert is required");
+
+	if(sig_key == NULL)
+		OSSL_ERR("signer Key is required");
+
+	if(request == NULL)
+		OSSL_ERR("scep_data (e.g. obtained by unwrap) is required");
+
+	if(pkiStatus == NULL)
+		OSSL_ERR("pkiStatus is required");
+
+	/*TODO: add string attributes to header*/
+	if(strcmp(pkiStatus, "FAILURE") == 0)
+		if(failInfo == NULL)
+			OSSL_ERR("FAILURE requires a failInfo");
+
+	if(strcmp(pkiStatus, "SUCCESS") == 0) {
+		if(enc_cert == NULL)
+			OSSL_ERR("SUCCESS requires an encryption cert");
+		if(enc_alg == NULL)
+			OSSL_ERR("SUCCESS requires an encryption alg");
+		if(!(requestedCert == NULL) ^ (crl == NULL))
+			OSSL_ERR("requested cert and crl are mutually exclusive");
+		if((additionalCerts != NULL) && (requestedCert == NULL))
+			OSSL_ERR("additional certs can only be added if a requested cert is included");
+	}
+
+	/*TODO: way more checks e.g. whether SCEP_DATA contains transID etc*/
+	
+	//PKCS7 *local_pkiMessage;
+	struct p7_data_t *p7data = malloc(sizeof(*p7data));
+
+	/*generic for all certrep types*/
+	p7data->p7 = PKCS7_new();
+	if(p7data->p7 == NULL)
+		OSSL_ERR("Could not create PKCS#7 data structure");
+
+	if(!PKCS7_set_type(p7data->p7, NID_pkcs7_signed))
+		OSSL_ERR("Could not set PKCS#7 type");
+
+	p7data->signer_info = PKCS7_add_signature(
+		p7data->p7, sig_cert, sig_key, handle->configuration->sigalg);
+	if(p7data->signer_info == NULL)
+		OSSL_ERR("Could not create new PKCS#7 signature");
+
+	if(!(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT))
+		if(!PKCS7_add_certificate(p7data->p7, sig_cert))
+			OSSL_ERR("Could not add signer certificate");
+
+	/*TODO: Investigate, wether this is really needed*/
+	if(!PKCS7_content_new(p7data->p7, NID_pkcs7_data))
+		OSSL_ERR("Could not create inner PKCS#7 data structure");
+
+	if(!(p7data->transaction_id = request->transactionID))
+		OSSL_ERR("Could not read transactionID");
+
+	//if(!(p7data->sender_nonce = (unsigned char[16])request->senderNonce))
+	//	OSSL_ERR("Could not read senderNonce");
+
+	memcpy(p7data->sender_nonce, request->senderNonce, NONCE_LENGTH);
+	if(!(p7data->sender_nonce))
+		OSSL_ERR("Could not read senderNonce");
+
+	p7data->bio = PKCS7_dataInit(p7data->p7, NULL);
+	if(!p7data->bio)
+		OSSL_ERR("Could not initialize PKCS#7 data");
+
+	if(strcmp(pkiStatus,"PENDING") == 0) {
+		/*encryption content MUST be ommited*/
+		if((error = scep_pkiMessage(
+				handle, MESSAGE_TYPE_CERTREP,
+				NULL, NULL, NULL, p7data)) != SCEPE_OK)
+			goto finally;
+
+		/* pkiStatus */
+		asn1_pkiStatus = ASN1_PRINTABLESTRING_new();
+		if(asn1_pkiStatus == NULL)
+			OSSL_ERR("Could not create ASN1 pkiStatus object");
+		if(!ASN1_STRING_set(asn1_pkiStatus, SCEP_PKISTATUS_PENDING, -1))
+			OSSL_ERR("Could not set ASN1 pkiStatus object");
+		if(!PKCS7_add_signed_attribute(
+				p7data->signer_info, handle->oids->pkiStatus, V_ASN1_PRINTABLESTRING,
+				asn1_pkiStatus))
+			OSSL_ERR("Could not add attribute for pkiStatus");
+	}
+	else if(strcmp(pkiStatus,"FAILURE") == 0) {
+		/*encryption content MUST be ommited*/
+		if((error = scep_pkiMessage(
+				handle, MESSAGE_TYPE_CERTREP,
+				NULL, NULL, NULL, p7data)) != SCEPE_OK)
+			goto finally;
+
+		/* pkiStatus */
+		asn1_pkiStatus = ASN1_PRINTABLESTRING_new();
+		if(asn1_pkiStatus == NULL)
+			OSSL_ERR("Could not create ASN1 pkiStatus object");
+		if(!ASN1_STRING_set(asn1_pkiStatus, SCEP_PKISTATUS_FAILURE, -1))
+			OSSL_ERR("Could not set ASN1 pkiStatus object");
+		if(!PKCS7_add_signed_attribute(
+				p7data->signer_info, handle->oids->pkiStatus, V_ASN1_PRINTABLESTRING,
+				asn1_pkiStatus))
+			OSSL_ERR("Could not add attribute for pkiStatus");
+
+		
+		if(strcmp(failInfo, "badAlg") == 0) {
+			failInfo_nr = SCEP_FAILINFO_BADALG;
+		}
+		else if(strcmp(failInfo, "badMessageCheck") == 0) {
+			failInfo_nr = SCEP_FAILINFO_BADMESSAGECHECK;
+		}
+		else if(strcmp(failInfo, "badRequest") == 0) {
+			failInfo_nr = SCEP_FAILINFO_BADREQUEST;
+		}
+		else if(strcmp(failInfo, "badTime") == 0) {
+			failInfo_nr = SCEP_FAILINFO_BADTIME;
+		}
+		else if(strcmp(failInfo, "badCertId") == 0) {
+			failInfo_nr = SCEP_FAILINFO_BADCERTID;
+		}
+		else {
+			OSSL_ERR("Unsupported failInfo");
+		}
+				
+		asn1_failInfo = ASN1_PRINTABLESTRING_new();
+		if(asn1_failInfo == NULL)
+			OSSL_ERR("Could not create ASN1 failInfo object");
+		if(!ASN1_STRING_set(asn1_failInfo, failInfo_nr, -1))
+			OSSL_ERR("Could not set ASN1 failInfo object");
+		if(!PKCS7_add_signed_attribute(
+				p7data->signer_info, handle->oids->failInfo, V_ASN1_PRINTABLESTRING,
+				asn1_failInfo))
+			OSSL_ERR("Could not add attribute for failInfo");
+	}
+	else if(strcmp(pkiStatus,"SUCCESS") == 0) {
+		/*create degen p7*/
+		PKCS7 *degenP7 = NULL;
+		if(!(make_degenP7(
+ 				handle, requestedCert, additionalCerts, crl, &degenP7) == SCEPE_OK))
+			OSSL_ERR("Could not create degenP7");
+
+		/*make it to BIO for encryption*/
+		BIO *databio = BIO_new(BIO_s_mem());
+		if(!databio)
+			OSSL_ERR("Could not create data BIO");
+		if(i2d_PKCS7_bio(databio, degenP7) <= 0)
+			OSSL_ERR("Could not read degenP7 into data BIO");
+
+		if((error = scep_pkiMessage(
+				handle, MESSAGE_TYPE_CERTREP,
+				databio, enc_cert, enc_alg, p7data)) != SCEPE_OK)
+			goto finally;
+
+		/* pkiStatus */
+		asn1_pkiStatus = ASN1_PRINTABLESTRING_new();
+		if(asn1_pkiStatus == NULL)
+			OSSL_ERR("Could not create ASN1 pkiStatus object");
+		if(!ASN1_STRING_set(asn1_pkiStatus, SCEP_PKISTATUS_SUCCESS, -1))
+			OSSL_ERR("Could not set ASN1 pkiStatus object");
+		if(!PKCS7_add_signed_attribute(
+				p7data->signer_info, handle->oids->pkiStatus, V_ASN1_PRINTABLESTRING,
+				asn1_pkiStatus))
+			OSSL_ERR("Could not add attribute for pkiStatus");
+
+	}
+	else {
+		OSSL_ERR("unknown pkiStatus");
+	}
+
+
+	/* set recipient nonce to sender nonce*/
+	/*TODO: User should be able to chose different senderNonce*/
+	asn1_recipient_nonce = ASN1_OCTET_STRING_new();
+	if(asn1_recipient_nonce == NULL)
+		OSSL_ERR("Could not create ASN1 recipient nonce object");
+	if(!ASN1_OCTET_STRING_set(asn1_recipient_nonce, request->senderNonce, NONCE_LENGTH))
+		OSSL_ERR("Could not set ASN1 recipient nonce object");
+	if(!PKCS7_add_signed_attribute(
+			p7data->signer_info, handle->oids->recipientNonce, V_ASN1_OCTET_STRING,
+			asn1_recipient_nonce))
+		OSSL_ERR("Could not add attribute for recipient nonce");
+
+
+	/*searching in openssl source is like a box of chocklate...*/
+	/*yes, set content and than detach it again. That way, OID is present but not its content. Must be to be conform with PKCS7 spec*/
+	//PKCS7_set_detached(p7data->p7, 1);
+	if((error = scep_p7_final(handle, p7data, pkiMessage)) != SCEPE_OK)
+		goto finally;
+
+finally:
 	return error;
 }
 
@@ -323,17 +523,20 @@ SCEP_ERROR scep_pkiMessage(
 	// however, if we want to support server in the future as well
 	// we sould make data optional.
 	// certificate to encrypt data with
-	enc_certs = sk_X509_new_null();
-	if(!enc_certs)
-		OSSL_ERR("Could not create enc cert stack");
-	if(!sk_X509_push(enc_certs, enc_cert))
-		OSSL_ERR("Could not push enc cert onto stack");
-	encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
-	if(!encdata)
-		OSSL_ERR("Could not encrypt data");
-	// put encrypted data into p7
-	if(!i2d_PKCS7_bio(p7data->bio, encdata))
-		OSSL_ERR("Could not write encdata to PKCS#7 BIO");
+	/*if data is set to NULL, it is assumed that no content should be encrypted*/
+	if(!(data == NULL)) {
+		enc_certs = sk_X509_new_null();
+		if(!enc_certs)
+			OSSL_ERR("Could not create enc cert stack");
+		if(!sk_X509_push(enc_certs, enc_cert))
+			OSSL_ERR("Could not push enc cert onto stack");
+		encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
+		if(!encdata)
+			OSSL_ERR("Could not encrypt data");
+		// put encrypted data into p7
+		if(!i2d_PKCS7_bio(p7data->bio, encdata))
+			OSSL_ERR("Could not write encdata to PKCS#7 BIO");
+	}
 finally:
 	return error;
 }
@@ -589,6 +792,13 @@ SCEP_ERROR scep_unwrap(
 		if(!PKCS7_decrypt(p7env, cakey, cacert, decData, 0)) {
 			OSSL_ERR("decryption failed");
 		}
+		
+		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
+			/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
+			local_out->degenP7 = NULL;
+			d2i_PKCS7_bio(decData, &(local_out->degenP7));
+		}
+
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
 			local_out->request = NULL;
 			
@@ -623,6 +833,7 @@ SCEP_ERROR scep_unwrap(
 			if(!d2i_PKCS7_bio(decData, &local_out->messageData))
 				OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
 		}
+
 		/*TODO: other types besides PKCSreq dealing with encrypted content*/
 	}
 	else{
@@ -649,7 +860,6 @@ SCEP_ERROR scep_unwrap(
 finally:
 	if(error != SCEPE_OK)
 		free(local_out);
-	ERR_print_errors_fp(stderr);
 	return error;
 
 }
@@ -666,4 +876,61 @@ SCEP_ERROR verify(
 	}
 finally:
 	return error;
+}
+
+SCEP_ERROR make_degenP7(
+ 	SCEP *handle, X509 *cert, STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **p7)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	PKCS7 *local_p7 = NULL;
+	PKCS7_SIGNED *p7s = NULL;
+	STACK_OF(X509) *cert_stack = NULL;
+	STACK_OF(X509_CRL) *crl_stack = NULL;
+	X509 *currCert = NULL;
+	int i;
+
+	/*input validation*/
+	if(!((cert == NULL) ^ (crl == NULL)))
+		OSSL_ERR("cert and crl are mutually exclusive");
+
+	/*quickly assemble degenerate pkcs7 signed-data structure*/
+	if ((local_p7 = PKCS7_new()) == NULL)
+        OSSL_ERR("could not create PKCS7 structure");
+    if ((p7s = PKCS7_SIGNED_new()) == NULL)
+        OSSL_ERR("could not create PKCS7 signed structure");
+    local_p7->type = OBJ_nid2obj(NID_pkcs7_signed);
+    local_p7->d.sign = p7s;
+    /*TODO: not sure if this must be ommited, or if additionally empty content must be added*/
+    p7s->contents->type = OBJ_nid2obj(NID_pkcs7_data);
+
+    if (!ASN1_INTEGER_set(p7s->version, 1))
+        OSSL_ERR("could not set version");
+
+    if(cert) {
+	    if ((cert_stack = sk_X509_new_null()) == NULL)
+	    	OSSL_ERR("could create cert stack");
+
+	    p7s->cert = cert_stack;
+
+	    sk_X509_push(cert_stack, cert);
+
+	    if(additionalCerts) {
+		    for (i = 0; i = sk_X509_num(additionalCerts); i++) {
+		    	currCert = sk_X509_shift(additionalCerts);
+		    	sk_X509_push(cert_stack, currCert);
+		    }
+		}
+	}
+	else if(crl) {
+		if ((crl_stack = sk_X509_CRL_new_null()) == NULL)
+        	OSSL_ERR("could create crl stack");
+
+        p7s->crl = crl_stack;
+        sk_X509_CRL_push(crl_stack, crl);
+	}
+
+    *p7 = local_p7;
+
+finally:
+	return error;	
 }

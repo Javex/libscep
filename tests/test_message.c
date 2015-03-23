@@ -7,7 +7,7 @@
 SCEP *handle;
 BIO *scep_log;
 PKCS7 *p7 = NULL;
-SCEP_DATA *pkiMessage, *pkiMessage_certrep, *pkiMessage_failure;
+SCEP_DATA *pkiMessage, *pkiMessage_certrep, *pkiMessage_failure, *pkiMessage_success, *unwrap_own_certrep_pending, *unwrap_own_certrep_failure, *unwrap_own_certrep_success;
 PKCS7 *p7_nosigcert = NULL; // no signer certificate on result PKCS#7
 /*TODO: Do we need them*/
 EVP_PKEY *dec_key;
@@ -26,6 +26,11 @@ X509_REQ *req;
 const EVP_CIPHER *enc_alg;
 PKCS7 *certrep_pending;
 PKCS7 *certrep_failure;
+PKCS7 *certrep_success;
+PKCS7 *own_certrep_pending;
+PKCS7 *own_certrep_failure;
+PKCS7 *own_certrep_success;
+
 
 char *test_new_key = "-----BEGIN RSA PRIVATE KEY-----\n"
 "MIICXAIBAAKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56nhL3\n"
@@ -214,12 +219,47 @@ char *certrep_failure_str ="-----BEGIN PKCS7-----\n"
 "YijXlooLa3ApoZqAtMeFhPL9LN61kg==\n"
 "-----END PKCS7-----\n";
 
+char *certrep_success_str ="-----BEGIN PKCS7-----\n"
+"MIIHCAYJKoZIhvcNAQcCoIIG+TCCBvUCAQExDjAMBggqhkiG9w0CBQUAMIIDJgYJ\n"
+"KoZIhvcNAQcBoIIDFwSCAxMwggMPBgkqhkiG9w0BBwOgggMAMIIC/AIBADGBpTCB\n"
+"ogIBADBMMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARh\n"
+"c2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYQIBAzANBgkqhkiG9w0BAQEF\n"
+"AARAsWdL/PascMiDqeUM7aJi3uv2m/CLJhj/VE+TuecVbUaGXO5Ecrgrtyw/dzV/\n"
+"8aV1uw3j5gI0QXLZ2R+FVpiMGjCCAk0GCSqGSIb3DQEHATAUBggqhkiG9w0DBwQI\n"
+"VBjKAfNvcN6AggIoIGNDJ9eyCuE07rLk21qQKg52bab1GFULFu+e+Lx7wjiFy/OZ\n"
+"lwenlqbTBs15hC5MZUDsPL3DNouLS++nl+EUh4+Mcwavwh1iWsm6ZQyjZkrZrg6W\n"
+"cnO9Hx0BwkNjuovl5yJAiii4FnUOnZpES00sgykte3JX4i/64YEwiAouR2833n+s\n"
+"DHdIJkLLiaDN7ExgTTEt+qgaDg66zd6C3NaWaA54OtIVJw3HbV/hDFzI9enOc1ZK\n"
+"LnJR65gt8lhtPXMr1yQtsIkfGH8PIsFhugb9HjggWoYRHcqaseXJ90Z2DWcv8A0n\n"
+"vhj2w3g1K9oez7eBs+B9HuCX8q8hgucdu5VeL6OS5GmDWCbJCP+CrweIEZt/rt7i\n"
+"ewmMeyuv9j2LPRrbUWoZI+cGhdHkphzZKW4SLwFXqc4/4M+85CONx3kt04WCsQ1r\n"
+"AoN1VuHmeaNR8Px6hvHShLUULX/JFgWfbUhSLDyLJNgZ0vZ4doA5ElSvnUUnojek\n"
+"Nn9LG9CScgHJmx2JO8PlnDN2lcCX6YSXzDk0xCe+KzSHRjlGldZKURWlPvhY7fyV\n"
+"WAoZMPGAWDkTJsYr6hXWDqBkRpfIbU4Ltb4RqUFQHh5ePdKHNp0hUCATa2ISVkdt\n"
+"WeVkwxWyfy1mutodZIDcC7KOTphpgRJf4KFcGKiXj6zWsaHl9swtCqCK1bAqs6nM\n"
+"fPTDR9J4X74mbY8gbeX7VdM5iruzCoe5lJVEkr7MKaPu0PCLoIIB2zCCAdcwggGB\n"
+"oAMCAQICCQCMZyvgL0Lb3jANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTIyMTU4WhcNMTgwMTAyMTIyMTU4WjBHMQswCQYD\n"
+"VQQGEwJERTENMAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwE\n"
+"YXNkZjELMAkGA1UEAwwCY2EwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAtmW2Vzek\n"
+"PpOMhAl1Aa798f8xdBdehvWMfm/asXYZD//gZAOYMkRTRFi/hKL1NtNBf5kqWLBV\n"
+"vlZSBltMdKwbyQIDAQABo1AwTjAdBgNVHQ4EFgQUxsitQFaFeb/zruBZlq8TYNwK\n"
+"r+cwHwYDVR0jBBgwFoAUxsitQFaFeb/zruBZlq8TYNwKr+cwDAYDVR0TBAUwAwEB\n"
+"/zANBgkqhkiG9w0BAQUFAANBABWSXZYBIBkzs0XbT7EWNHs1laMNutTlFH9WesdH\n"
+"vc/zc5KKNpHyOIg2n3m70NcjKklim1IyxgIv2Aqtpt6ebRwxggHVMIIB0QIBATBU\n"
+"MEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0w\n"
+"CwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYQIJAIxnK+AvQtveMAwGCCqGSIb3DQIF\n"
+"BQCgggEVMBEGCmCGSAGG+EUBCQIxAxMBMzARBgpghkgBhvhFAQkDMQMTATAwGAYJ\n"
+"KoZIhvcNAQkDMQsGCSqGSIb3DQEHATAcBgkqhkiG9w0BCQUxDxcNMTUwMzE4MTIz\n"
+"NTM1WjAfBgkqhkiG9w0BCQQxEgQQz5TUdLzI+bltWl+EP0dg4zAgBgpghkgBhvhF\n"
+"AQkFMRIEEPohP2TBgldJgN7x5By5sc4wIAYKYIZIAYb4RQEJBjESBBACSApdOWsq\n"
+"6S4aLVnSW+/SMFAGCmCGSAGG+EUBCQcxQhNAMkYzQzg4MTE0QzI4M0U5QTZDRDU3\n"
+"QkI4MjY2Q0UzMTNEQjBCRUUwREFGNzY5RDc3MEM0RTVGRkI5QzRDMTAxNjANBgkq\n"
+"hkiG9w0BAQEFAARAmDbpLIwcMGts6V91KHw0KXY11Mr4VQehoU0c4QJ5wEZobL3a\n"
+"phbTlq5K3BlTmUFrdo+SqhmJB8TuN2WZUmeCZQ==\n"
+"-----END PKCS7-----\n";
 
-char *pkiStatus_str = "PENDING";
-//char *pkiStatus_str ="SUCCESS";
-//char *pkiStatus_str ="FAILURE";
-char *failInfo_str = NULL;
-/*TODO: various failInfos when checking failure */
 void make_message_data();
 void generic_setup()
 {
@@ -308,6 +348,12 @@ void make_message_data()
 	certrep_failure = PEM_read_bio_PKCS7(b, NULL, 0, 0);
 	ck_assert(certrep_failure != NULL);
 	BIO_free(b);
+
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, certrep_success_str);
+	certrep_success = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+	ck_assert(certrep_success != NULL);
+	BIO_free(b);
 }
 
 void make_pkcsreq_message()
@@ -327,47 +373,55 @@ void make_pkcsreq_message_nosigcert()
 	ck_assert(s == SCEPE_OK);
 }
 
-PKCS7 *make_certrep_message(
-		PKCS7 *scep_message, char * pkiStatus, char *failInfo, X509 *issuedCert,
-		X509 *sig_cert, EVP_PKEY *sig_key, X509_REQ *req, X509 *enc_cert,
-		const EVP_CIPHER *enc_alg, EVP_PKEY *enc_key)
-{
-	PKCS7 *certrep;
-	/*build basics*/
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
+void make_certrep_message() {
 	/*build pkcsreq*/
 	/*TODO: build other request types*/
-	if(scep_message == NULL)
-		ck_assert(scep_pkcsreq(
-			handle, req, sig_cert, sig_key, enc_cert, enc_alg, &scep_message) == SCEPE_OK);
+	SCEP_DATA *scep_message = NULL;
+	ck_assert(scep_pkcsreq(
+			handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7) == SCEPE_OK);
+
+	/*pkcsreq to SCEP_DATA*/
+	ck_assert(scep_unwrap(
+		handle, p7, enc_cacert, sig_cacert, enc_cakey, &scep_message) == SCEPE_OK);
+	
 	/*read in the rest*/
-	if(failInfo == NULL)
-		failInfo = failInfo_str;
-	if(pkiStatus == NULL)
-		pkiStatus = pkiStatus_str;
 	BIO *b;
-	if(issuedCert == NULL) {
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, issuedCert_str);
-		PEM_read_bio_X509(b, &issuedCert, 0, 0);
-		BIO_free(b);
-	}
-	/*can be replaced using make message data*/
-	if(enc_key == NULL) {
-		b = BIO_new(BIO_s_mem());
-		BIO_puts(b, enc_cakey_str);
-		PEM_read_bio_PrivateKey(b, &enc_key, 0, 0);
-		BIO_free(b);
-	}
-	ck_assert(scep_certrep(handle, scep_message, pkiStatus, failInfo,
-			issuedCert, sig_cert, sig_key, enc_cert, enc_alg,
-			&certrep) == SCEPE_OK);
-	return certrep;
+	X509 *issuedCert = NULL;
+	b = BIO_new(BIO_s_mem());
+	BIO_puts(b, issuedCert_str);
+	PEM_read_bio_X509(b, &issuedCert, 0, 0);
+	BIO_free(b);
+
+	own_certrep_pending = NULL;
+	ck_assert(scep_certrep(handle, scep_message, "PENDING", NULL,
+			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL,
+			&own_certrep_pending) == SCEPE_OK);
+
+	ck_assert(scep_unwrap(
+		handle, own_certrep_pending, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_pending) == SCEPE_OK);
+
+	own_certrep_failure = NULL;
+	ck_assert(scep_certrep(handle, scep_message, "FAILURE", "badAlg",
+			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL,
+			&own_certrep_failure) == SCEPE_OK);
+
+	ck_assert(scep_unwrap(
+		handle, own_certrep_failure, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_failure) == SCEPE_OK);
+	
+	own_certrep_success = NULL;
+	STACK_OF(X509) *cert_stack = sk_X509_new_null();
+	sk_X509_push(cert_stack, sig_cacert);
+	ck_assert(scep_certrep(handle, scep_message, "SUCCESS", NULL,
+			issuedCert, sig_cacert, sig_cakey, enc_cert, enc_alg, cert_stack, NULL,
+			&own_certrep_success) == SCEPE_OK);
+
+	ck_assert(scep_unwrap(
+		handle, own_certrep_success, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_success) == SCEPE_OK);
+
 }
 
 void make_unwrap_message()
 {
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg)
 	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7);
 	
 	ck_assert(p7 != NULL);
@@ -385,6 +439,9 @@ void make_unwrap_message()
 
 	ck_assert(scep_unwrap_response(
 		handle, certrep_failure, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_failure) == SCEPE_OK);
+
+	ck_assert(scep_unwrap(
+		handle, certrep_success, enc_cert, sig_cacert, enc_key, &pkiMessage_success) == SCEPE_OK);
 }
 
 PKCS7 *make_gci_message()
@@ -459,7 +516,7 @@ BIO *get_decrypted_data(PKCS7 *p7)
 void certrep_setup()
 {
 	generic_setup();
-	p7 = make_certrep_message(NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+	make_certrep_message();
 }
 
 void certrep_teardown()
@@ -543,9 +600,62 @@ char *get_attribute_data(PKCS7 *message, int nid) {
 	return ASN1_STRING_data(get_attribute(message, nid));
 }
 
+START_TEST(test_certrep_message)
+{
+	make_certrep_message();
+	ck_assert_int_ne(NULL, unwrap_own_certrep_pending);
+	ck_assert_str_eq(
+		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+		unwrap_own_certrep_pending->transactionID);
+	ck_assert_str_eq("3", unwrap_own_certrep_pending->messageType);
+	ck_assert_int_eq(3, unwrap_own_certrep_pending->messageType_int);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_pending->senderNonce);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_pending->recipientNonce);
+	ck_assert_int_eq(SCEP_PENDING, unwrap_own_certrep_pending->pkiStatus);
+
+	ck_assert_int_ne(NULL, unwrap_own_certrep_failure);
+	ck_assert_str_eq(
+		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+		unwrap_own_certrep_failure->transactionID);
+	ck_assert_str_eq("3", unwrap_own_certrep_failure->messageType);
+	ck_assert_int_eq(3, unwrap_own_certrep_failure->messageType_int);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_failure->senderNonce);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_failure->recipientNonce);
+	ck_assert_int_eq(SCEP_FAILURE, unwrap_own_certrep_failure->pkiStatus);
+	ck_assert_int_eq(0, unwrap_own_certrep_failure->failInfo);
+
+	ck_assert_int_ne(NULL, unwrap_own_certrep_success);
+	ck_assert_str_eq(
+		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+		unwrap_own_certrep_success->transactionID);
+	ck_assert_str_eq("3", unwrap_own_certrep_success->messageType);
+	ck_assert_int_eq(3, unwrap_own_certrep_success->messageType_int);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->senderNonce);
+	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->recipientNonce);
+	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
+	BIO *b = BIO_new(BIO_s_mem());
+	ck_assert_int_ne(0, PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->messageData));
+}	
+END_TEST
+
 START_TEST(test_unwrap_message)
 {
 	make_unwrap_message();
+	
+	ck_assert_int_ne(NULL, pkiMessage_success);
+	ck_assert_str_eq(
+		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+		pkiMessage_success->transactionID);
+	ck_assert_str_eq("3", pkiMessage_success->messageType);
+	ck_assert_int_eq(3, pkiMessage_success->messageType_int);
+	ck_assert_int_ne(NULL, (char*)(pkiMessage_success->senderNonce));
+	ck_assert_int_ne(NULL, (char*)(pkiMessage_success->recipientNonce));
+	ck_assert_int_eq(SCEP_SUCCESS, pkiMessage_success->pkiStatus);
+	/*TODO: this test should fail...*/
+	ck_assert_int_eq(0, pkiMessage_success->failInfo);
+	/*for every kind of request, a SUCCESS response will have a degen p7 structure */
+	ck_assert(pkiMessage_success->messageData != NULL);
+
 	ck_assert_int_ne(NULL, pkiMessage_failure);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
@@ -568,7 +678,6 @@ START_TEST(test_unwrap_message)
 		pkiMessage_certrep->transactionID);
 	ck_assert_str_eq("3", pkiMessage_certrep->messageType);
 	ck_assert_int_eq(3, pkiMessage_certrep->messageType_int);
-	/*TODO: check improving, some values might be not NULL and still invalid*/
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_certrep->senderNonce));
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_certrep->recipientNonce));
 	//next test shoud work on own implementation but not necessary on other ones
@@ -612,7 +721,6 @@ START_TEST(test_unwrap_invalid_pkiStatus)
 	ck_assert_int_ne(PKCS7_SIGNER_INFO_set(si, sig_cert, sig_key, handle->configuration->sigalg), 0);
 	ck_assert_int_ne(PKCS7_add_certificate(certrep_pending, sig_cert), 0);
 	int res = PKCS7_SIGNER_INFO_sign(si);
-	ERR_print_errors_fp(stderr);
 	ck_assert_int_ne(res, 0);
 	ck_assert_int_eq(scep_unwrap(
 		handle, certrep_pending, enc_cert, sig_cacert, enc_key,
@@ -834,11 +942,10 @@ END_TEST
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
-
 	/*test Certrep*/
 	TCase *tc_certrep_msg = tcase_create("Certrep Message");
 	tcase_add_checked_fixture(tc_certrep_msg, certrep_setup, certrep_teardown);
-	//tcase_add_test(tc_certrep_msg, test_certrep_message);
+	tcase_add_test(tc_certrep_msg, test_certrep_message);
 	suite_add_tcase(s, tc_certrep_msg);
 	
 	/*test unwrapping*/
