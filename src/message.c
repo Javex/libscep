@@ -795,8 +795,7 @@ SCEP_ERROR scep_unwrap(
 		
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
 			/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
-			local_out->degenP7 = NULL;
-			d2i_PKCS7_bio(decData, &(local_out->degenP7));
+			local_out->messageData = d2i_PKCS7_bio(decData, NULL);
 		}
 
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
