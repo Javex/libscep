@@ -18,6 +18,7 @@ typedef enum {
     SCEPE_CLIENT_CURL,
     SCEPE_CLIENT_INVALID_RESPONSE,
     SCEPE_CLIENT_FILE_DOES_NOT_EXIST,
+    SCEPE_CLIENT_FILE,
 
     SCEPE_CLIENT_DUMMY_LAST_ERROR,
 
@@ -99,4 +100,5 @@ SCEP_CLIENT_ERROR scep_conf_set_url(struct cmd_handle_t *cmd_handle, char *url_s
 SCEP_CLIENT_ERROR scep_read_key(SCEP *handle, EVP_PKEY** key, char* filename);
 SCEP_CLIENT_ERROR scep_read_cert(SCEP *handle, X509 **cert, char *filename);
 SCEP_CLIENT_ERROR scep_read_request(SCEP *handle, X509_REQ **req, char *filename);
+SCEP_CLIENT_ERROR scep_bio_PEM_fp(SCEP *handle, BIO *data, FILE *out);
 #endif /* SCEP_CLIENT_H_ */
