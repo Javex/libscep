@@ -434,11 +434,11 @@ void make_unwrap_message()
 
 	pkiMessage_certrep = NULL;
 	/*complementary parameters correct?*/
-	ck_assert(scep_unwrap(
-		handle, certrep_pending, enc_cert, sig_cacert, enc_key, &pkiMessage_certrep) == SCEPE_OK);
+	ck_assert(scep_unwrap_response(
+		handle, certrep_pending, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_certrep) == SCEPE_OK);
 
-	ck_assert(scep_unwrap(
-		handle, certrep_failure, enc_cert, sig_cacert, enc_key, &pkiMessage_failure) == SCEPE_OK);
+	ck_assert(scep_unwrap_response(
+		handle, certrep_failure, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_failure) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
 		handle, certrep_success, enc_cert, sig_cacert, enc_key, &pkiMessage_success) == SCEPE_OK);
@@ -634,7 +634,7 @@ START_TEST(test_certrep_message)
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->recipientNonce);
 	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
 	BIO *b = BIO_new(BIO_s_mem());
-	ck_assert_int_ne(0, PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->degenP7));
+	ck_assert_int_ne(0, PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->messageData));
 }	
 END_TEST
 
@@ -654,7 +654,7 @@ START_TEST(test_unwrap_message)
 	/*TODO: this test should fail...*/
 	ck_assert_int_eq(0, pkiMessage_success->failInfo);
 	/*for every kind of request, a SUCCESS response will have a degen p7 structure */
-	ck_assert(pkiMessage_success->degenP7 != NULL);
+	ck_assert(pkiMessage_success->messageData != NULL);
 
 	ck_assert_int_ne(NULL, pkiMessage_failure);
 	ck_assert_str_eq(
@@ -669,6 +669,8 @@ START_TEST(test_unwrap_message)
 	//ck_assert_str_eq((char*)(pkiMessage_failure->senderNonce), (char*)(pkiMessage_failure->recipientNonce));
 	ck_assert_int_eq(SCEP_FAILURE, pkiMessage_failure->pkiStatus);
 	ck_assert_int_eq(0, pkiMessage_failure->failInfo);
+	ck_assert_int_eq(pkiMessage_failure->certs, NULL);
+
 	
 	ck_assert_int_ne(NULL, pkiMessage_certrep);
 	ck_assert_str_eq(
@@ -682,6 +684,7 @@ START_TEST(test_unwrap_message)
 	//ck_assert_str_eq((char*)(pkiMessage_certrep->senderNonce), (char*)(pkiMessage_certrep->recipientNonce));
 
 	ck_assert_int_eq(SCEP_PENDING, pkiMessage_certrep->pkiStatus);
+	ck_assert_int_eq(pkiMessage_certrep->certs, NULL);
 
 	ck_assert_int_ne(NULL, pkiMessage);
 	ck_assert_int_eq(0, pkiMessage->initialEnrollment);

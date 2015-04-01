@@ -166,7 +166,6 @@ typedef struct pkcs7_issuer_and_subject_st
 
 /* public return value containing all relevant values of a request */
 typedef struct {
-	int initialEnrollment;
     SCEP_FAILINFO failInfo;
     SCEP_PKISTATUS pkiStatus;
     char *transactionID;
@@ -176,12 +175,23 @@ typedef struct {
     X509 *signer_certificate;
     char *messageType;
     int messageType_int;
+    /* Different types of message content for different operations.
+     * Contains the required data for the specified operation
+     * if there is data attached to the request/response
+     */
     union {
-        PKCS7 *degenP7; //CertRep
-        X509_REQ *request;  // PKCSReq
-        X509_CRL *crl;  // GetCRL
+        struct {
+            X509_REQ *request;  // PKCSReq
+            int initialEnrollment;
+        };
         PKCS7_ISSUER_AND_SERIAL *issuer_and_serial; // GetCert
         PKCS7_ISSUER_AND_SUBJECT *issuer_and_subject; // GetCertInitial
+
+        /* CertRep depends on request type */
+        STACK_OF(X509) *certs;  /* all except GetCRL response */
+        X509_CRL *crl; /* for GetCRL */
+
+        PKCS7 *messageData; /* internal */
     };
 } SCEP_DATA;
 
@@ -212,6 +222,10 @@ SCEP_ERROR scep_pkcsreq(
 SCEP_ERROR scep_unwrap(
     SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
     SCEP_DATA **output);
+SCEP_ERROR scep_unwrap_response(
+    SCEP *handle, PKCS7 *pkiMessage, X509 *sig_cacert,
+    X509 *request_cert, EVP_PKEY *request_key,
+    SCEP_OPERATION request_type, SCEP_DATA **output);
 SCEP_ERROR scep_get_cert_initial(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,

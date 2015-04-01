@@ -541,11 +541,76 @@ finally:
 	return error;
 }
 
+SCEP_ERROR scep_unwrap_response(
+		SCEP *handle, PKCS7 *pkiMessage, X509 *sig_cacert,
+		X509 *request_cert, EVP_PKEY *request_key,
+		SCEP_OPERATION request_type, SCEP_DATA **output)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	SCEP_DATA *local_out = malloc(sizeof(SCEP_DATA));
+	if(!local_out) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
+	memset(local_out, 0, sizeof(SCEP_DATA));
+
+	error = scep_unwrap(
+		handle, pkiMessage, request_cert, sig_cacert, request_key,
+		&local_out);
+	if(error != SCEPE_OK)
+		goto finally;
+
+	if(local_out->pkiStatus == SCEP_SUCCESS) {
+		/* ensure type is correct */
+		if(!PKCS7_type_is_signed(local_out->messageData))
+			OSSL_ERR("Type of inner PKCS#7 must be signed (degenerate)");
+
+		switch(request_type) {
+			case SCEPOP_GETCACERT:
+			case SCEPOP_PKCSREQ:
+			case SCEPOP_GETCERT:
+			case SCEPOP_GETNEXTCACERT:
+			case SCEPOP_GETCERTINITIAL: ; // Small necessary hack
+				/* ensure there are certs (at least 1) */
+				STACK_OF(X509) *certs = local_out->messageData->d.sign->cert;
+				if(sk_X509_num(certs) < 1)
+					OSSL_ERR("Invalid number of certificates");
+
+				/* set the output param */
+				local_out->certs = certs;
+				break;
+
+			case SCEPOP_GETCRL: ; // hack again...
+				/* ensure only one CRL */
+				STACK_OF(X509_CRL) *crls = local_out->messageData->d.sign->crl;
+				if(sk_X509_CRL_num(crls) != 1)
+					OSSL_ERR("Invalid number of CRLs");
+
+				/* set output param */
+				local_out->crl = sk_X509_CRL_value(crls, 0);
+				if(local_out->crl == NULL)
+					OSSL_ERR("Unable to retrieve CRL from stack");
+				break;
+
+			default:
+				error = SCEPE_UNKOWN_OPERATION;
+				scep_log(handle, FATAL, "Invalid operation, cannot parse content");
+				goto finally;
+		}
+	}
+
+	*output = local_out;
+finally:
+	if(error != SCEPE_OK)
+		free(local_out);
+	return error;
+}
+
 SCEP_ERROR scep_unwrap(
 	SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
 	SCEP_DATA **output)
 {
-	SCEP_DATA *local_out = malloc(sizeof(SCEP_DATA));
+	SCEP_DATA *local_out;
 	SCEP_ERROR error = SCEPE_OK;
 	STACK_OF(PKCS7_SIGNER_INFO)	*sk;
 	PKCS7_SIGNER_INFO			*si;
@@ -557,6 +622,14 @@ SCEP_ERROR scep_unwrap(
 	BIO							*encData, *decData;
 	X509_STORE					*store;
 	PKCS7 						*p7env;
+
+	local_out = malloc(sizeof(SCEP_DATA));
+	if(!local_out) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
+	memset(local_out, 0, sizeof(SCEP_DATA));
+
 	/*prepare trusted store*/
 	store = X509_STORE_new();
 	encData = BIO_new(BIO_s_mem());
@@ -699,10 +772,10 @@ SCEP_ERROR scep_unwrap(
 	if((p7env = d2i_PKCS7_bio(encData, NULL))){
 		/*Sort out invalid Certrep PENDING or FAILURE requests*/
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0)
-			if(local_out->pkiStatus == 3 || local_out->pkiStatus == 2)
-				OSSL_ERR("PENDING Certreps MUST NOT have encrypted content.\n");
+			if(local_out->pkiStatus == SCEP_PENDING || local_out->pkiStatus == SCEP_FAILURE)
+				OSSL_ERR("PENDING or FAILURE Certreps MUST NOT have encrypted content.\n");
 		if(ASN1_INTEGER_get(p7env->d.enveloped->version) != 0) {
-			OSSL_ERR("Version of the enveloped parst MUST be 0.\n");
+			OSSL_ERR("Version of the enveloped part MUST be 0.\n");
 		}
 		
 		/*Is there a pretty way?*/
@@ -722,8 +795,7 @@ SCEP_ERROR scep_unwrap(
 		
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
 			/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
-			local_out->degenP7 = NULL;
-			d2i_PKCS7_bio(decData, &(local_out->degenP7));
+			local_out->messageData = d2i_PKCS7_bio(decData, NULL);
 		}
 
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
@@ -756,6 +828,9 @@ SCEP_ERROR scep_unwrap(
 			} else { // single
 				local_out->challenge_password = attr->value.single;
 			}
+		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_CERTREP, sizeof(MESSAGE_TYPE_CERTREP))) {
+			if(!d2i_PKCS7_bio(decData, &local_out->messageData))
+				OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
 		}
 
 		/*TODO: other types besides PKCSreq dealing with encrypted content*/
@@ -782,6 +857,8 @@ SCEP_ERROR scep_unwrap(
 	*output = local_out;
 
 finally:
+	if(error != SCEPE_OK)
+		free(local_out);
 	return error;
 
 }
