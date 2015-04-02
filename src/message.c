@@ -853,13 +853,13 @@ SCEP_ERROR scep_unwrap(
 				}
 			} else if(strncmp(local_out->messageType, MESSAGE_TYPE_GETCERTINITIAL, sizeof(MESSAGE_TYPE_GETCERTINITIAL)) == 0) {
 				ias_data_size = BIO_get_mem_data(decData, &ias_data);
-				local_out->issuer_and_subject = d2i_PKCS7_ISSUER_AND_SUBJECT(NULL, &ias_data, ias_data_size);
+				local_out->issuer_and_subject = d2i_PKCS7_ISSUER_AND_SUBJECT(NULL, (const unsigned char **) &ias_data, ias_data_size);
 				if(!local_out->issuer_and_subject)
 					OSSL_ERR("Unreadable Issuer and Subject data in encrypted content");
 			} else if(strncmp(local_out->messageType, MESSAGE_TYPE_GETCERT, sizeof(MESSAGE_TYPE_GETCERT)) == 0 ||
 					strncmp(local_out->messageType, MESSAGE_TYPE_GETCRL, sizeof(MESSAGE_TYPE_GETCRL)) == 0) {
 				ias_data_size = BIO_get_mem_data(decData, &ias_data);
-				local_out->issuer_and_serial = d2i_PKCS7_ISSUER_AND_SERIAL(NULL, &ias_data, ias_data_size);
+				local_out->issuer_and_serial = d2i_PKCS7_ISSUER_AND_SERIAL(NULL, (const unsigned char **) &ias_data, ias_data_size);
 				if(!local_out->issuer_and_serial)
 					OSSL_ERR("Unreadable Issuer and Serial data in encrypted content");
 			} else {
