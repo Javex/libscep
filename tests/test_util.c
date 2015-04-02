@@ -43,6 +43,20 @@ char *test_new_csr = "-----BEGIN CERTIFICATE REQUEST-----\n"
 "SLYGjIEJ2RwX\n"
 "-----END CERTIFICATE REQUEST-----";
 
+char *issuedCert_str ="-----BEGIN CERTIFICATE-----\n"
+"MIIB7TCCAZegAwIBAgIBBDANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTQyMzI1WhcNMTYwMzE0MTQyMzI1WjBXMQswCQYD\n"
+"VQQGEwJBVTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQg\n"
+"V2lkZ2l0cyBQdHkgTHRkMRAwDgYDVQQDEwdmb28uYmFyMIGfMA0GCSqGSIb3DQEB\n"
+"AQUAA4GNADCBiQKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56\n"
+"nhL3X1Xuv+3e6HWS74IOWbwuZXADdSWswFMefJuh6D4tRACzvgbOuXaxxopj9PYn\n"
+"ieNunATNl1O1fy1QG3uJiy+QuQe3/xfIIwIVtvsx5ckMfRHk4g4lsOJwLofIvwID\n"
+"AQABoxowGDAJBgNVHRMEAjAAMAsGA1UdDwQEAwIF4DANBgkqhkiG9w0BAQUFAANB\n"
+"AGZRYophSHisfLzjA0EV766X+e7hAK1J+G3IZHHn4WvxRGEGRZmEYMwbV3/gIRW8\n"
+"bIEcl2LeuPgUGWhLIowjKF0=\n"
+"-----END CERTIFICATE-----\n";
+
 
 void setup()
 {
@@ -65,7 +79,7 @@ START_TEST(test_scep_strerror)
 }
 END_TEST
 
-START_TEST(test_scep_calculate_transaction_id)
+START_TEST(test_scep_calculate_transaction_id_pubkey)
 {
 	X509_REQ *req;
 	FILE *fp;
@@ -76,7 +90,7 @@ START_TEST(test_scep_calculate_transaction_id)
 	EVP_PKEY *pubkey = X509_REQ_get_pubkey(req);
 	fclose(fp);
 
-	error = scep_calculate_transaction_id(handle, pubkey, &tid);
+	error = scep_calculate_transaction_id_pubkey(handle, pubkey, &tid);
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(tid, "5418898A0D8052E60EB9E9F9BEB2E402F8138122C8503213CF5FD86DBB8267CF");
 	free(tid);
@@ -86,10 +100,61 @@ START_TEST(test_scep_calculate_transaction_id)
 	pubkey = X509_REQ_get_pubkey(req);
 	fclose(fp);
 
-	error = scep_calculate_transaction_id(handle, pubkey, &tid);
+	error = scep_calculate_transaction_id_pubkey(handle, pubkey, &tid);
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(tid, "569673452595B161A6F8D272D9A214152F828133994D5B166EFFB2C140A88EA2");
 	free(tid);
+}
+END_TEST
+
+START_TEST(test_scep_calculate_transaction_id_ias_type)
+{
+	char *tid1, *tid2, *tid3, *tid4;
+	SCEP_ERROR error;
+
+	BIO *b = BIO_new(BIO_s_mem());
+	BIO_puts(b, issuedCert_str);
+	X509 *cert = PEM_read_bio_X509(b, NULL, 0, 0);
+	ck_assert(issuedCert_str != NULL);
+	BIO_free(b);
+
+	PKCS7_ISSUER_AND_SERIAL *ias = PKCS7_ISSUER_AND_SERIAL_new();
+	ias->serial = X509_get_serialNumber(cert);
+	ias->issuer = X509_get_issuer_name(cert);
+
+	error = scep_calculate_transaction_id_ias_type(handle, ias, "foo", &tid1);
+	ck_assert(error == SCEPE_OK);
+	ck_assert_str_eq(tid1, "AADB3ED997777E20F63B1C30999274F8C07A0849CA11633F7CBBDC8090CF8F5F");
+
+	error = scep_calculate_transaction_id_ias_type(handle, ias, "foO", &tid2);
+	ck_assert(error == SCEPE_OK);
+	ck_assert_str_ne(tid1, tid2);
+
+	ASN1_INTEGER *old_serial = ias->serial;
+	ias->serial = ASN1_INTEGER_new();
+	ASN1_INTEGER_set(ias->serial, 1337);
+
+	error = scep_calculate_transaction_id_ias_type(handle, ias, "foo", &tid3);
+	ck_assert(error == SCEPE_OK);
+	ck_assert_str_ne(tid1, tid2);
+	ck_assert_str_ne(tid2, tid3);
+
+	ASN1_INTEGER_free(ias->serial);
+	ias->serial = old_serial;
+
+	sk_X509_NAME_ENTRY_pop(ias->issuer->entries);
+	ias->issuer->modified = 1;
+
+	error = scep_calculate_transaction_id_ias_type(handle, ias, "foo", &tid4);
+	ck_assert(error == SCEPE_OK);
+	ck_assert_str_ne(tid1, tid4);
+	ck_assert_str_ne(tid2, tid4);
+	ck_assert_str_ne(tid3, tid4);
+
+	free(tid1);
+	free(tid2);
+	free(tid3);
+	free(tid4);
 }
 END_TEST
 
@@ -191,7 +256,8 @@ Suite * scep_util_suite(void)
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_checked_fixture(tc_core, setup, teardown);
 	tcase_add_test(tc_core, test_scep_strerror);
-	tcase_add_test(tc_core, test_scep_calculate_transaction_id);
+	tcase_add_test(tc_core, test_scep_calculate_transaction_id_pubkey);
+	tcase_add_test(tc_core, test_scep_calculate_transaction_id_ias_type);
 	tcase_add_test(tc_core, test_scep_PKCS7_base64_encode);
 	tcase_add_test(tc_core, test_scep_log);
 	tcase_add_test(tc_core, test_scep_new_selfsigned);

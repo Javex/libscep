@@ -231,11 +231,11 @@ SCEP_ERROR scep_get_cert_initial(
     X509 *cacert, X509 *enc_cert,
     PKCS7 **pkiMessage);
 SCEP_ERROR scep_get_cert(
-    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
     X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
     PKCS7 **pkiMessage);
 SCEP_ERROR scep_get_crl(
-    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *req_cert, X509 *enc_cert,
     PKCS7 **pkiMessage);
 
@@ -250,16 +250,18 @@ void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 
 /* util.c */
-SCEP_ERROR scep_calculate_transaction_id(
+SCEP_ERROR scep_calculate_transaction_id_pubkey(
     SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
 void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
         int line, char *format, ...);
+SCEP_ERROR scep_calculate_transaction_id_ias_type(
+    SCEP *handle, PKCS7_ISSUER_AND_SERIAL *ias, char *messageType, char **transaction_id);
 int X509_REQ_cmp(X509_REQ *req1, X509_REQ *req2);
 DECLARE_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)
 
 /* message.c */
 SCEP_ERROR scep_p7_client_init(
-    SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key,
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
     struct p7_data_t *p7data);
 SCEP_ERROR scep_p7_server_init(SCEP *handle, struct p7_data_t *p7data);
 SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7);

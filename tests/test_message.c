@@ -453,7 +453,7 @@ PKCS7 *make_gc_message()
 	ASN1_INTEGER *serial = X509_get_serialNumber(sig_cert);
 	X509_NAME *issuer = X509_get_issuer_name(sig_cert);
 	ck_assert(scep_get_cert(
-		handle, req, sig_cert, sig_key,
+		handle, sig_cert, sig_key,
 		issuer, serial, enc_cacert, &p7) == SCEPE_OK);
 	return p7;
 }
@@ -463,7 +463,7 @@ PKCS7 *make_gcrl_message()
 {
 	PKCS7 *p7;
 	ck_assert(scep_get_crl(
-		handle, req, sig_cert, sig_key,
+		handle, sig_cert, sig_key,
 		sig_cert, enc_cacert, &p7) == SCEPE_OK);
 	return p7;
 }
@@ -737,6 +737,22 @@ START_TEST(test_scep_message_transaction_id)
 }
 END_TEST
 
+START_TEST(test_scep_message_transaction_id_getcert)
+{
+	ck_assert_str_eq(
+		"2BF79F781878B57DC31E8BE733A3425DC09D996BA2F75A3D3F23DBEAEAA6C328",
+		get_attribute_data(p7, handle->oids->transId));
+}
+END_TEST
+
+START_TEST(test_scep_message_transaction_id_getcrl)
+{
+	ck_assert_str_eq(
+		"DB49755912953898D79286AB45DCAEF07C20F7FFB2C972E67F4AE276BBE299D1",
+		get_attribute_data(p7, handle->oids->transId));
+}
+END_TEST
+
 START_TEST(test_scep_message_sender_nonce)
 {
 	ck_assert_int_eq(ASN1_STRING_length(get_attribute(p7, handle->oids->senderNonce)), 16);
@@ -977,16 +993,16 @@ Suite * scep_message_suite(void)
 	/* GetCert tests */
 	TCase *tc_gc_msg = tcase_create("GetCert Message");
 	tcase_add_checked_fixture(tc_gc_msg, gc_setup, gc_teardown);
-	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id_getcert);
 	tcase_add_test(tc_gc_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_gc_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gc_msg, test_scep_gc);
 	suite_add_tcase(s, tc_gc_msg);
 
 	/* GetCRL tests */
-	TCase *tc_gcrl_msg = tcase_create("GetRL Message");
+	TCase *tc_gcrl_msg = tcase_create("GetCRL Message");
 	tcase_add_checked_fixture(tc_gcrl_msg, gcrl_setup, gc_teardown);
-	tcase_add_test(tc_gcrl_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_gcrl_msg, test_scep_message_transaction_id_getcrl);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gcrl_msg, test_scep_gcrl);

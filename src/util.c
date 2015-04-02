@@ -64,7 +64,7 @@ char *scep_strerror(SCEP_ERROR err)
 	return "Unknown error";
 }
 
-SCEP_ERROR scep_calculate_transaction_id(SCEP *handle, EVP_PKEY *pubkey, char **transaction_id)
+SCEP_ERROR scep_calculate_transaction_id_pubkey(SCEP *handle, EVP_PKEY *pubkey, char **transaction_id)
 {
 	SCEP_ERROR error = SCEPE_OK;
 	BIO *bio;
@@ -112,6 +112,54 @@ finally:
 			free(*transaction_id);
 	if(bio)
 		BIO_free(bio);
+	return error;
+}
+
+SCEP_ERROR scep_calculate_transaction_id_ias_type(SCEP *handle, PKCS7_ISSUER_AND_SERIAL *ias, char *messageType, char **transaction_id)
+{
+	SCEP_ERROR error = SCEPE_OK;
+	unsigned char digest[SHA256_DIGEST_LENGTH], *serial_data = NULL, *issuer_data = NULL;
+	int i, serial_len, issuer_len;
+	EVP_MD_CTX *ctx;
+
+	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
+		return SCEPE_MEMORY;
+	memset(*transaction_id, 0, 2 * SHA256_DIGEST_LENGTH + 1);
+
+	issuer_len = ASN1_item_i2d((void *) ias->issuer, &issuer_data, ASN1_ITEM_rptr(X509_NAME));
+	if(!issuer_data)
+		OSSL_ERR("Could not convert issuer to DER");
+
+	serial_len = ASN1_item_i2d((void *) ias->serial, &serial_data, ASN1_ITEM_rptr(ASN1_INTEGER));
+	if(!serial_data)
+		OSSL_ERR("Could not convert serial to DER");
+
+	ctx = EVP_MD_CTX_create();
+	if(ctx == NULL)
+		OSSL_ERR("Could not create hash context");
+
+	if(EVP_DigestInit_ex(ctx, EVP_sha256(), NULL) == 0)
+		OSSL_ERR("Could not initialize hash context");
+
+	if(EVP_DigestUpdate(ctx, issuer_data, issuer_len) == 0)
+		OSSL_ERR("Could not read issuer data into context");
+
+	if(EVP_DigestUpdate(ctx, serial_data, serial_len) == 0)
+		OSSL_ERR("Could not read issuer data into context");
+
+	if(EVP_DigestUpdate(ctx, (unsigned char *) messageType, strlen(messageType)) == 0)
+		OSSL_ERR("Could not read messageType into context");
+
+	if(EVP_DigestFinal_ex(ctx, digest, NULL) == 0)
+		OSSL_ERR("Could not finalize context");
+
+	for(i=0; i < SHA256_DIGEST_LENGTH; ++i)
+		sprintf((*transaction_id) + i * 2, "%02X", digest[i]);
+	scep_log(handle, INFO, "Generated transaction id %s", *transaction_id);
+finally:
+	if(error != SCEPE_OK)
+		if(*transaction_id)
+			free(*transaction_id);
 	return error;
 }
 
