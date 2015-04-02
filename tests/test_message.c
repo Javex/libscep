@@ -457,9 +457,11 @@ PKCS7 *make_gci_message()
 PKCS7 *make_gc_message()
 {
 	PKCS7 *p7;
+	ASN1_INTEGER *serial = X509_get_serialNumber(sig_cert);
+	X509_NAME *issuer = X509_get_issuer_name(sig_cert);
 	ck_assert(scep_get_cert(
 		handle, req, sig_cert, sig_key,
-		sig_cert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
+		issuer, serial, enc_cacert, enc_alg, &p7) == SCEPE_OK);
 	return p7;
 }
 

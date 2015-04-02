@@ -395,7 +395,7 @@ finally:
 
 static SCEP_ERROR _scep_get_cert_or_crl(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert, const EVP_CIPHER *enc_alg,
 		char *messageType, PKCS7 **pkiMessage)
 {
 
@@ -418,13 +418,8 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 	if(!ias)
 		OSSL_ERR("Could not create new issuer and subject structure");
 
-	ias->serial = X509_get_serialNumber(req_cert);
-	if(!ias->serial)
-		OSSL_ERR("Could not get serial from CA cert");
-
-	ias->issuer = X509_get_issuer_name(req_cert);
-	if(!ias->issuer)
-		OSSL_ERR("Could not get issuer name for CA cert");
+	ias->serial = serial;
+	ias->issuer = issuer;
 	issuer_str = X509_NAME_oneline(ias->issuer, NULL, 0);
 	scep_log(handle, INFO, "Issuer Name is %s", issuer_str);
 
@@ -455,12 +450,12 @@ finally:
 
 SCEP_ERROR scep_get_cert(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
-		PKCS7 **pkiMessage)
+		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
+		const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage)
 {
 	return _scep_get_cert_or_crl(
 		handle, req, sig_cert, sig_key,
-		req_cert, enc_cert, enc_alg,
+		issuer, serial, enc_cert, enc_alg,
 		MESSAGE_TYPE_GETCERT, pkiMessage);
 }
 
@@ -469,10 +464,21 @@ SCEP_ERROR scep_get_crl(
 		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
 		PKCS7 **pkiMessage)
 {
+	SCEP_ERROR error = SCEPE_OK;
+	ASN1_INTEGER *serial = X509_get_serialNumber(req_cert);
+	if(!serial)
+		OSSL_ERR("Could not get serial from CA cert");
+
+	X509_NAME *issuer = X509_get_issuer_name(req_cert);
+	if(!issuer)
+		OSSL_ERR("Could not get issuer name for CA cert");
+
 	return _scep_get_cert_or_crl(
 		handle, req, sig_cert, sig_key,
-		req_cert, enc_cert, enc_alg,
+		issuer, serial, enc_cert, enc_alg,
 		MESSAGE_TYPE_GETCRL, pkiMessage);
+finally:
+	return error;
 }
 
 SCEP_ERROR scep_pkiMessage(
