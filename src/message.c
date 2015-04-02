@@ -124,7 +124,9 @@ finally:
 }
 
 SCEP_ERROR scep_certrep(
-	SCEP *handle, SCEP_DATA *request, /*must at least contain a transaction id*/
+	SCEP *handle,
+	char *transactionID,
+	unsigned char *senderNonce,
 	char * pkiStatus, /*required*/
 	char *failInfo, /*required, if pkiStatus = failure*/
 	X509 *requestedCert, /*iff success, issuedCert (PKCSReq, GetCertInitial, or other one if GetCert*/
@@ -143,9 +145,6 @@ SCEP_ERROR scep_certrep(
 
 	if(sig_key == NULL)
 		OSSL_ERR("signer Key is required");
-
-	if(request == NULL)
-		OSSL_ERR("scep_data (e.g. obtained by unwrap) is required");
 
 	if(pkiStatus == NULL)
 		OSSL_ERR("pkiStatus is required");
@@ -168,6 +167,11 @@ SCEP_ERROR scep_certrep(
 	
 	//PKCS7 *local_pkiMessage;
 	struct p7_data_t *p7data = malloc(sizeof(*p7data));
+	if(!p7data) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
+	memset(p7data, 0, sizeof(*p7data));
 
 	/*generic for all certrep types*/
 	p7data->p7 = PKCS7_new();
@@ -190,15 +194,18 @@ SCEP_ERROR scep_certrep(
 	if(!PKCS7_content_new(p7data->p7, NID_pkcs7_data))
 		OSSL_ERR("Could not create inner PKCS#7 data structure");
 
-	if(!(p7data->transaction_id = request->transactionID))
-		OSSL_ERR("Could not read transactionID");
 
-	//if(!(p7data->sender_nonce = (unsigned char[16])request->senderNonce))
-	//	OSSL_ERR("Could not read senderNonce");
+	p7data->transaction_id = strdup(transactionID);
+	if(!p7data->transaction_id) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
 
-	memcpy(p7data->sender_nonce, request->senderNonce, NONCE_LENGTH);
-	if(!(p7data->sender_nonce))
-		OSSL_ERR("Could not read senderNonce");
+	memcpy(p7data->sender_nonce, senderNonce, NONCE_LENGTH);
+	if(!p7data->sender_nonce) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
 
 	p7data->bio = PKCS7_dataInit(p7data->p7, NULL);
 	if(!p7data->bio)
@@ -311,7 +318,7 @@ SCEP_ERROR scep_certrep(
 	asn1_recipient_nonce = ASN1_OCTET_STRING_new();
 	if(asn1_recipient_nonce == NULL)
 		OSSL_ERR("Could not create ASN1 recipient nonce object");
-	if(!ASN1_OCTET_STRING_set(asn1_recipient_nonce, request->senderNonce, NONCE_LENGTH))
+	if(!ASN1_OCTET_STRING_set(asn1_recipient_nonce, p7data->sender_nonce, NONCE_LENGTH))
 		OSSL_ERR("Could not set ASN1 recipient nonce object");
 	if(!PKCS7_add_signed_attribute(
 			p7data->signer_info, handle->oids->recipientNonce, V_ASN1_OCTET_STRING,

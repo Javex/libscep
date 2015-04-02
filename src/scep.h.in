@@ -212,7 +212,7 @@ char *scep_strerror(SCEP_ERROR err);
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);
 SCEP_ERROR scep_new_selfsigned_X509(
     SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert);
-SCEP_ERROR scep_certrep(SCEP *handle, SCEP_DATA *request, char *pkiStatus, char *failInfo,
+SCEP_ERROR scep_certrep(SCEP *handle, char *transactionID, unsigned char *senderNonce, char *pkiStatus, char *failInfo,
     X509 *requestedCert, X509 *sig_cert, EVP_PKEY *sig_key, X509 *enc_cert,
     STACK_OF(X509) *additionalCerts,
     X509_CRL *crl, PKCS7 **pkiMessage);
