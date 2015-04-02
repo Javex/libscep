@@ -50,21 +50,72 @@ CSqGSIb3DQEBBQUAA0EAbce5uBBXc7BPVIcQCqIqbkSEBQ735gmV9FB1XJ4tNl+/
 qjhv1MBVgGB5CAoETs8mJGHwo2c+5JgDkfMJ6gsIEA==
 -----END CERTIFICATE-----";
 
+my $sig_cacert = "-----BEGIN CERTIFICATE-----
+MIIB1zCCAYGgAwIBAgIJAIxnK+AvQtveMA0GCSqGSIb3DQEBBQUAMEcxCzAJBgNV
+BAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYDVQQKDARh
+c2RmMQswCQYDVQQDDAJjYTAeFw0xNTAzMTUxMjIxNThaFw0xODAxMDIxMjIxNTha
+MEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0w
+CwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYTBcMA0GCSqGSIb3DQEBAQUAA0sAMEgC
+QQC2ZbZXN6Q+k4yECXUBrv3x/zF0F16G9Yx+b9qxdhkP/+BkA5gyRFNEWL+EovU2
+00F/mSpYsFW+VlIGW0x0rBvJAgMBAAGjUDBOMB0GA1UdDgQWBBTGyK1AVoV5v/Ou
+4FmWrxNg3Aqv5zAfBgNVHSMEGDAWgBTGyK1AVoV5v/Ou4FmWrxNg3Aqv5zAMBgNV
+HRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA0EAFZJdlgEgGTOzRdtPsRY0ezWVow26
+1OUUf1Z6x0e9z/Nzkoo2kfI4iDafebvQ1yMqSWKbUjLGAi/YCq2m3p5tHA==
+-----END CERTIFICATE-----";
 
+my $sig_cakey = "-----BEGIN RSA PRIVATE KEY-----
+MIIBOwIBAAJBALZltlc3pD6TjIQJdQGu/fH/MXQXXob1jH5v2rF2GQ//4GQDmDJE
+U0RYv4Si9TbTQX+ZKliwVb5WUgZbTHSsG8kCAwEAAQJAJ/wuN/qDsBAqiruEAgV5
+uDZogfmpiE6GKSWePK8WGXJw4HKay/WcFRVhOmBKskPz0TWon+fykgCXUBS0f9jg
+vQIhANocMJCuZm0k51AGUHzHH0+e3KNqdkYtfzFgMUzJexz7AiEA1hVMzCIo/F2s
+33O/F2dw+yQC0w83d/dG06kjssoVBwsCIQCy/FEqWcP6Kz+bXyMr0mgyeaaMgDBB
+FNL9HPg4EFt0gwIgH31ylnRP4w9EZnn4GdE1ZTuezrzmQ9czq96tSZdAEJECIQCQ
+luNLdgk6/rH8iHtN54nKJhTNr4qZWI6b2xSpBAkerw==
+-----END RSA PRIVATE KEY-----";
+
+my $enc_cert = "-----BEGIN CERTIFICATE-----
+MIIBmjCCAUSgAwIBAgIBAzANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN
+MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG
+A1UEAwwCY2EwHhcNMTUwMzE1MTMwMzI4WhcNMTYwMzE0MTMwMzI4WjBIMQswCQYD
+VQQGEwJBVTETMBEGA1UECAwKU29tZS1TdGF0ZTETMBEGA1UECgwKRW5jcnlwdGlv
+bjEPMA0GA1UEAwwGY2xpZW50MFwwDQYJKoZIhvcNAQEBBQADSwAwSAJBALhqBpcv
+JC/0cdUGgFXzGIwwUxHUpK17LDtigQerl69FBGJJns8NZ0oKVT51/3fgLYlXDEZ9
+kIbw7jcH2NLq30MCAwEAAaMaMBgwCQYDVR0TBAIwADALBgNVHQ8EBAMCBeAwDQYJ
+KoZIhvcNAQEFBQADQQAdBpZ1QuDcnbbJj3yPH85y5cOYL/9d5c1utDeQEIqOFah3
+n+Hm9q37a9O3404+jkNZjOwQtANC72KR5QtRtkhq
+-----END CERTIFICATE-----";
+
+my $issuedCert = "-----BEGIN CERTIFICATE-----
+MIIB7TCCAZegAwIBAgIBBDANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN
+MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG
+A1UEAwwCY2EwHhcNMTUwMzE1MTQyMzI1WhcNMTYwMzE0MTQyMzI1WjBXMQswCQYD
+VQQGEwJBVTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQg
+V2lkZ2l0cyBQdHkgTHRkMRAwDgYDVQQDEwdmb28uYmFyMIGfMA0GCSqGSIb3DQEB
+AQUAA4GNADCBiQKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56
+nhL3X1Xuv+3e6HWS74IOWbwuZXADdSWswFMefJuh6D4tRACzvgbOuXaxxopj9PYn
+ieNunATNl1O1fy1QG3uJiy+QuQe3/xfIIwIVtvsx5ckMfRHk4g4lsOJwLofIvwID
+AQABoxowGDAJBgNVHRMEAjAAMAsGA1UdDwQEAwIF4DANBgkqhkiG9w0BAQUFAANB
+AGZRYophSHisfLzjA0EV766X+e7hAK1J+G3IZHHn4WvxRGEGRZmEYMwbV3/gIRW8
+bIEcl2LeuPgUGWhLIowjKF0=
+-----END CERTIFICATE-----";
 
 print "creating pkcsreq from csr:", $/;
 my $pkcsreq = Crypt::LibSCEP::pkcsreq($sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
-#print "print its transaction id", $/;
-#print Crypt::LibSCEP::print_transid($certrep), $/;
+print "print its transaction id", $/;
+print Crypt::LibSCEP::print_transid($pkcsreq), $/;
 
-#print "creating certreps:", $/;
-#print "PENDING:", $/;
-#print Crypt::SSCEP::certrep($cakey, $cacert, $pkcsreq, "FAILURE", "badRequest", $signed_request), $/;
+print "print its message Type", $/;
+print Crypt::LibSCEP::print_msgtype($pkcsreq), $/;
 
-#print "FAILURE (badRequest for example):", $/;
-#print Crypt::SSCEP::certrep($cakey, $cacert, $pkcsreq, "FAILURE", "badRequest", $signed_request), $/;
 
-#print "SUCCESS (embedded cert does not correspond):", $/;
-#print Crypt::SSCEP::certrep($cakey, $cacert, $pkcsreq, "SUCCESS", NULL, $signed_request), $/;
+print "creating corresponding certreps:", $/;
+print "PENDING:", $/;
+print Crypt::LibSCEP::certrep_pending($sig_cakey, $sig_cacert, $pkcsreq), $/;
+
+print "FAILURE (badRequest for example):", $/;
+print Crypt::LibSCEP::certrep_failure($sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+
+print "SUCCESS (response to pkcsreq for example):", $/;
+print Crypt::LibSCEP::certrep_success($sig_cakey, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert), $/;

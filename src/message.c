@@ -635,7 +635,9 @@ SCEP_ERROR scep_unwrap(
 	encData = BIO_new(BIO_s_mem());
 	decData = BIO_new(BIO_s_mem());
 	/*add trusted cert*/
-	X509_STORE_add_cert(store, sig_cacert);
+	if(sig_cacert != NULL)
+		X509_STORE_add_cert(store, sig_cacert);
+
 	if(!PKCS7_type_is_signed(pkiMessage))
 		OSSL_ERR("pkiMessage MUST be content type signed-data");
 
@@ -699,11 +701,12 @@ SCEP_ERROR scep_unwrap(
 			//TODO: only necessary if signerCert does not equal encryptioncert
 			//X509_STORE_add_cert(store, signerCert);
 	}
-
-	error = verify(handle, pkiMessage, store, encData);
-	if(error != SCEPE_OK)
-		goto finally;
-
+	if(sig_cacert != NULL) {
+		/*if not provided, verification will not be done*/
+		error = verify(handle, pkiMessage, store, encData);
+		if(error != SCEPE_OK)
+			goto finally;
+	}
 
 	/*pkiMessage attributes*/
 
@@ -769,87 +772,90 @@ SCEP_ERROR scep_unwrap(
 	}
 
 	/*decrypt it*/
-	if((p7env = d2i_PKCS7_bio(encData, NULL))){
-		/*Sort out invalid Certrep PENDING or FAILURE requests*/
-		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0)
-			if(local_out->pkiStatus == SCEP_PENDING || local_out->pkiStatus == SCEP_FAILURE)
-				OSSL_ERR("PENDING or FAILURE Certreps MUST NOT have encrypted content.\n");
-		if(ASN1_INTEGER_get(p7env->d.enveloped->version) != 0) {
-			OSSL_ERR("Version of the enveloped part MUST be 0.\n");
-		}
-		
-		/*Is there a pretty way?*/
-		char buf[11];
-		if(!i2t_ASN1_OBJECT(buf, 11, p7env->d.enveloped->enc_data->content_type)) {
-			/*probably never be reached because of segfaults if it does not exists*/
-			OSSL_ERR("missing content-type.\n");
-		}
-		if(!strcmp(buf, "pkcs7-data") == 0) {
-			OSSL_ERR("content-type of pkcs7envelope MUST be pkcs7-data.\n");
-		}
+	if(cacert && cakey) {
+			/*if not provided, encrypted content will be ignored*/
+		if((p7env = d2i_PKCS7_bio(encData, NULL))){
+			/*Sort out invalid Certrep PENDING or FAILURE requests*/
+			if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0)
+				if(local_out->pkiStatus == SCEP_PENDING || local_out->pkiStatus == SCEP_FAILURE)
+					OSSL_ERR("PENDING or FAILURE Certreps MUST NOT have encrypted content.\n");
+			if(ASN1_INTEGER_get(p7env->d.enveloped->version) != 0) {
+				OSSL_ERR("Version of the enveloped part MUST be 0.\n");
+			}
 			
-		/*decrypt will only handle enveloped data which is a requirement in SCEP*/ 
-		if(!PKCS7_decrypt(p7env, cakey, cacert, decData, 0)) {
-			OSSL_ERR("decryption failed");
-		}
-		
-		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
-			/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
-			local_out->messageData = d2i_PKCS7_bio(decData, NULL);
-		}
+			/*Is there a pretty way?*/
+			char buf[11];
+			if(!i2t_ASN1_OBJECT(buf, 11, p7env->d.enveloped->enc_data->content_type)) {
+				/*probably never be reached because of segfaults if it does not exists*/
+				OSSL_ERR("missing content-type.\n");
+			}
+			if(!strcmp(buf, "pkcs7-data") == 0) {
+				OSSL_ERR("content-type of pkcs7envelope MUST be pkcs7-data.\n");
+			}
+				
+			/*decrypt will only handle enveloped data which is a requirement in SCEP*/ 
+			if(!PKCS7_decrypt(p7env, cakey, cacert, decData, 0)) {
+				OSSL_ERR("decryption failed");
+			}
+			
+			if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
+				/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
+				local_out->messageData = d2i_PKCS7_bio(decData, NULL);
+			}
 
-		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
-			local_out->request = NULL;
-			
-			/*message type PKCSreq means there MUST be a CSR in it*/
-			d2i_X509_REQ_bio(decData, &(local_out->request));
-			
-			/*subject distinguished name*/
-			if(!(X509_REQ_get_subject_name(local_out->request))) {
-				OSSL_ERR("The CSR MUST contain a Subject Distinguished Name.\n");
+			if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
+				local_out->request = NULL;
+				
+				/*message type PKCSreq means there MUST be a CSR in it*/
+				d2i_X509_REQ_bio(decData, &(local_out->request));
+				
+				/*subject distinguished name*/
+				if(!(X509_REQ_get_subject_name(local_out->request))) {
+					OSSL_ERR("The CSR MUST contain a Subject Distinguished Name.\n");
+				}
+				
+				/*public key*/
+				if(!(X509_REQ_get_pubkey(local_out->request))) {
+					OSSL_ERR("The CSR MUST contain a public key.\n");
+				}
+				
+				/*challenge pasword*/
+				int passwd_index = X509_REQ_get_attr_by_NID(local_out->request, NID_pkcs9_challengePassword, -1);
+				if(passwd_index == -1) {
+					OSSL_ERR("The CSR MUST contain a challenge password.\n");
+				}
+				
+				X509_ATTRIBUTE *attr = X509_REQ_get_attr(local_out->request, passwd_index);
+				if(attr->single == 0) { // set
+					if(sk_ASN1_TYPE_num(attr->value.set) != 1)
+						OSSL_ERR("Unexpected number of elements in challenge password");
+					local_out->challenge_password = sk_ASN1_TYPE_value(attr->value.set, 0);
+				} else { // single
+					local_out->challenge_password = attr->value.single;
+				}
+			} else if(strncmp(local_out->messageType, MESSAGE_TYPE_CERTREP, sizeof(MESSAGE_TYPE_CERTREP))) {
+				if(!d2i_PKCS7_bio(decData, &local_out->messageData))
+					OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
 			}
-			
-			/*public key*/
-			if(!(X509_REQ_get_pubkey(local_out->request))) {
-				OSSL_ERR("The CSR MUST contain a public key.\n");
-			}
-			
-			/*challenge pasword*/
-			int passwd_index = X509_REQ_get_attr_by_NID(local_out->request, NID_pkcs9_challengePassword, -1);
-			if(passwd_index == -1) {
-				OSSL_ERR("The CSR MUST contain a challenge password.\n");
-			}
-			
-			X509_ATTRIBUTE *attr = X509_REQ_get_attr(local_out->request, passwd_index);
-			if(attr->single == 0) { // set
-				if(sk_ASN1_TYPE_num(attr->value.set) != 1)
-					OSSL_ERR("Unexpected number of elements in challenge password");
-				local_out->challenge_password = sk_ASN1_TYPE_value(attr->value.set, 0);
-			} else { // single
-				local_out->challenge_password = attr->value.single;
-			}
-		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_CERTREP, sizeof(MESSAGE_TYPE_CERTREP))) {
-			if(!d2i_PKCS7_bio(decData, &local_out->messageData))
-				OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
-		}
 
-		/*TODO: other types besides PKCSreq dealing with encrypted content*/
-	}
-	else{
-		/*sort out any types which MUST contain encrypted data*/
-		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
-			if(!(local_out->pkiStatus == 3 || local_out->pkiStatus == 2)) {
-					OSSL_ERR("Message type requires an encrypted content.\n");
+			/*TODO: other types besides PKCSreq dealing with encrypted content*/
+		}
+		else{
+			/*sort out any types which MUST contain encrypted data*/
+			if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
+				if(!(local_out->pkiStatus == 3 || local_out->pkiStatus == 2)) {
+						OSSL_ERR("Message type requires an encrypted content.\n");
+				}
 			}
-		}
-		else {
-			OSSL_ERR("Message type requires an encrypted content.\n");
-		}
+			else {
+				OSSL_ERR("Message type requires an encrypted content.\n");
+			}
 
 
-		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
-			if(!encData) {
-				OSSL_ERR("Message type PKCSreq requires an encrypted content.\n");
+			if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
+				if(!encData) {
+					OSSL_ERR("Message type PKCSreq requires an encrypted content.\n");
+				}
 			}
 		}
 	}
