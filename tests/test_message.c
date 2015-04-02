@@ -437,6 +437,36 @@ void make_unwrap_message()
 		handle, certrep_success, enc_cert, sig_cacert, enc_key, &pkiMessage_success) == SCEPE_OK);
 }
 
+void make_unwrap_gci_message()
+{
+	scep_get_cert_initial(handle, req, sig_cert, sig_key, enc_cacert, enc_cacert, &p7);
+	ck_assert(p7 != NULL);
+	ck_assert(scep_unwrap(
+		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+}
+
+void make_unwrap_gc_message()
+{
+	ASN1_INTEGER *serial = X509_get_serialNumber(sig_cert);
+	X509_NAME *issuer = X509_get_issuer_name(sig_cert);
+	ck_assert(scep_get_cert(
+		handle, sig_cert, sig_key,
+		issuer, serial, enc_cacert, &p7) == SCEPE_OK);
+	ck_assert(p7 != NULL);
+	ck_assert(scep_unwrap(
+		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+}
+
+void make_unwrap_gcrl_message()
+{
+	ck_assert(scep_get_crl(
+		handle, sig_cert, sig_key,
+		sig_cert, enc_cacert, &p7) == SCEPE_OK);
+	ck_assert(p7 != NULL);
+	ck_assert(scep_unwrap(
+		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+}
+
 PKCS7 *make_gci_message()
 {
 	PKCS7 *p7;
@@ -692,6 +722,30 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_ne(NULL, pkiMessage->senderNonce);
 	ck_assert_str_eq("FOOBARTESTPWD", ASN1_STRING_data(pkiMessage->challenge_password->value.printablestring));
 
+}
+END_TEST
+
+START_TEST(test_unwrap_getcertinitial)
+{
+	make_unwrap_gci_message();
+	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
+	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->subject, X509_REQ_get_subject_name(req)), 0);
+}
+END_TEST
+
+START_TEST(test_unwrap_getcert)
+{
+	make_unwrap_gc_message();
+	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
+	ck_assert_int_eq(ASN1_INTEGER_cmp(pkiMessage->issuer_and_serial->serial, X509_get_serialNumber(sig_cert)), 0);
+}
+END_TEST
+
+START_TEST(test_unwrap_getcrl)
+{
+	make_unwrap_gcrl_message();
+	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
+	ck_assert_int_eq(ASN1_INTEGER_cmp(pkiMessage->issuer_and_serial->serial, X509_get_serialNumber(sig_cert)), 0);
 }
 END_TEST
 
@@ -956,6 +1010,9 @@ Suite * scep_message_suite(void)
 	/*test unwrapping*/
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_getcertinitial);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_getcert);
+	tcase_add_test(tc_unwrap_msg, test_unwrap_getcrl);
 	tcase_add_test(tc_unwrap_msg, test_unwrap_message);
 	tcase_add_test(tc_unwrap_msg, test_invalid_sig);
 	tcase_add_test(tc_unwrap_msg, test_unwrap_invalid_pkiStatus);

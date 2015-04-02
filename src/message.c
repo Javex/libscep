@@ -632,7 +632,8 @@ SCEP_ERROR scep_unwrap(
 	SCEP_ERROR error = SCEPE_OK;
 	STACK_OF(PKCS7_SIGNER_INFO)	*sk;
 	PKCS7_SIGNER_INFO			*si;
-	unsigned char				*buf;
+	unsigned char				*buf, *ias_data = NULL;
+	int							ias_data_size;
 	ASN1_TYPE					*messageType, *senderNonce, *recipientNonce, *transId, *pkiStatus, *failInfo;
 	X509_NAME					*issuer, *subject;
 	X509						*signerCert;
@@ -810,11 +811,6 @@ SCEP_ERROR scep_unwrap(
 		if(!PKCS7_decrypt(p7env, cakey, cacert, decData, 0)) {
 			OSSL_ERR("decryption failed");
 		}
-		
-		if(strcmp(local_out->messageType, MESSAGE_TYPE_CERTREP) == 0) {
-			/*A degenerate certificates-only PKCS#7 Signed-data is expected*/
-			local_out->messageData = d2i_PKCS7_bio(decData, NULL);
-		}
 
 		if(strcmp(local_out->messageType, MESSAGE_TYPE_PKCSREQ) == 0) {
 			local_out->request = NULL;
@@ -846,9 +842,23 @@ SCEP_ERROR scep_unwrap(
 			} else { // single
 				local_out->challenge_password = attr->value.single;
 			}
-		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_CERTREP, sizeof(MESSAGE_TYPE_CERTREP))) {
-			if(!d2i_PKCS7_bio(decData, &local_out->messageData))
+		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_CERTREP, sizeof(MESSAGE_TYPE_CERTREP)) == 0) {
+			local_out->messageData = d2i_PKCS7_bio(decData, NULL);
+			if(!local_out->messageData)
 				OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
+		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_GETCERTINITIAL, sizeof(MESSAGE_TYPE_GETCERTINITIAL)) == 0) {
+			ias_data_size = BIO_get_mem_data(decData, &ias_data);
+			local_out->issuer_and_subject = d2i_PKCS7_ISSUER_AND_SUBJECT(NULL, &ias_data, ias_data_size);
+			if(!local_out->issuer_and_subject)
+				OSSL_ERR("Unreadable Issuer and Subject data in encrypted content");
+		} else if(strncmp(local_out->messageType, MESSAGE_TYPE_GETCERT, sizeof(MESSAGE_TYPE_GETCERT)) == 0 ||
+				strncmp(local_out->messageType, MESSAGE_TYPE_GETCRL, sizeof(MESSAGE_TYPE_GETCRL)) == 0) {
+			ias_data_size = BIO_get_mem_data(decData, &ias_data);
+			local_out->issuer_and_serial = d2i_PKCS7_ISSUER_AND_SERIAL(NULL, &ias_data, ias_data_size);
+			if(!local_out->issuer_and_serial)
+				OSSL_ERR("Unreadable Issuer and Serial data in encrypted content");
+		} else {
+			OSSL_ERR("Unknown message type");
 		}
 
 		/*TODO: other types besides PKCSreq dealing with encrypted content*/
