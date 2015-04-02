@@ -68,8 +68,7 @@ finally:
 
 SCEP_ERROR scep_pkcsreq(
 	SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg,
-		PKCS7 **pkiMessage)
+		X509 *enc_cert, PKCS7 **pkiMessage)
 {
 	BIO *databio = NULL;
 	EVP_PKEY *req_pubkey = NULL;
@@ -110,7 +109,7 @@ SCEP_ERROR scep_pkcsreq(
 		goto finally;
 	if((error = scep_pkiMessage(
 			handle, MESSAGE_TYPE_PKCSREQ,
-			databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+			databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
 	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
 		goto finally;
@@ -129,7 +128,7 @@ SCEP_ERROR scep_certrep(
 	char *failInfo, /*required, if pkiStatus = failure*/
 	X509 *requestedCert, /*iff success, issuedCert (PKCSReq, GetCertInitial, or other one if GetCert*/
 	X509 *sig_cert, EVP_PKEY *sig_key, /*required*/
-	X509 *enc_cert, const EVP_CIPHER *enc_alg, /*required iff success, alternative:read out from request, alternative 2: put into SCEP_DATA when unwrapping*/
+	X509 *enc_cert, /*required iff success, alternative:read out from request, alternative 2: put into SCEP_DATA when unwrapping*/
 	STACK_OF(X509) *additionalCerts, /*optional (in success case): additional certs to be included*/
 	X509_CRL *crl, /*mutually exclusive to requestedCert*/
 	PKCS7 **pkiMessage) /*return pkcs7*/ 
@@ -158,8 +157,6 @@ SCEP_ERROR scep_certrep(
 	if(strcmp(pkiStatus, "SUCCESS") == 0) {
 		if(enc_cert == NULL)
 			OSSL_ERR("SUCCESS requires an encryption cert");
-		if(enc_alg == NULL)
-			OSSL_ERR("SUCCESS requires an encryption alg");
 		if(!(requestedCert == NULL) ^ (crl == NULL))
 			OSSL_ERR("requested cert and crl are mutually exclusive");
 		if((additionalCerts != NULL) && (requestedCert == NULL))
@@ -210,7 +207,7 @@ SCEP_ERROR scep_certrep(
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
-				NULL, NULL, NULL, p7data)) != SCEPE_OK)
+				NULL, NULL, p7data)) != SCEPE_OK)
 			goto finally;
 
 		/* pkiStatus */
@@ -228,7 +225,7 @@ SCEP_ERROR scep_certrep(
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
-				NULL, NULL, NULL, p7data)) != SCEPE_OK)
+				NULL, NULL, p7data)) != SCEPE_OK)
 			goto finally;
 
 		/* pkiStatus */
@@ -288,7 +285,7 @@ SCEP_ERROR scep_certrep(
 
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
-				databio, enc_cert, enc_alg, p7data)) != SCEPE_OK)
+				databio, enc_cert, p7data)) != SCEPE_OK)
 			goto finally;
 
 		/* pkiStatus */
@@ -333,7 +330,7 @@ finally:
 
 SCEP_ERROR scep_get_cert_initial(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509 *cacert, X509 *enc_cert,
 		PKCS7 **pkiMessage)
 {
 
@@ -382,7 +379,7 @@ SCEP_ERROR scep_get_cert_initial(
 	if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)))
 		goto finally;
 	if((error = scep_pkiMessage(
-			handle, MESSAGE_TYPE_GETCERTINITIAL, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+			handle, MESSAGE_TYPE_GETCERTINITIAL, databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
 	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
 		goto finally;
@@ -395,7 +392,7 @@ finally:
 
 static SCEP_ERROR _scep_get_cert_or_crl(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
 		char *messageType, PKCS7 **pkiMessage)
 {
 
@@ -437,7 +434,7 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 	if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)))
 		goto finally;
 	if((error = scep_pkiMessage(
-			handle, messageType, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+			handle, messageType, databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
 	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
 		goto finally;
@@ -451,17 +448,17 @@ finally:
 SCEP_ERROR scep_get_cert(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
 		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
-		const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage)
+		PKCS7 **pkiMessage)
 {
 	return _scep_get_cert_or_crl(
 		handle, req, sig_cert, sig_key,
-		issuer, serial, enc_cert, enc_alg,
+		issuer, serial, enc_cert,
 		MESSAGE_TYPE_GETCERT, pkiMessage);
 }
 
 SCEP_ERROR scep_get_crl(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509 *req_cert, X509 *enc_cert,
 		PKCS7 **pkiMessage)
 {
 	SCEP_ERROR error = SCEPE_OK;
@@ -475,7 +472,7 @@ SCEP_ERROR scep_get_crl(
 
 	return _scep_get_cert_or_crl(
 		handle, req, sig_cert, sig_key,
-		issuer, serial, enc_cert, enc_alg,
+		issuer, serial, enc_cert,
 		MESSAGE_TYPE_GETCRL, pkiMessage);
 finally:
 	return error;
@@ -484,7 +481,7 @@ finally:
 SCEP_ERROR scep_pkiMessage(
 		SCEP *handle,
 		char *messageType, BIO *data,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509 *enc_cert,
 		struct p7_data_t *p7data) {
 	PKCS7 *encdata = NULL;
 	SCEP_ERROR error = SCEPE_OK;
@@ -536,7 +533,7 @@ SCEP_ERROR scep_pkiMessage(
 			OSSL_ERR("Could not create enc cert stack");
 		if(!sk_X509_push(enc_certs, enc_cert))
 			OSSL_ERR("Could not push enc cert onto stack");
-		encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
+		encdata = PKCS7_encrypt(enc_certs, data, handle->configuration->encalg, PKCS7_BINARY);
 		if(!encdata)
 			OSSL_ERR("Could not encrypt data");
 		// put encrypted data into p7

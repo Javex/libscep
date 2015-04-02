@@ -356,7 +356,6 @@ int main(int argc, char *argv[])
 					cmd_args->pkcsreq.sig_cert,
 					cmd_args->pkcsreq.sig_key,
 					cmd_args->pkcsreq.enc_cert,
-					cmd_handle.handle->configuration->encalg,
 					&request
 					)) != SCEPE_OK)
 				exit(1);
