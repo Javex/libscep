@@ -326,9 +326,11 @@ int main(int argc, char *argv[])
 	struct cmd_handle_t cmd_handle;
 	struct cmd_args_t *cmd_args = &cmd_handle.cmd_args;
 	SCEP_ERROR error;
-	PKCS7 *request = NULL;
+	PKCS7 *request = NULL, *response = NULL;
 	char *message = NULL;
 	SCEP_REPLY *reply = NULL;
+	SCEP_DATA *output = NULL;
+	FILE *cert_target = NULL;
 	memset(&cmd_handle, 0, sizeof(cmd_handle));
 	if((error = scep_init(&cmd_handle.handle)) != SCEPE_OK) {
 		fprintf(stderr, "Failed to initialize basic SCEP structure: %s\n", scep_strerror(error));
@@ -354,7 +356,6 @@ int main(int argc, char *argv[])
 					cmd_args->pkcsreq.sig_cert,
 					cmd_args->pkcsreq.sig_key,
 					cmd_args->pkcsreq.enc_cert,
-					cmd_handle.handle->configuration->encalg,
 					&request
 					)) != SCEPE_OK)
 				exit(1);
@@ -362,11 +363,66 @@ int main(int argc, char *argv[])
 					cmd_handle.handle,
 					request, &message)) != SCEPE_OK)
 				exit(1);
+
 			// send request
 			if((error = scep_send_request(&cmd_handle, "PKIOperation", message, &reply)) != SCEPE_OK)
 				exit(1);
 			fprintf(stderr, "Payload Response: %s\n", reply->payload);
+
 			// parse response
+			BIO *reply_bio = BIO_new(BIO_s_mem());
+			if(!reply_bio)
+				exit(1);
+			BIO_write(reply_bio, reply->payload, reply->length);
+			if(!(response = d2i_PKCS7_bio(reply_bio, NULL))) {
+				ERR_print_errors(cmd_handle.handle->configuration->log);
+				scep_log(cmd_handle.handle, FATAL, "Unable to convert response to PKCS#7");
+				exit(1);
+			}
+			if(!(output = malloc(sizeof(SCEP_DATA))))
+				exit(1);
+			memset(output, 0, sizeof(SCEP_DATA));
+
+			if((error = scep_unwrap_response(
+					cmd_handle.handle,
+					response,
+					cmd_args->cacert,
+					cmd_args->pkcsreq.sig_cert,
+					cmd_args->pkcsreq.sig_key,
+					SCEPOP_PKCSREQ,
+					&output)) != SCEPE_OK)
+				exit(1);
+
+			cert_target = fopen(cmd_args->pkcsreq.cert_target_filename, "w");
+			if(!cert_target) {
+				scep_log(cmd_handle.handle, FATAL, "Unable to open certificate target file for writing: %s", strerror(errno));
+				exit(1);
+			}
+
+			if(sk_X509_num(output->certs) < 1) {
+				scep_log(cmd_handle.handle, FATAL, "No certificates in response...");
+				exit(1);
+			}
+
+			X509 *new_cert = sk_X509_value(output->certs, 0);
+			if(!new_cert)
+				exit(1);
+
+			BIO *cert_bio = BIO_new(BIO_s_mem());
+			if(!cert_bio)
+				exit(1);
+
+			if(!i2d_X509_bio(cert_bio, new_cert)) {
+				ERR_print_errors(cmd_handle.handle->configuration->log);
+				scep_log(cmd_handle.handle, FATAL, "Unable to read in certificate to BIO");
+				exit(1);
+			}
+
+			if((error = scep_bio_PEM_fp(cmd_handle.handle, cert_bio, cert_target)) != SCEPE_OK) {
+				fclose(cert_target);
+				exit(1);
+			}
+			scep_log(cmd_handle.handle, INFO, "New certificate written to %s", cmd_args->pkcsreq.cert_target_filename);
 			break;
 		case SCEPOP_GETCERT:
 			break;

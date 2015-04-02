@@ -23,7 +23,6 @@ EVP_PKEY *sig_cakey;
 X509 *enc_cacert;
 EVP_PKEY *enc_cakey;
 X509_REQ *req;
-const EVP_CIPHER *enc_alg;
 PKCS7 *certrep_pending;
 PKCS7 *certrep_failure;
 PKCS7 *certrep_success;
@@ -334,9 +333,6 @@ void make_message_data()
 	ck_assert(req != NULL);
 	BIO_free(b);
 	
-	enc_alg = EVP_des_ede3_cbc();
-	ck_assert(enc_alg != NULL);
-
 	b = BIO_new(BIO_s_mem());
 	BIO_puts(b, certrep_pending_str);
 	certrep_pending = PEM_read_bio_PKCS7(b, NULL, 0, 0);
@@ -358,18 +354,15 @@ void make_message_data()
 
 void make_pkcsreq_message()
 {
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
 	SCEP_ERROR s = scep_pkcsreq(
-		handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7);
+		handle, req, sig_cert, sig_key, enc_cacert, &p7);
 	ck_assert(s == SCEPE_OK);
 }
 
 void make_pkcsreq_message_nosigcert()
 {
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
-	
 	SCEP_ERROR s = scep_pkcsreq(
-		handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7_nosigcert);
+		handle, req, sig_cert, sig_key, enc_cacert, &p7_nosigcert);
 	ck_assert(s == SCEPE_OK);
 }
 
@@ -378,7 +371,7 @@ void make_certrep_message() {
 	/*TODO: build other request types*/
 	SCEP_DATA *scep_message = NULL;
 	ck_assert(scep_pkcsreq(
-			handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7) == SCEPE_OK);
+			handle, req, sig_cert, sig_key, enc_cacert, &p7) == SCEPE_OK);
 
 	/*pkcsreq to SCEP_DATA*/
 	ck_assert(scep_unwrap(
@@ -393,16 +386,16 @@ void make_certrep_message() {
 	BIO_free(b);
 
 	own_certrep_pending = NULL;
-	ck_assert(scep_certrep(handle, scep_message, "PENDING", NULL,
-			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "PENDING", NULL,
+			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL,
 			&own_certrep_pending) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
 		handle, own_certrep_pending, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_pending) == SCEPE_OK);
 
 	own_certrep_failure = NULL;
-	ck_assert(scep_certrep(handle, scep_message, "FAILURE", "badAlg",
-			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "FAILURE", "badAlg",
+			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL,
 			&own_certrep_failure) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
@@ -411,8 +404,8 @@ void make_certrep_message() {
 	own_certrep_success = NULL;
 	STACK_OF(X509) *cert_stack = sk_X509_new_null();
 	sk_X509_push(cert_stack, sig_cacert);
-	ck_assert(scep_certrep(handle, scep_message, "SUCCESS", NULL,
-			issuedCert, sig_cacert, sig_cakey, enc_cert, enc_alg, cert_stack, NULL,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "SUCCESS", NULL,
+			issuedCert, sig_cacert, sig_cakey, enc_cert, cert_stack, NULL,
 			&own_certrep_success) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
@@ -422,7 +415,7 @@ void make_certrep_message() {
 
 void make_unwrap_message()
 {
-	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cacert, enc_alg, &p7);
+	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cacert, &p7);
 	
 	ck_assert(p7 != NULL);
 
@@ -449,7 +442,7 @@ PKCS7 *make_gci_message()
 	PKCS7 *p7;
 	ck_assert(scep_get_cert_initial(
 		handle, req, sig_cert, sig_key,
-		sig_cacert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
+		sig_cacert, enc_cacert, &p7) == SCEPE_OK);
 	return p7;
 }
 
@@ -457,9 +450,11 @@ PKCS7 *make_gci_message()
 PKCS7 *make_gc_message()
 {
 	PKCS7 *p7;
+	ASN1_INTEGER *serial = X509_get_serialNumber(sig_cert);
+	X509_NAME *issuer = X509_get_issuer_name(sig_cert);
 	ck_assert(scep_get_cert(
-		handle, req, sig_cert, sig_key,
-		sig_cert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
+		handle, sig_cert, sig_key,
+		issuer, serial, enc_cacert, &p7) == SCEPE_OK);
 	return p7;
 }
 
@@ -468,8 +463,8 @@ PKCS7 *make_gcrl_message()
 {
 	PKCS7 *p7;
 	ck_assert(scep_get_crl(
-		handle, req, sig_cert, sig_key,
-		sig_cert, enc_cacert, enc_alg, &p7) == SCEPE_OK);
+		handle, sig_cert, sig_key,
+		sig_cert, enc_cacert, &p7) == SCEPE_OK);
 	return p7;
 }
 
@@ -742,6 +737,22 @@ START_TEST(test_scep_message_transaction_id)
 }
 END_TEST
 
+START_TEST(test_scep_message_transaction_id_getcert)
+{
+	ck_assert_str_eq(
+		"2BF79F781878B57DC31E8BE733A3425DC09D996BA2F75A3D3F23DBEAEAA6C328",
+		get_attribute_data(p7, handle->oids->transId));
+}
+END_TEST
+
+START_TEST(test_scep_message_transaction_id_getcrl)
+{
+	ck_assert_str_eq(
+		"DB49755912953898D79286AB45DCAEF07C20F7FFB2C972E67F4AE276BBE299D1",
+		get_attribute_data(p7, handle->oids->transId));
+}
+END_TEST
+
 START_TEST(test_scep_message_sender_nonce)
 {
 	ck_assert_int_eq(ASN1_STRING_length(get_attribute(p7, handle->oids->senderNonce)), 16);
@@ -814,9 +825,7 @@ START_TEST(test_scep_pkcsreq_missing_dn)
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
-	const EVP_CIPHER *enc_alg = NULL;
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
-	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
+	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
 }
 END_TEST
@@ -840,9 +849,7 @@ START_TEST(test_scep_pkcsreq_missing_pubkey)
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
-	const EVP_CIPHER *enc_alg = NULL;
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
-	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
+	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
 }
 END_TEST
@@ -867,9 +874,7 @@ START_TEST(test_scep_pkcsreq_missing_challenge_password)
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
-	const EVP_CIPHER *enc_alg = NULL;
-	//make_message_data(&sig_cert, &sig_key, NULL, NULL, NULL, NULL, &enc_cert, NULL, &req, &enc_alg);
-	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7) == SCEPE_INVALID_CONTENT);
+	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
 }
 END_TEST
@@ -988,16 +993,16 @@ Suite * scep_message_suite(void)
 	/* GetCert tests */
 	TCase *tc_gc_msg = tcase_create("GetCert Message");
 	tcase_add_checked_fixture(tc_gc_msg, gc_setup, gc_teardown);
-	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_gc_msg, test_scep_message_transaction_id_getcert);
 	tcase_add_test(tc_gc_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_gc_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gc_msg, test_scep_gc);
 	suite_add_tcase(s, tc_gc_msg);
 
 	/* GetCRL tests */
-	TCase *tc_gcrl_msg = tcase_create("GetRL Message");
+	TCase *tc_gcrl_msg = tcase_create("GetCRL Message");
 	tcase_add_checked_fixture(tc_gcrl_msg, gcrl_setup, gc_teardown);
-	tcase_add_test(tc_gcrl_msg, test_scep_message_transaction_id);
+	tcase_add_test(tc_gcrl_msg, test_scep_message_transaction_id_getcrl);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_sender_nonce);
 	tcase_add_test(tc_gcrl_msg, test_scep_message_certificate);
 	tcase_add_test(tc_gcrl_msg, test_scep_gcrl);

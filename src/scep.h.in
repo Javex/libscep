@@ -212,13 +212,13 @@ char *scep_strerror(SCEP_ERROR err);
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);
 SCEP_ERROR scep_new_selfsigned_X509(
     SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert);
-SCEP_ERROR scep_certrep(SCEP *handle, SCEP_DATA *request, char *pkiStatus, char *failInfo,
+SCEP_ERROR scep_certrep(SCEP *handle, char *transactionID, unsigned char *senderNonce, char *pkiStatus, char *failInfo,
     X509 *requestedCert, X509 *sig_cert, EVP_PKEY *sig_key, X509 *enc_cert,
-    const EVP_CIPHER *enc_alg, STACK_OF(X509) *additionalCerts,
+    STACK_OF(X509) *additionalCerts,
     X509_CRL *crl, PKCS7 **pkiMessage);
 SCEP_ERROR scep_pkcsreq(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-    X509 *enc_cert, const EVP_CIPHER *enc_alg, PKCS7 **pkiMessage);
+    X509 *enc_cert, PKCS7 **pkiMessage);
 SCEP_ERROR scep_unwrap(
     SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
     SCEP_DATA **output);
@@ -228,15 +228,15 @@ SCEP_ERROR scep_unwrap_response(
     SCEP_OPERATION request_type, SCEP_DATA **output);
 SCEP_ERROR scep_get_cert_initial(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-    X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    X509 *cacert, X509 *enc_cert,
     PKCS7 **pkiMessage);
 SCEP_ERROR scep_get_cert(
-    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-    X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
     PKCS7 **pkiMessage);
 SCEP_ERROR scep_get_crl(
-    SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-    X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
+    X509 *req_cert, X509 *enc_cert,
     PKCS7 **pkiMessage);
 
 /* Internal functions */
@@ -250,23 +250,25 @@ void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
 
 /* util.c */
-SCEP_ERROR scep_calculate_transaction_id(
+SCEP_ERROR scep_calculate_transaction_id_pubkey(
     SCEP *handle, EVP_PKEY *pubkey, char **transaction_id);
 void _scep_log(SCEP *handle, SCEP_VERBOSITY verbosity, const char *file,
         int line, char *format, ...);
+SCEP_ERROR scep_calculate_transaction_id_ias_type(
+    SCEP *handle, PKCS7_ISSUER_AND_SERIAL *ias, char *messageType, char **transaction_id);
 int X509_REQ_cmp(X509_REQ *req1, X509_REQ *req2);
 DECLARE_ASN1_FUNCTIONS(PKCS7_ISSUER_AND_SUBJECT)
 
 /* message.c */
 SCEP_ERROR scep_p7_client_init(
-    SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key,
+    SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
     struct p7_data_t *p7data);
 SCEP_ERROR scep_p7_server_init(SCEP *handle, struct p7_data_t *p7data);
 SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7);
 
 SCEP_ERROR scep_pkiMessage(
     SCEP *handle, char *messageType, BIO *data,
-    X509 *enc_cert, const EVP_CIPHER *enc_alg,
+    X509 *enc_cert,
     struct p7_data_t *p7data);
 
 SCEP_ERROR verify(

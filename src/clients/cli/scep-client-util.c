@@ -248,6 +248,8 @@ char *scep_client_strerror(SCEP_CLIENT_ERROR err)
 			return "Server response was invalid. Log contains more details";
 		case SCEPE_CLIENT_FILE_DOES_NOT_EXIST:
 			return "Given file does not exist";
+		case SCEPE_CLIENT_FILE:
+			return "Error with the file system";
 
 		case SCEPE_CLIENT_DUMMY_LAST_ERROR:
 			return "Unknown error";
@@ -340,4 +342,32 @@ SCEP_CLIENT_ERROR scep_read_request(SCEP *handle, X509_REQ **req, char *filename
 	}
 	fclose(file);
 	return SCEPE_CLIENT_OK;
+}
+
+SCEP_CLIENT_ERROR scep_bio_PEM_fp(SCEP *handle, BIO *data, FILE *out) {
+	BIO *input_b64bio = NULL;
+	SCEP_CLIENT_ERROR error = SCEPE_CLIENT_OK;
+	char buf[4096];
+	int data_read = 0;
+
+	input_b64bio = BIO_push(BIO_new(BIO_f_base64()), data);
+	if(!input_b64bio) {
+		ERR_print_errors(handle->configuration->log);
+		scep_log(handle, FATAL, "Error creating b64 bio for file");
+		error = SCEPE_CLIENT_OPENSSL;
+		goto finally;
+	}
+
+	while(data_read = BIO_read(input_b64bio, buf, 4096) > 0) {
+		fwrite(buf, data_read, 1, out);
+		if(ferror(out)) {
+			scep_log(handle, FATAL, "Unable to write data: %s", strerror(errno));
+			error = SCEPE_CLIENT_FILE;
+			goto finally;
+		}
+	}
+
+finally:
+	BIO_free(input_b64bio);
+	return error;
 }

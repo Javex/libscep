@@ -135,7 +135,7 @@ PySCEP_pkcsreq(PySCEP *self, PyObject *args)
 	handle = PyCapsule_GetPointer(self->handle, "scep.handle");
 	if(!handle)
 		return NULL;
-	if((error = scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, handle->configuration->encalg, &p7)) != SCEPE_OK) {
+	if((error = scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7)) != SCEPE_OK) {
 		PyErr_SetString(PyExc_RuntimeError, "Error creating PKCSReq.");
 		return NULL;
 	}

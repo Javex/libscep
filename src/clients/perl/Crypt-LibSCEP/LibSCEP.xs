@@ -206,7 +206,6 @@ CODE:
 OUTPUT:
 	RETVAL
 
-
 char *
 pkcsreq(key_str, ca_str, enc_str, req_str)
 char * key_str
@@ -253,10 +252,8 @@ CODE:
 
 	enc_alg = EVP_des_ede3_cbc();
 
-
 	SCEP_ERROR s = scep_pkcsreq(
 		handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7);
-	
 
 	if(s != SCEPE_OK)
 		printf("failure");

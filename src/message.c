@@ -1,6 +1,6 @@
 #include "scep.h"
 #include<unistd.h>
-SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
+SCEP_ERROR scep_p7_client_init(SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
 {
 	SCEP_ERROR error = SCEPE_OK;
 
@@ -24,12 +24,6 @@ SCEP_ERROR scep_p7_client_init(SCEP *handle, EVP_PKEY *req_pubkey, X509 *sig_cer
 	if(!(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT))
 		if(!PKCS7_add_certificate(p7data->p7, sig_cert))
 			OSSL_ERR("Could not add signer certificate");
-
-	/* transaction ID */
-	if((error = scep_calculate_transaction_id(handle, req_pubkey, &p7data->transaction_id)) != SCEPE_OK) {
-		scep_log(handle, FATAL, "Could create transaction ID");
-		goto finally;
-	}
 
 	/* sender nonce */
 	if(RAND_bytes(p7data->sender_nonce, NONCE_LENGTH) == 0)
@@ -68,8 +62,7 @@ finally:
 
 SCEP_ERROR scep_pkcsreq(
 	SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg,
-		PKCS7 **pkiMessage)
+		X509 *enc_cert, PKCS7 **pkiMessage)
 {
 	BIO *databio = NULL;
 	EVP_PKEY *req_pubkey = NULL;
@@ -106,11 +99,18 @@ SCEP_ERROR scep_pkcsreq(
 	if(i2d_X509_REQ_bio(databio, req) <= 0)
 		OSSL_ERR("Could not read request into data BIO");
 
-	if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)) != SCEPE_OK)
+	if((error = scep_p7_client_init(handle, sig_cert, sig_key, &p7data)) != SCEPE_OK)
 		goto finally;
+
+	/* transaction ID */
+	if((error = scep_calculate_transaction_id_pubkey(handle, req_pubkey, &p7data.transaction_id)) != SCEPE_OK) {
+		scep_log(handle, FATAL, "Could create transaction ID");
+		goto finally;
+	}
+
 	if((error = scep_pkiMessage(
 			handle, MESSAGE_TYPE_PKCSREQ,
-			databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+			databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
 	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
 		goto finally;
@@ -124,12 +124,14 @@ finally:
 }
 
 SCEP_ERROR scep_certrep(
-	SCEP *handle, SCEP_DATA *request, /*must at least contain a transaction id*/
+	SCEP *handle,
+	char *transactionID,
+	unsigned char *senderNonce,
 	char * pkiStatus, /*required*/
 	char *failInfo, /*required, if pkiStatus = failure*/
 	X509 *requestedCert, /*iff success, issuedCert (PKCSReq, GetCertInitial, or other one if GetCert*/
 	X509 *sig_cert, EVP_PKEY *sig_key, /*required*/
-	X509 *enc_cert, const EVP_CIPHER *enc_alg, /*required iff success, alternative:read out from request, alternative 2: put into SCEP_DATA when unwrapping*/
+	X509 *enc_cert, /*required iff success, alternative:read out from request, alternative 2: put into SCEP_DATA when unwrapping*/
 	STACK_OF(X509) *additionalCerts, /*optional (in success case): additional certs to be included*/
 	X509_CRL *crl, /*mutually exclusive to requestedCert*/
 	PKCS7 **pkiMessage) /*return pkcs7*/ 
@@ -144,9 +146,6 @@ SCEP_ERROR scep_certrep(
 	if(sig_key == NULL)
 		OSSL_ERR("signer Key is required");
 
-	if(request == NULL)
-		OSSL_ERR("scep_data (e.g. obtained by unwrap) is required");
-
 	if(pkiStatus == NULL)
 		OSSL_ERR("pkiStatus is required");
 
@@ -158,8 +157,6 @@ SCEP_ERROR scep_certrep(
 	if(strcmp(pkiStatus, "SUCCESS") == 0) {
 		if(enc_cert == NULL)
 			OSSL_ERR("SUCCESS requires an encryption cert");
-		if(enc_alg == NULL)
-			OSSL_ERR("SUCCESS requires an encryption alg");
 		if(!(requestedCert == NULL) ^ (crl == NULL))
 			OSSL_ERR("requested cert and crl are mutually exclusive");
 		if((additionalCerts != NULL) && (requestedCert == NULL))
@@ -170,6 +167,11 @@ SCEP_ERROR scep_certrep(
 	
 	//PKCS7 *local_pkiMessage;
 	struct p7_data_t *p7data = malloc(sizeof(*p7data));
+	if(!p7data) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
+	memset(p7data, 0, sizeof(*p7data));
 
 	/*generic for all certrep types*/
 	p7data->p7 = PKCS7_new();
@@ -192,15 +194,18 @@ SCEP_ERROR scep_certrep(
 	if(!PKCS7_content_new(p7data->p7, NID_pkcs7_data))
 		OSSL_ERR("Could not create inner PKCS#7 data structure");
 
-	if(!(p7data->transaction_id = request->transactionID))
-		OSSL_ERR("Could not read transactionID");
 
-	//if(!(p7data->sender_nonce = (unsigned char[16])request->senderNonce))
-	//	OSSL_ERR("Could not read senderNonce");
+	p7data->transaction_id = strdup(transactionID);
+	if(!p7data->transaction_id) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
 
-	memcpy(p7data->sender_nonce, request->senderNonce, NONCE_LENGTH);
-	if(!(p7data->sender_nonce))
-		OSSL_ERR("Could not read senderNonce");
+	memcpy(p7data->sender_nonce, senderNonce, NONCE_LENGTH);
+	if(!p7data->sender_nonce) {
+		error = SCEPE_MEMORY;
+		goto finally;
+	}
 
 	p7data->bio = PKCS7_dataInit(p7data->p7, NULL);
 	if(!p7data->bio)
@@ -210,7 +215,7 @@ SCEP_ERROR scep_certrep(
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
-				NULL, NULL, NULL, p7data)) != SCEPE_OK)
+				NULL, NULL, p7data)) != SCEPE_OK)
 			goto finally;
 
 		/* pkiStatus */
@@ -228,7 +233,7 @@ SCEP_ERROR scep_certrep(
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
-				NULL, NULL, NULL, p7data)) != SCEPE_OK)
+				NULL, NULL, p7data)) != SCEPE_OK)
 			goto finally;
 
 		/* pkiStatus */
@@ -288,7 +293,7 @@ SCEP_ERROR scep_certrep(
 
 		if((error = scep_pkiMessage(
 				handle, MESSAGE_TYPE_CERTREP,
-				databio, enc_cert, enc_alg, p7data)) != SCEPE_OK)
+				databio, enc_cert, p7data)) != SCEPE_OK)
 			goto finally;
 
 		/* pkiStatus */
@@ -313,7 +318,7 @@ SCEP_ERROR scep_certrep(
 	asn1_recipient_nonce = ASN1_OCTET_STRING_new();
 	if(asn1_recipient_nonce == NULL)
 		OSSL_ERR("Could not create ASN1 recipient nonce object");
-	if(!ASN1_OCTET_STRING_set(asn1_recipient_nonce, request->senderNonce, NONCE_LENGTH))
+	if(!ASN1_OCTET_STRING_set(asn1_recipient_nonce, p7data->sender_nonce, NONCE_LENGTH))
 		OSSL_ERR("Could not set ASN1 recipient nonce object");
 	if(!PKCS7_add_signed_attribute(
 			p7data->signer_info, handle->oids->recipientNonce, V_ASN1_OCTET_STRING,
@@ -333,7 +338,7 @@ finally:
 
 SCEP_ERROR scep_get_cert_initial(
 		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *cacert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509 *cacert, X509 *enc_cert,
 		PKCS7 **pkiMessage)
 {
 
@@ -379,10 +384,17 @@ SCEP_ERROR scep_get_cert_initial(
 	if(!BIO_write(databio, ias_data, ias_data_size))
 		OSSL_ERR("Could not write issuer and subject data into BIO");
 
-	if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)))
+	if((error = scep_p7_client_init(handle, sig_cert, sig_key, &p7data)))
 		goto finally;
+
+	/* transaction ID */
+	if((error = scep_calculate_transaction_id_pubkey(handle, req_pubkey, &p7data.transaction_id)) != SCEPE_OK) {
+		scep_log(handle, FATAL, "Could create transaction ID");
+		goto finally;
+	}
+
 	if((error = scep_pkiMessage(
-			handle, MESSAGE_TYPE_GETCERTINITIAL, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+			handle, MESSAGE_TYPE_GETCERTINITIAL, databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
 	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
 		goto finally;
@@ -394,37 +406,25 @@ finally:
 }
 
 static SCEP_ERROR _scep_get_cert_or_crl(
-		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
+		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
 		char *messageType, PKCS7 **pkiMessage)
 {
 
 	SCEP_ERROR error = SCEPE_OK;
 	struct p7_data_t p7data;
-	EVP_PKEY *req_pubkey = NULL;
 	PKCS7_ISSUER_AND_SERIAL *ias;
 	unsigned char *ias_data = NULL;
 	int ias_data_size;
 	BIO *databio;
 	char *issuer_str = NULL;
 
-	req_pubkey = X509_REQ_get_pubkey(req);
-	if(!req_pubkey) {
-		scep_log(handle, ERROR, "Need public key on CSR");
-		return SCEPE_INVALID_CONTENT;
-	}
-
 	ias = PKCS7_ISSUER_AND_SERIAL_new();
 	if(!ias)
 		OSSL_ERR("Could not create new issuer and subject structure");
 
-	ias->serial = X509_get_serialNumber(req_cert);
-	if(!ias->serial)
-		OSSL_ERR("Could not get serial from CA cert");
-
-	ias->issuer = X509_get_issuer_name(req_cert);
-	if(!ias->issuer)
-		OSSL_ERR("Could not get issuer name for CA cert");
+	ias->serial = serial;
+	ias->issuer = issuer;
 	issuer_str = X509_NAME_oneline(ias->issuer, NULL, 0);
 	scep_log(handle, INFO, "Issuer Name is %s", issuer_str);
 
@@ -439,10 +439,17 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 	if(!BIO_write(databio, ias_data, ias_data_size))
 		OSSL_ERR("Could not write issuer and subject data into BIO");
 
-	if((error = scep_p7_client_init(handle, req_pubkey, sig_cert, sig_key, &p7data)))
+	if((error = scep_p7_client_init(handle, sig_cert, sig_key, &p7data)))
 		goto finally;
+
+	/* transaction ID */
+	if((error = scep_calculate_transaction_id_ias_type(handle, ias, messageType, &p7data.transaction_id)) != SCEPE_OK) {
+		scep_log(handle, FATAL, "Could create transaction ID");
+		goto finally;
+	}
+
 	if((error = scep_pkiMessage(
-			handle, messageType, databio, enc_cert, enc_alg, &p7data)) != SCEPE_OK)
+			handle, messageType, databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
 	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
 		goto finally;
@@ -454,31 +461,42 @@ finally:
 }
 
 SCEP_ERROR scep_get_cert(
-		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
+		X509_NAME *issuer, ASN1_INTEGER *serial, X509 *enc_cert,
 		PKCS7 **pkiMessage)
 {
 	return _scep_get_cert_or_crl(
-		handle, req, sig_cert, sig_key,
-		req_cert, enc_cert, enc_alg,
+		handle, sig_cert, sig_key,
+		issuer, serial, enc_cert,
 		MESSAGE_TYPE_GETCERT, pkiMessage);
 }
 
 SCEP_ERROR scep_get_crl(
-		SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
-		X509 *req_cert, X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
+		X509 *req_cert, X509 *enc_cert,
 		PKCS7 **pkiMessage)
 {
+	SCEP_ERROR error = SCEPE_OK;
+	ASN1_INTEGER *serial = X509_get_serialNumber(req_cert);
+	if(!serial)
+		OSSL_ERR("Could not get serial from CA cert");
+
+	X509_NAME *issuer = X509_get_issuer_name(req_cert);
+	if(!issuer)
+		OSSL_ERR("Could not get issuer name for CA cert");
+
 	return _scep_get_cert_or_crl(
-		handle, req, sig_cert, sig_key,
-		req_cert, enc_cert, enc_alg,
+		handle, sig_cert, sig_key,
+		issuer, serial, enc_cert,
 		MESSAGE_TYPE_GETCRL, pkiMessage);
+finally:
+	return error;
 }
 
 SCEP_ERROR scep_pkiMessage(
 		SCEP *handle,
 		char *messageType, BIO *data,
-		X509 *enc_cert, const EVP_CIPHER *enc_alg,
+		X509 *enc_cert,
 		struct p7_data_t *p7data) {
 	PKCS7 *encdata = NULL;
 	SCEP_ERROR error = SCEPE_OK;
@@ -530,7 +548,7 @@ SCEP_ERROR scep_pkiMessage(
 			OSSL_ERR("Could not create enc cert stack");
 		if(!sk_X509_push(enc_certs, enc_cert))
 			OSSL_ERR("Could not push enc cert onto stack");
-		encdata = PKCS7_encrypt(enc_certs, data, enc_alg, PKCS7_BINARY);
+		encdata = PKCS7_encrypt(enc_certs, data, handle->configuration->encalg, PKCS7_BINARY);
 		if(!encdata)
 			OSSL_ERR("Could not encrypt data");
 		// put encrypted data into p7
