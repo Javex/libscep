@@ -128,7 +128,7 @@ SCEP_ERROR scep_certrep(
 		SCEP *handle,
 		char *transactionID,
 		unsigned char *senderNonce,
-		char * pkiStatus, /*required*/
+		SCEP_PKISTATUS pkiStatus, /*required*/
 		SCEP_FAILINFO failInfo, /*required, if pkiStatus = failure*/
 		X509 *requestedCert, /*iff success, issuedCert (PKCSReq, GetCertInitial, or other one if GetCert*/
 		X509 *sig_cert, EVP_PKEY *sig_key, /*required*/
@@ -147,12 +147,9 @@ SCEP_ERROR scep_certrep(
 	if(sig_key == NULL)
 		OSSL_ERR("signer Key is required");
 
-	if(pkiStatus == NULL)
-		OSSL_ERR("pkiStatus is required");
-
 	/*TODO: add string attributes to header*/
 
-	if(strcmp(pkiStatus, "SUCCESS") == 0) {
+	if(pkiStatus == SCEP_SUCCESS) {
 		if(enc_cert == NULL)
 			OSSL_ERR("SUCCESS requires an encryption cert");
 		if(!(requestedCert == NULL) ^ (crl == NULL))
@@ -209,7 +206,7 @@ SCEP_ERROR scep_certrep(
 	if(!p7data->bio)
 		OSSL_ERR("Could not initialize PKCS#7 data");
 
-	if(strcmp(pkiStatus,"PENDING") == 0) {
+	if(pkiStatus == SCEP_PENDING) {
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, SCEP_MSG_CERTREP_STR,
@@ -227,7 +224,7 @@ SCEP_ERROR scep_certrep(
 				asn1_pkiStatus))
 			OSSL_ERR("Could not add attribute for pkiStatus");
 	}
-	else if(strcmp(pkiStatus,"FAILURE") == 0) {
+	else if(pkiStatus == SCEP_FAILURE) {
 		/*encryption content MUST be ommited*/
 		if((error = scep_pkiMessage(
 				handle, SCEP_MSG_CERTREP_STR,
@@ -277,7 +274,7 @@ SCEP_ERROR scep_certrep(
 				asn1_failInfo))
 			OSSL_ERR("Could not add attribute for failInfo");
 	}
-	else if(strcmp(pkiStatus,"SUCCESS") == 0) {
+	else if(pkiStatus == SCEP_SUCCESS) {
 		/*create degen p7*/
 		PKCS7 *degenP7 = NULL;
 		if(!(make_degenP7(

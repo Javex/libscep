@@ -223,7 +223,7 @@ SCEP_ERROR scep_new_selfsigned_X509(
     SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert);
 SCEP_ERROR scep_certrep(
     SCEP *handle, char *transactionID, unsigned char *senderNonce,
-    char * pkiStatus, SCEP_FAILINFO failInfo, X509 *requestedCert,
+    SCEP_PKISTATUS pkiStatus, SCEP_FAILINFO failInfo, X509 *requestedCert,
     X509 *sig_cert, EVP_PKEY *sig_key, X509 *enc_cert,
     STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **pkiMessage);
 SCEP_ERROR scep_pkcsreq(

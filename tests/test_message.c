@@ -386,7 +386,7 @@ void make_certrep_message() {
 	BIO_free(b);
 
 	own_certrep_pending = NULL;
-	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "PENDING", 0,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, SCEP_PENDING, 0,
 			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL,
 			&own_certrep_pending) == SCEPE_OK);
 
@@ -394,7 +394,7 @@ void make_certrep_message() {
 		handle, own_certrep_pending, sig_cacert, enc_cert, enc_key, &unwrap_own_certrep_pending) == SCEPE_OK);
 
 	own_certrep_failure = NULL;
-	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "FAILURE", SCEP_BAD_ALG,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, SCEP_FAILURE, SCEP_BAD_ALG,
 			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL,
 			&own_certrep_failure) == SCEPE_OK);
 
@@ -404,7 +404,7 @@ void make_certrep_message() {
 	own_certrep_success = NULL;
 	STACK_OF(X509) *cert_stack = sk_X509_new_null();
 	sk_X509_push(cert_stack, sig_cacert);
-	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "SUCCESS", 0,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, SCEP_SUCCESS, 0,
 			issuedCert, sig_cacert, sig_cakey, enc_cert, cert_stack, NULL,
 			&own_certrep_success) == SCEPE_OK);
 
