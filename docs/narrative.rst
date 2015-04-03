@@ -9,7 +9,4 @@ using ``libscep``.
 .. toctree::
     :maxdepth: 2
 
-    narrative/usage
-    narrative/configuration
-    narrative/developer
-    narrative/scep
+    narrative/introduction
