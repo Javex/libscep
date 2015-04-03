@@ -433,8 +433,8 @@ void make_unwrap_message()
 	ck_assert(scep_unwrap_response(
 		handle, certrep_failure, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_failure) == SCEPE_OK);
 
-	ck_assert(scep_unwrap(
-		handle, certrep_success, sig_cacert, enc_cert, enc_key, &pkiMessage_success) == SCEPE_OK);
+	ck_assert(scep_unwrap_response(
+		handle, certrep_success, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_success) == SCEPE_OK);
 }
 
 void make_unwrap_gci_message()
@@ -679,7 +679,7 @@ START_TEST(test_unwrap_message)
 	/*TODO: this test should fail...*/
 	ck_assert_int_eq(0, pkiMessage_success->failInfo);
 	/*for every kind of request, a SUCCESS response will have a degen p7 structure */
-	ck_assert(pkiMessage_success->messageData != NULL);
+	ck_assert_int_eq(sk_X509_num(pkiMessage_success->certs), 1);
 
 	ck_assert_int_ne(NULL, pkiMessage_failure);
 	ck_assert_str_eq(
