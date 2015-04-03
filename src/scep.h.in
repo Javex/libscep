@@ -34,11 +34,11 @@
 #define SCEP_PKISTATUS_PENDING "3"
 
 
-#define SCEP_FAILINFO_BADALG "0"
-#define SCEP_FAILINFO_BADMESSAGECHECK "1"
-#define SCEP_FAILINFO_BADREQUEST "2"
-#define SCEP_FAILINFO_BADTIME "3"
-#define SCEP_FAILINFO_BADCERTID "4"
+#define SCEP_BAD_ALG_NR "0"
+#define SCEP_BAD_MESSAGE_CHECK_NR "1"
+#define SCEP_BAD_REQUEST_NR "2"
+#define SCEP_BAD_TIME_NR "3"
+#define SCEP_BAD_CERT_ID_NR "4"
 
 // number of nonce bytes, defined by protocol
 #define NONCE_LENGTH 16
@@ -123,11 +123,11 @@ typedef enum {
 } SCEP_PKISTATUS;
 
 typedef enum {
-    badAlg = 0,
-    badMessageCheck = 1,
-    badRequest = 2,
-    badTime = 3,
-    badCertId = 4,
+    SCEP_BAD_ALG = 0,
+    SCEP_BAD_MESSAGE_CHECK = 1,
+    SCEP_BAD_REQUEST = 2,
+    SCEP_BAD_TIME = 3,
+    SCEP_BAD_CERT_ID = 4,
 } SCEP_FAILINFO;
 
 typedef enum {
@@ -217,21 +217,23 @@ SCEP_ERROR scep_init(SCEP **handle);
 void scep_cleanup(SCEP *handle);
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
 char *scep_strerror(SCEP_ERROR err);
+char *scep_fail_info_str(SCEP_FAILINFO fail_info);
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);
 SCEP_ERROR scep_new_selfsigned_X509(
     SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert);
-SCEP_ERROR scep_certrep(SCEP *handle, char *transactionID, unsigned char *senderNonce, char *pkiStatus, char *failInfo,
-    X509 *requestedCert, X509 *sig_cert, EVP_PKEY *sig_key, X509 *enc_cert,
-    STACK_OF(X509) *additionalCerts,
-    X509_CRL *crl, PKCS7 **pkiMessage);
+SCEP_ERROR scep_certrep(
+    SCEP *handle, char *transactionID, unsigned char *senderNonce,
+    char * pkiStatus, SCEP_FAILINFO failInfo, X509 *requestedCert,
+    X509 *sig_cert, EVP_PKEY *sig_key, X509 *enc_cert,
+    STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **pkiMessage);
 SCEP_ERROR scep_pkcsreq(
     SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *enc_cert, PKCS7 **pkiMessage);
 SCEP_ERROR scep_unwrap(
-    SCEP *handle, PKCS7 *pkiMessage, X509 *cacert, X509 *sig_cacert, EVP_PKEY *cakey,
-    SCEP_DATA **output);
+    SCEP *handle, PKCS7 *pkiMessage, X509 *ca_cert, X509 *dec_cert,
+    EVP_PKEY *dec_key, SCEP_DATA **output);
 SCEP_ERROR scep_unwrap_response(
-    SCEP *handle, PKCS7 *pkiMessage, X509 *sig_cacert,
+    SCEP *handle, PKCS7 *pkiMessage, X509 *ca_cert,
     X509 *request_cert, EVP_PKEY *request_key,
     SCEP_OPERATION request_type, SCEP_DATA **output);
 SCEP_ERROR scep_get_cert_initial(
@@ -278,7 +280,4 @@ SCEP_ERROR scep_pkiMessage(
     SCEP *handle, char *messageType, BIO *data,
     X509 *enc_cert,
     struct p7_data_t *p7data);
-
-SCEP_ERROR make_degenP7(
-    SCEP *handle, X509 *cert, STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **p7);
 #endif /* SCEP_H_ */

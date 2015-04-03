@@ -64,6 +64,24 @@ char *scep_strerror(SCEP_ERROR err)
 	return "Unknown error";
 }
 
+char *scep_fail_info_str(SCEP_FAILINFO fail_info)
+{
+	switch(fail_info) {
+		case SCEP_BAD_ALG:
+			return "badAlg: Unrecognized or unsupported algorithm identifier";
+		case SCEP_BAD_MESSAGE_CHECK:
+			return "badMessageCheck: integrity check failed";
+		case SCEP_BAD_REQUEST:
+			return "badRequest: transaction not permitted or supported";
+		case SCEP_BAD_TIME:
+			return "badTime: The signingTime attribute from the PKCS#7 authenticatedAttributes was not sufficiently close to the system time";
+		case SCEP_BAD_CERT_ID:
+			return "badCertId: No certificate could be identified matching the provided criteria";
+	}
+
+	return "Unknown failInfo";
+}
+
 SCEP_ERROR scep_calculate_transaction_id_pubkey(SCEP *handle, EVP_PKEY *pubkey, char **transaction_id)
 {
 	SCEP_ERROR error = SCEPE_OK;
@@ -81,14 +99,14 @@ SCEP_ERROR scep_calculate_transaction_id_pubkey(SCEP *handle, EVP_PKEY *pubkey, 
 		error = SCEPE_MEMORY;
 		goto finally;
 	}
-	
+
 	if(!i2d_PUBKEY_bio(bio, pubkey))
 		OSSL_ERR("Could not convert pubkey to DER");
 
 	len = BIO_get_mem_data(bio, &data);
 	if(len == 0)
 		OSSL_ERR("Could not get data from bio");
-	
+
 	SHA256(data, len, digest);
 	ctx = EVP_MD_CTX_create();
 	if(ctx == NULL)

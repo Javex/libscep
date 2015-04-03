@@ -79,6 +79,15 @@ START_TEST(test_scep_strerror)
 }
 END_TEST
 
+START_TEST(test_scep_fail_info_str)
+{
+	int i;
+	for(i=SCEP_BAD_ALG; i <= SCEP_BAD_CERT_ID; i++)
+		ck_assert_int_ne(strlen(scep_fail_info_str(i)), 0);
+	ck_assert_str_eq(scep_fail_info_str(5), "Unknown failInfo");
+}
+END_TEST
+
 START_TEST(test_scep_calculate_transaction_id_pubkey)
 {
 	X509_REQ *req;
@@ -256,6 +265,7 @@ Suite * scep_util_suite(void)
 	TCase *tc_core = tcase_create("Core");
 	tcase_add_checked_fixture(tc_core, setup, teardown);
 	tcase_add_test(tc_core, test_scep_strerror);
+	tcase_add_test(tc_core, test_scep_fail_info_str);
 	tcase_add_test(tc_core, test_scep_calculate_transaction_id_pubkey);
 	tcase_add_test(tc_core, test_scep_calculate_transaction_id_ias_type);
 	tcase_add_test(tc_core, test_scep_PKCS7_base64_encode);

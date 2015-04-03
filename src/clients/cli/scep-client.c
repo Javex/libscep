@@ -17,7 +17,7 @@ static struct argp_option options[] = {
 	{"signature-algorithm", 'S', "algorithm", 0, "PKCS#7 signature algorithm (md5|sha1|sha256|sha512)"},
 	{"verbose", 'v', 0, 0, "Verbose output"},
 	{"debug", 'd', 0, 0, "Debug (even more verbose output)"},
-	
+
 	/* GetCACert Options */
 	{"\nOPTIONS for OPERATION getca are:", 0, 0, OPTION_DOC, 0, 1},
 	{"identifier", 'i', "string", 0, "CA identifier string", 2},

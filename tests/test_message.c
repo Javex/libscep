@@ -296,7 +296,7 @@ void make_message_data()
 	enc_cert = PEM_read_bio_X509(b, NULL, 0, 0);
 	ck_assert(enc_cert != NULL);
 	BIO_free(b);
-		
+
 	b = BIO_new(BIO_s_mem());
 	BIO_puts(b, enc_key_str);
 	enc_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
@@ -314,25 +314,25 @@ void make_message_data()
 	sig_cacert = PEM_read_bio_X509(b, NULL, 0, 0);
 	ck_assert(sig_cacert != NULL);
 	BIO_free(b);
-	
+
 	b = BIO_new(BIO_s_mem());
 	BIO_puts(b, enc_cacert_str);
 	enc_cacert = PEM_read_bio_X509(b, NULL, 0, 0);
 	ck_assert(enc_cacert != NULL);
-	BIO_free(b);	
-	
+	BIO_free(b);
+
 	b = BIO_new(BIO_s_mem());
 	BIO_puts(b, enc_cakey_str);
 	enc_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
 	ck_assert(enc_cakey != NULL);
 	BIO_free(b);
-	
+
 	b = BIO_new(BIO_s_mem());
 	BIO_puts(b, test_new_csr);
 	req = PEM_read_bio_X509_REQ(b, NULL, 0, 0);
 	ck_assert(req != NULL);
 	BIO_free(b);
-	
+
 	b = BIO_new(BIO_s_mem());
 	BIO_puts(b, certrep_pending_str);
 	certrep_pending = PEM_read_bio_PKCS7(b, NULL, 0, 0);
@@ -375,8 +375,8 @@ void make_certrep_message() {
 
 	/*pkcsreq to SCEP_DATA*/
 	ck_assert(scep_unwrap(
-		handle, p7, enc_cacert, sig_cacert, enc_cakey, &scep_message) == SCEPE_OK);
-	
+		handle, p7, sig_cacert, enc_cacert, enc_cakey, &scep_message) == SCEPE_OK);
+
 	/*read in the rest*/
 	BIO *b;
 	X509 *issuedCert = NULL;
@@ -386,42 +386,42 @@ void make_certrep_message() {
 	BIO_free(b);
 
 	own_certrep_pending = NULL;
-	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "PENDING", NULL,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "PENDING", 0,
 			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL,
 			&own_certrep_pending) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
-		handle, own_certrep_pending, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_pending) == SCEPE_OK);
+		handle, own_certrep_pending, sig_cacert, enc_cert, enc_key, &unwrap_own_certrep_pending) == SCEPE_OK);
 
 	own_certrep_failure = NULL;
-	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "FAILURE", "badAlg",
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "FAILURE", SCEP_BAD_ALG,
 			NULL, sig_cacert, sig_cakey, NULL, NULL, NULL,
 			&own_certrep_failure) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
-		handle, own_certrep_failure, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_failure) == SCEPE_OK);
-	
+		handle, own_certrep_failure, sig_cacert, enc_cert, enc_key, &unwrap_own_certrep_failure) == SCEPE_OK);
+
 	own_certrep_success = NULL;
 	STACK_OF(X509) *cert_stack = sk_X509_new_null();
 	sk_X509_push(cert_stack, sig_cacert);
-	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "SUCCESS", NULL,
+	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, "SUCCESS", 0,
 			issuedCert, sig_cacert, sig_cakey, enc_cert, cert_stack, NULL,
 			&own_certrep_success) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
-		handle, own_certrep_success, enc_cert, sig_cacert, enc_key, &unwrap_own_certrep_success) == SCEPE_OK);
+		handle, own_certrep_success, sig_cacert, enc_cert, enc_key, &unwrap_own_certrep_success) == SCEPE_OK);
 
 }
 
 void make_unwrap_message()
 {
 	scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cacert, &p7);
-	
+
 	ck_assert(p7 != NULL);
 
 	pkiMessage = NULL;
 	ck_assert(scep_unwrap(
-		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
 
 	/*same for server response*/
 
@@ -434,7 +434,7 @@ void make_unwrap_message()
 		handle, certrep_failure, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_failure) == SCEPE_OK);
 
 	ck_assert(scep_unwrap(
-		handle, certrep_success, enc_cert, sig_cacert, enc_key, &pkiMessage_success) == SCEPE_OK);
+		handle, certrep_success, sig_cacert, enc_cert, enc_key, &pkiMessage_success) == SCEPE_OK);
 }
 
 void make_unwrap_gci_message()
@@ -442,7 +442,7 @@ void make_unwrap_gci_message()
 	scep_get_cert_initial(handle, req, sig_cert, sig_key, enc_cacert, enc_cacert, &p7);
 	ck_assert(p7 != NULL);
 	ck_assert(scep_unwrap(
-		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
 }
 
 void make_unwrap_gc_message()
@@ -454,7 +454,7 @@ void make_unwrap_gc_message()
 		issuer, serial, enc_cacert, &p7) == SCEPE_OK);
 	ck_assert(p7 != NULL);
 	ck_assert(scep_unwrap(
-		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
 }
 
 void make_unwrap_gcrl_message()
@@ -464,7 +464,7 @@ void make_unwrap_gcrl_message()
 		sig_cert, enc_cacert, &p7) == SCEPE_OK);
 	ck_assert(p7 != NULL);
 	ck_assert(scep_unwrap(
-		handle, p7, enc_cacert, sig_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
 }
 
 PKCS7 *make_gci_message()
@@ -512,7 +512,7 @@ SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 		OSSL_ERR("Could not read from content BIO");
 
 	*result = content;
-finally:	
+finally:
 	if(error != SCEPE_OK) {
 		if(pkcs7bio)
 			BIO_free(pkcs7bio);
@@ -660,13 +660,13 @@ START_TEST(test_certrep_message)
 	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
 	BIO *b = BIO_new(BIO_s_mem());
 	ck_assert_int_ne(0, PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->messageData));
-}	
+}
 END_TEST
 
 START_TEST(test_unwrap_message)
 {
 	make_unwrap_message();
-	
+
 	ck_assert_int_ne(NULL, pkiMessage_success);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
@@ -696,7 +696,7 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_eq(0, pkiMessage_failure->failInfo);
 	ck_assert_int_eq(pkiMessage_failure->certs, NULL);
 
-	
+
 	ck_assert_int_ne(NULL, pkiMessage_certrep);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
@@ -753,10 +753,10 @@ START_TEST(test_invalid_sig)
 {
 	PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_pending), 0);
 	ASN1_TYPE *t = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
-	ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, "A", -1), 0);
-	ck_assert(scep_unwrap(
-		handle, certrep_pending, enc_cert, sig_cacert, enc_key,
-		&pkiMessage_certrep) == SCEPE_OPENSSL);
+	ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, SCEP_PKISTATUS_SUCCESS, -1), 0);
+	ck_assert_int_eq(scep_unwrap(
+		handle, certrep_pending, sig_cacert, enc_cert, enc_key,
+		&pkiMessage_certrep), SCEPE_OPENSSL);
 
 }
 END_TEST
@@ -772,7 +772,7 @@ START_TEST(test_unwrap_invalid_pkiStatus)
 	int res = PKCS7_SIGNER_INFO_sign(si);
 	ck_assert_int_ne(res, 0);
 	ck_assert_int_eq(scep_unwrap(
-		handle, certrep_pending, enc_cert, sig_cacert, enc_key,
+		handle, certrep_pending, sig_cacert, enc_cert, enc_key,
 		&pkiMessage_certrep), SCEPE_PROTOCOL);
 }
 END_TEST
@@ -1006,7 +1006,7 @@ Suite * scep_message_suite(void)
 	tcase_add_checked_fixture(tc_certrep_msg, certrep_setup, certrep_teardown);
 	tcase_add_test(tc_certrep_msg, test_certrep_message);
 	suite_add_tcase(s, tc_certrep_msg);
-	
+
 	/*test unwrapping*/
 	TCase *tc_unwrap_msg = tcase_create("Unwrap Message");
 	tcase_add_checked_fixture(tc_unwrap_msg, unwrap_setup, unwrap_teardown);

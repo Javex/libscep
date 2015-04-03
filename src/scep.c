@@ -14,7 +14,7 @@ SCEP_ERROR scep_init(SCEP **handle)
 	// globally run once
 	if(_scep_handle_count == 0) {
 		OpenSSL_add_all_algorithms();
-		ERR_load_crypto_strings();	
+		ERR_load_crypto_strings();
 	}
 	if(!(local_handle = malloc(sizeof(SCEP))))
 		return SCEPE_MEMORY;
@@ -29,7 +29,7 @@ SCEP_ERROR scep_init(SCEP **handle)
 		scep_cleanup(local_handle);
 		return error;
 	}
-	
+
 	_scep_handle_count += 1;
 	*handle = local_handle;
 	return SCEPE_OK;
