@@ -23,11 +23,11 @@
 #define libscep_STR(x) #x
 #define libscep_VERSION_STR(major, minor) "scep-client v" libscep_STR(major) "." libscep_STR(minor)
 
-#define MESSAGE_TYPE_PKCSREQ "19"
-#define MESSAGE_TYPE_CERTREP "3"
-#define MESSAGE_TYPE_GETCERTINITIAL "20"
-#define MESSAGE_TYPE_GETCERT "21"
-#define MESSAGE_TYPE_GETCRL "22"
+#define SCEP_MSG_PKCSREQ_STR "19"
+#define SCEP_MSG_CERTREP_STR "3"
+#define SCEP_MSG_GETCERTINITIAL_STR "20"
+#define SCEP_MSG_GETCERT_STR "21"
+#define SCEP_MSG_GETCRL_STR "22"
 
 #define SCEP_PKISTATUS_SUCCESS "0"
 #define SCEP_PKISTATUS_FAILURE "2"
@@ -131,6 +131,14 @@ typedef enum {
 } SCEP_FAILINFO;
 
 typedef enum {
+    SCEP_MSG_PKCSREQ = 19,
+    SCEP_MSG_CERTREP = 3,
+    SCEP_MSG_GETCERTINITIAL = 20,
+    SCEP_MSG_GETCERT = 21,
+    SCEP_MSG_GETCRL = 22,
+} SCEP_MESSAGE_TYPE;
+
+typedef enum {
     SCEP_SKIP_SIGNER_CERT           = 0x0001,
     SCEP_ALLOW_MULTIPLE_SIGNER_CERT = 0x0002,
 } SCEP_FLAGS;
@@ -173,8 +181,8 @@ typedef struct {
     unsigned char recipientNonce[NONCE_LENGTH];
     ASN1_TYPE *challenge_password;
     X509 *signer_certificate;
-    char *messageType;
-    int messageType_int;
+    char *messageType_str;
+    SCEP_MESSAGE_TYPE messageType;
     /* Different types of message content for different operations.
      * Contains the required data for the specified operation
      * if there is data attached to the request/response
@@ -270,9 +278,6 @@ SCEP_ERROR scep_pkiMessage(
     SCEP *handle, char *messageType, BIO *data,
     X509 *enc_cert,
     struct p7_data_t *p7data);
-
-SCEP_ERROR verify(
-    SCEP *handle, PKCS7 *pkiMessage, X509_STORE * store, BIO *encData);
 
 SCEP_ERROR make_degenP7(
     SCEP *handle, X509 *cert, STACK_OF(X509) *additionalCerts, X509_CRL *crl, PKCS7 **p7);

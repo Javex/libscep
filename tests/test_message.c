@@ -632,8 +632,8 @@ START_TEST(test_certrep_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		unwrap_own_certrep_pending->transactionID);
-	ck_assert_str_eq("3", unwrap_own_certrep_pending->messageType);
-	ck_assert_int_eq(3, unwrap_own_certrep_pending->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_CERTREP_STR, unwrap_own_certrep_pending->messageType_str);
+	ck_assert_int_eq(SCEP_MSG_CERTREP, unwrap_own_certrep_pending->messageType);
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_pending->senderNonce);
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_pending->recipientNonce);
 	ck_assert_int_eq(SCEP_PENDING, unwrap_own_certrep_pending->pkiStatus);
@@ -642,8 +642,8 @@ START_TEST(test_certrep_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		unwrap_own_certrep_failure->transactionID);
-	ck_assert_str_eq("3", unwrap_own_certrep_failure->messageType);
-	ck_assert_int_eq(3, unwrap_own_certrep_failure->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_CERTREP_STR, unwrap_own_certrep_failure->messageType_str);
+	ck_assert_int_eq(SCEP_MSG_CERTREP, unwrap_own_certrep_failure->messageType);
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_failure->senderNonce);
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_failure->recipientNonce);
 	ck_assert_int_eq(SCEP_FAILURE, unwrap_own_certrep_failure->pkiStatus);
@@ -653,8 +653,8 @@ START_TEST(test_certrep_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		unwrap_own_certrep_success->transactionID);
-	ck_assert_str_eq("3", unwrap_own_certrep_success->messageType);
-	ck_assert_int_eq(3, unwrap_own_certrep_success->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_CERTREP_STR, unwrap_own_certrep_success->messageType_str);
+	ck_assert_int_eq(SCEP_MSG_CERTREP, unwrap_own_certrep_success->messageType);
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->senderNonce);
 	ck_assert_int_ne(NULL, (char*)unwrap_own_certrep_success->recipientNonce);
 	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
@@ -671,8 +671,8 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage_success->transactionID);
-	ck_assert_str_eq("3", pkiMessage_success->messageType);
-	ck_assert_int_eq(3, pkiMessage_success->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_CERTREP_STR, pkiMessage_success->messageType_str);
+	ck_assert_int_eq(SCEP_MSG_CERTREP, pkiMessage_success->messageType);
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_success->senderNonce));
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_success->recipientNonce));
 	ck_assert_int_eq(SCEP_SUCCESS, pkiMessage_success->pkiStatus);
@@ -685,8 +685,8 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage_failure->transactionID);
-	ck_assert_str_eq("3", pkiMessage_failure->messageType);
-	ck_assert_int_eq(3, pkiMessage_failure->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_CERTREP_STR, pkiMessage_failure->messageType_str);
+	ck_assert_int_eq(3, pkiMessage_failure->messageType);
 	/*TODO: check improving, some values might be not NULL and still invalid*/
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_failure->senderNonce));
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_failure->recipientNonce));
@@ -701,8 +701,8 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage_certrep->transactionID);
-	ck_assert_str_eq("3", pkiMessage_certrep->messageType);
-	ck_assert_int_eq(3, pkiMessage_certrep->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_CERTREP_STR, pkiMessage_certrep->messageType_str);
+	ck_assert_int_eq(3, pkiMessage_certrep->messageType);
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_certrep->senderNonce));
 	ck_assert_int_ne(NULL, (char*)(pkiMessage_certrep->recipientNonce));
 	//next test shoud work on own implementation but not necessary on other ones
@@ -716,8 +716,8 @@ START_TEST(test_unwrap_message)
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
 		pkiMessage->transactionID);
-	ck_assert_str_eq("19", pkiMessage->messageType);
-	ck_assert_int_eq(19, pkiMessage->messageType_int);
+	ck_assert_str_eq(SCEP_MSG_PKCSREQ_STR, pkiMessage->messageType_str);
+	ck_assert_int_eq(SCEP_MSG_PKCSREQ, pkiMessage->messageType);
 	ck_assert_int_ne(NULL, pkiMessage->request);
 	ck_assert_int_ne(NULL, pkiMessage->senderNonce);
 	ck_assert_str_eq("FOOBARTESTPWD", ASN1_STRING_data(pkiMessage->challenge_password->value.printablestring));
@@ -857,7 +857,7 @@ START_TEST(test_scep_pkcsreq)
 
 	ck_assert_int_eq(X509_REQ_cmp(csr, ref_csr), 0);
 	ck_assert_str_eq(
-		MESSAGE_TYPE_PKCSREQ,
+		SCEP_MSG_PKCSREQ_STR,
 		get_attribute_data(p7, handle->oids->messageType));
 }
 END_TEST
@@ -943,7 +943,7 @@ START_TEST(test_scep_gci)
 	ck_assert_int_ne(data_buf_len, 0);
 
 	ck_assert_str_eq(
-		MESSAGE_TYPE_GETCERTINITIAL,
+		SCEP_MSG_GETCERTINITIAL_STR,
 		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
@@ -963,7 +963,7 @@ START_TEST(test_scep_gc)
 	ck_assert_int_ne(data_buf_len, 0);
 
 	ck_assert_str_eq(
-		MESSAGE_TYPE_GETCERT,
+		SCEP_MSG_GETCERT_STR,
 		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
@@ -985,7 +985,7 @@ START_TEST(test_scep_gcrl)
 	ck_assert_int_ne(data_buf_len, 0);
 
 	ck_assert_str_eq(
-		MESSAGE_TYPE_GETCRL,
+		SCEP_MSG_GETCRL_STR,
 		get_attribute_data(p7, handle->oids->messageType));
 
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
