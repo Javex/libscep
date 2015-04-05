@@ -20,8 +20,8 @@ char * issuedCert_str
 char * enc_cert_str
 CODE: 
 	SCEP *handle;
-	const EVP_CIPHER *enc_alg;
-	enc_alg = EVP_des_ede3_cbc();
+	//const EVP_CIPHER *enc_alg;
+	//enc_alg = EVP_des_ede3_cbc();
 	setup(&handle);
 	
 	BIO *b;
@@ -72,7 +72,8 @@ CODE:
 	if(s != SCEPE_OK)
 		printf("failure5");
 
-	s = scep_certrep(handle, unwrapped, "SUCCESS", NULL, issuedCert, sig_cacert, sig_cakey, enc_cert, enc_alg, NULL, NULL, &p7);
+	SCEP_PKISTATUS pkiStatus = SCEP_SUCCESS;
+	s = scep_certrep(handle, unwrapped->transactionID, unwrapped->senderNonce, pkiStatus, 0, issuedCert, sig_cacert, sig_cakey, enc_cert, NULL, NULL, &p7);
 
 	if(s != SCEPE_OK)
 		printf("failure6");
@@ -90,11 +91,11 @@ OUTPUT:
 
 
 char *
-certrep_failure(cakey_str, cacert_str, pkcsreq_str, failInfo)
+certrep_failure(cakey_str, cacert_str, pkcsreq_str, failInfo_str)
 char * cakey_str
 char * cacert_str
 char * pkcsreq_str
-char * failInfo
+char * failInfo_str
 CODE: 
 	SCEP *handle;
 	setup(&handle);
@@ -132,7 +133,22 @@ CODE:
 	if(s != SCEPE_OK)
 		printf("failure5");
 
-	s = scep_certrep(handle, unwrapped, "FAILURE", failInfo, NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL, &p7);
+	SCEP_PKISTATUS pkiStatus = SCEP_FAILURE;
+	SCEP_FAILINFO failInfo;
+	if(strcmp("badAlg", failInfo_str) == 0)
+		failInfo = SCEP_BAD_ALG;
+	else if(strcmp("badMessageCheck", failInfo_str) == 0)
+		failInfo = SCEP_BAD_MESSAGE_CHECK;
+	else if(strcmp("badRequest", failInfo_str) == 0)
+		failInfo = SCEP_BAD_REQUEST;
+	else if(strcmp("badTime", failInfo_str) == 0)
+		failInfo = SCEP_BAD_TIME;
+	else if(strcmp("badCertId", failInfo_str) == 0)
+		failInfo = SCEP_BAD_CERT_ID;
+	else 
+		printf("unsupported failInfo");
+
+	s = scep_certrep(handle, unwrapped->transactionID, unwrapped->senderNonce, pkiStatus, failInfo, NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, &p7);
 
 	if(s != SCEPE_OK)
 		printf("failure6");
@@ -190,7 +206,8 @@ CODE:
 	if(s != SCEPE_OK)
 		printf("failure5");
 
-	s = scep_certrep(handle, unwrapped, "PENDING", NULL, NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, NULL, &p7);
+	SCEP_PKISTATUS pkiStatus = SCEP_PENDING;
+	s = scep_certrep(handle, unwrapped->transactionID, unwrapped->senderNonce, pkiStatus, 0, NULL, sig_cacert, sig_cakey, NULL, NULL, NULL, &p7);
 
 	if(s != SCEPE_OK)
 		printf("failure6");
@@ -217,7 +234,7 @@ CODE:
 	setup(&handle);
 
 	BIO *b;
-	const EVP_CIPHER *enc_alg;
+	//const EVP_CIPHER *enc_alg;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
 	
@@ -250,10 +267,10 @@ CODE:
 		printf("failure");
 	BIO_free(b);
 
-	enc_alg = EVP_des_ede3_cbc();
+	//enc_alg = EVP_des_ede3_cbc();
 
 	SCEP_ERROR s = scep_pkcsreq(
-		handle, req, sig_cert, sig_key, enc_cert, enc_alg, &p7);
+		handle, req, sig_cert, sig_key, enc_cert, &p7);
 
 	if(s != SCEPE_OK)
 		printf("failure");
@@ -305,8 +322,17 @@ CODE:
 		printf("failure4");
 	BIO_free(b);
 	unwrapped = get_pkiData(handle, pkiMessage);
-	RETVAL = unwrapped->messageType;
-	if(strcmp(MESSAGE_TYPE_PKCSREQ, unwrapped->messageType) == 0)
+
+	RETVAL = "";
+	if(SCEP_MSG_PKCSREQ == unwrapped->messageType)
 		RETVAL = "PKCSReq";
+	if(SCEP_MSG_CERTREP == unwrapped->messageType)
+		RETVAL = "CertRep";
+	if(SCEP_MSG_GETCERTINITIAL == unwrapped->messageType)
+		RETVAL = "GetCertInitial";
+	if(SCEP_MSG_GETCERT == unwrapped->messageType)
+		RETVAL = "GetCert";
+	if(SCEP_MSG_GETCRL == unwrapped->messageType)
+		RETVAL = "GetCRL";
 OUTPUT:
 	RETVAL
