@@ -74,40 +74,38 @@ SCEP_ERROR scep_pkcsreq(
 	int passwd_index;
 
 	subject = X509_REQ_get_subject_name(req);
+	if(!subject)
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a subject on CSR as required by SCEP protocol specification");
 	subject_str = X509_NAME_oneline(subject, NULL, 0);
-	if(!strlen(subject_str)) {
-		scep_log(handle, ERROR, "Need a subject on CSR as required by SCEP protocol specification");
-		return SCEPE_INVALID_CONTENT;
+	if(!(subject_str || strlen(subject_str))) {
+		ERR_print_errors(handle->configuration->log);
+		scep_log(handle, ERROR, "Error converting subject to string");
+	} else {
+		scep_log(handle, INFO, "Certificate subject: %s", subject_str);
+		free(subject_str);
 	}
-	scep_log(handle, INFO, "Certificate subject: %s", subject_str);
-	free(subject_str);
 
 	req_pubkey = X509_REQ_get_pubkey(req);
-	if(!req_pubkey) {
-		scep_log(handle, ERROR, "Need public key on CSR");
-		return SCEPE_INVALID_CONTENT;
-	}
+	if(!req_pubkey)
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need public key on CSR");
+
 	passwd_index = X509_REQ_get_attr_by_NID(req, NID_pkcs9_challengePassword, -1);
-	if(passwd_index == -1) {
-		scep_log(handle, ERROR, "Need challenge password field on CSR");
-		return SCEPE_INVALID_CONTENT;
-	}
+	if(passwd_index == -1)
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need challenge password field on CSR");
 
 	databio = BIO_new(BIO_s_mem());
 	if(!databio)
 		OSSL_ERR("Could not create data BIO");
 
 	if(i2d_X509_REQ_bio(databio, req) <= 0)
-		OSSL_ERR("Could not read request into data BIO");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Error reading request into data BIO. Malformed CSR?");
 
 	if((error = scep_p7_client_init(handle, sig_cert, sig_key, &p7data)) != SCEPE_OK)
 		goto finally;
 
 	/* transaction ID */
-	if((error = scep_calculate_transaction_id_pubkey(handle, req_pubkey, &p7data.transaction_id)) != SCEPE_OK) {
-		scep_log(handle, FATAL, "Could create transaction ID");
+	if((error = scep_calculate_transaction_id_pubkey(handle, req_pubkey, &p7data.transaction_id)) != SCEPE_OK)
 		goto finally;
-	}
 
 	if((error = scep_pkiMessage(
 			handle, SCEP_MSG_PKCSREQ_STR,
@@ -142,30 +140,28 @@ SCEP_ERROR scep_certrep(
 	char *failInfo_nr;
 
 	if(sig_cert == NULL)
-		OSSL_ERR("signer Cert is required");
+		SCEP_ERR(SCEPE_INVALID_PARAMETER, "signer Cert is required");
 
 	if(sig_key == NULL)
-		OSSL_ERR("signer Key is required");
+		SCEP_ERR(SCEPE_INVALID_PARAMETER, "signer Key is required");
 
 	/*TODO: add string attributes to header*/
 
 	if(pkiStatus == SCEP_SUCCESS) {
 		if(enc_cert == NULL)
-			OSSL_ERR("SUCCESS requires an encryption cert");
+			SCEP_ERR(SCEPE_INVALID_PARAMETER, "SUCCESS requires an encryption cert");
 		if(!(requestedCert == NULL) ^ (crl == NULL))
-			OSSL_ERR("requested cert and crl are mutually exclusive");
+			SCEP_ERR(SCEPE_INVALID_PARAMETER, "requested cert and crl are mutually exclusive");
 		if((additionalCerts != NULL) && (requestedCert == NULL))
-			OSSL_ERR("additional certs can only be added if a requested cert is included");
+			SCEP_ERR(SCEPE_INVALID_PARAMETER, "additional certs can only be added if a requested cert is included");
 	}
 
 	/*TODO: way more checks e.g. whether SCEP_DATA contains transID etc*/
 
 	//PKCS7 *local_pkiMessage;
 	struct p7_data_t *p7data = malloc(sizeof(*p7data));
-	if(!p7data) {
-		error = SCEPE_MEMORY;
-		goto finally;
-	}
+	if(!p7data)
+		SCEP_ERR(SCEPE_MEMORY, NULL);
 	memset(p7data, 0, sizeof(*p7data));
 
 	/*generic for all certrep types*/
@@ -191,16 +187,12 @@ SCEP_ERROR scep_certrep(
 
 
 	p7data->transaction_id = strdup(transactionID);
-	if(!p7data->transaction_id) {
-		error = SCEPE_MEMORY;
-		goto finally;
-	}
+	if(!p7data->transaction_id)
+		SCEP_ERR(SCEPE_MEMORY, NULL);
 
 	memcpy(p7data->sender_nonce, senderNonce, NONCE_LENGTH);
-	if(!p7data->sender_nonce) {
-		error = SCEPE_MEMORY;
-		goto finally;
-	}
+	if(!p7data->sender_nonce)
+		SCEP_ERR(SCEPE_MEMORY, NULL);
 
 	p7data->bio = PKCS7_dataInit(p7data->p7, NULL);
 	if(!p7data->bio)
@@ -259,9 +251,7 @@ SCEP_ERROR scep_certrep(
 				failInfo_nr = SCEP_BAD_CERT_ID_NR;
 				break;
 			default:
-				error = SCEPE_UNHANDLED;
-				scep_log(handle, FATAL, "Invalid failInfo %d", failInfo);
-				goto finally;
+				SCEP_ERR(SCEPE_UNHANDLED, "Invalid failInfo %d", failInfo);
 		}
 
 		asn1_failInfo = ASN1_PRINTABLESTRING_new();
@@ -277,9 +267,9 @@ SCEP_ERROR scep_certrep(
 	else if(pkiStatus == SCEP_SUCCESS) {
 		/*create degen p7*/
 		PKCS7 *degenP7 = NULL;
-		if(!(make_degenP7(
- 				handle, requestedCert, additionalCerts, crl, &degenP7) == SCEPE_OK))
-			OSSL_ERR("Could not create degenP7");
+		if((error = make_degenP7(
+				handle, requestedCert, additionalCerts, crl, &degenP7)) != SCEPE_OK)
+			goto finally;
 
 		/*make it to BIO for encryption*/
 		BIO *databio = BIO_new(BIO_s_mem());
@@ -306,7 +296,7 @@ SCEP_ERROR scep_certrep(
 
 	}
 	else {
-		OSSL_ERR("unknown pkiStatus");
+		SCEP_ERR(SCEPE_UNHANDLED, "unknown pkiStatus %d", pkiStatus);
 	}
 
 
@@ -349,10 +339,8 @@ SCEP_ERROR scep_get_cert_initial(
 	char *subject_str = NULL, *issuer_str = NULL;
 
 	req_pubkey = X509_REQ_get_pubkey(req);
-	if(!req_pubkey) {
-		scep_log(handle, ERROR, "Need public key on CSR");
-		return SCEPE_INVALID_CONTENT;
-	}
+	if(!req_pubkey)
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need public key on CSR");
 
 	ias = PKCS7_ISSUER_AND_SUBJECT_new();
 	if(!ias)
@@ -360,15 +348,27 @@ SCEP_ERROR scep_get_cert_initial(
 
 	ias->subject = X509_REQ_get_subject_name(req);
 	if(!ias->subject)
-		OSSL_ERR("Could not get subject from request");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a subject on CSR to produce issuer and serial");
 	subject_str = X509_NAME_oneline(ias->subject, NULL, 0);
-	scep_log(handle, INFO, "Request subject is %s", subject_str);
+	if(!(subject_str || strlen(subject_str))) {
+		ERR_print_errors(handle->configuration->log);
+		scep_log(handle, ERROR, "Error converting subject to string");
+	} else {
+		scep_log(handle, INFO, "Certificate subject: %s", subject_str);
+		free(subject_str);
+	}
 
 	ias->issuer = X509_get_issuer_name(cacert);
 	if(!ias->issuer)
-		OSSL_ERR("Could not get issuer name for CA cert");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a issuer on CA cert to produce issuer and serial");
 	issuer_str = X509_NAME_oneline(ias->issuer, NULL, 0);
-	scep_log(handle, INFO, "Issuer Name is %s", issuer_str);
+	if(!(issuer_str || strlen(issuer_str))) {
+		ERR_print_errors(handle->configuration->log);
+		scep_log(handle, ERROR, "Error converting issuer to string");
+	} else {
+		scep_log(handle, INFO, "Issuer name is: %s", issuer_str);
+		free(issuer_str);
+	}
 
 	ias_data_size = i2d_PKCS7_ISSUER_AND_SUBJECT(ias, &ias_data);
 	if(!ias_data_size)
@@ -385,10 +385,8 @@ SCEP_ERROR scep_get_cert_initial(
 		goto finally;
 
 	/* transaction ID */
-	if((error = scep_calculate_transaction_id_pubkey(handle, req_pubkey, &p7data.transaction_id)) != SCEPE_OK) {
-		scep_log(handle, FATAL, "Could create transaction ID");
+	if((error = scep_calculate_transaction_id_pubkey(handle, req_pubkey, &p7data.transaction_id)) != SCEPE_OK)
 		goto finally;
-	}
 
 	if((error = scep_pkiMessage(
 			handle, SCEP_MSG_GETCERTINITIAL_STR, databio, enc_cert, &p7data)) != SCEPE_OK)
@@ -418,12 +416,18 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 
 	ias = PKCS7_ISSUER_AND_SERIAL_new();
 	if(!ias)
-		OSSL_ERR("Could not create new issuer and subject structure");
+		OSSL_ERR("Could not create new issuer and serial structure");
 
 	ias->serial = serial;
 	ias->issuer = issuer;
 	issuer_str = X509_NAME_oneline(ias->issuer, NULL, 0);
-	scep_log(handle, INFO, "Issuer Name is %s", issuer_str);
+	if(!(issuer_str || strlen(issuer_str))) {
+		ERR_print_errors(handle->configuration->log);
+		scep_log(handle, ERROR, "Error converting issuer to string");
+	} else {
+		scep_log(handle, INFO, "Issuer name is: %s", issuer_str);
+		free(issuer_str);
+	}
 
 	ias_data_size = i2d_PKCS7_ISSUER_AND_SERIAL(ias, &ias_data);
 	if(!ias_data_size)
@@ -440,10 +444,8 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 		goto finally;
 
 	/* transaction ID */
-	if((error = scep_calculate_transaction_id_ias_type(handle, ias, messageType, &p7data.transaction_id)) != SCEPE_OK) {
-		scep_log(handle, FATAL, "Could create transaction ID");
+	if((error = scep_calculate_transaction_id_ias_type(handle, ias, messageType, &p7data.transaction_id)) != SCEPE_OK)
 		goto finally;
-	}
 
 	if((error = scep_pkiMessage(
 			handle, messageType, databio, enc_cert, &p7data)) != SCEPE_OK)
@@ -476,11 +478,11 @@ SCEP_ERROR scep_get_crl(
 	SCEP_ERROR error = SCEPE_OK;
 	ASN1_INTEGER *serial = X509_get_serialNumber(req_cert);
 	if(!serial)
-		OSSL_ERR("Could not get serial from CA cert");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Could not get serial from CA cert");
 
 	X509_NAME *issuer = X509_get_issuer_name(req_cert);
 	if(!issuer)
-		OSSL_ERR("Could not get issuer name for CA cert");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Could not get issuer name for CA cert");
 
 	return _scep_get_cert_or_crl(
 		handle, sig_cert, sig_key,
@@ -499,9 +501,9 @@ SCEP_ERROR scep_pkiMessage(
 	SCEP_ERROR error = SCEPE_OK;
 	STACK_OF(X509) *enc_certs;
 	ASN1_PRINTABLESTRING *asn1_transaction_id, *asn1_message_type, *asn1_sender_nonce;
+
 	/* transaction ID */
 	asn1_transaction_id = ASN1_PRINTABLESTRING_new();
-
 	if(asn1_transaction_id == NULL)
 		OSSL_ERR("Could not create ASN1 TID object");
 	if(!ASN1_STRING_set(asn1_transaction_id, p7data->transaction_id, -1))
@@ -569,7 +571,7 @@ SCEP_ERROR scep_unwrap_response(
 	if(local_out->pkiStatus == SCEP_SUCCESS) {
 		/* ensure type is correct */
 		if(!PKCS7_type_is_signed(local_out->messageData))
-			OSSL_ERR("Type of inner PKCS#7 must be signed (degenerate)");
+			SCEP_ERR(SCEPE_INVALID_CONTENT, "Type of inner PKCS#7 must be signed (degenerate)");
 
 		switch(request_type) {
 			case SCEPOP_GETCACERT:
@@ -580,7 +582,7 @@ SCEP_ERROR scep_unwrap_response(
 				/* ensure there are certs (at least 1) */
 				STACK_OF(X509) *certs = local_out->messageData->d.sign->cert;
 				if(sk_X509_num(certs) < 1)
-					OSSL_ERR("Invalid number of certificates");
+					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of certificates");
 
 				/* set the output param */
 				local_out->certs = certs;
@@ -590,18 +592,16 @@ SCEP_ERROR scep_unwrap_response(
 				/* ensure only one CRL */
 				STACK_OF(X509_CRL) *crls = local_out->messageData->d.sign->crl;
 				if(sk_X509_CRL_num(crls) != 1)
-					OSSL_ERR("Invalid number of CRLs");
+					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of CRLs");
 
 				/* set output param */
 				local_out->crl = sk_X509_CRL_value(crls, 0);
 				if(local_out->crl == NULL)
-					OSSL_ERR("Unable to retrieve CRL from stack");
+					SCEP_ERR(SCEPE_INVALID_CONTENT, "Unable to retrieve CRL from stack");
 				break;
 
 			default:
-				error = SCEPE_UNKOWN_OPERATION;
-				scep_log(handle, FATAL, "Invalid operation, cannot parse content");
-				goto finally;
+				SCEP_ERR(SCEPE_UNKOWN_OPERATION, "Invalid operation, cannot parse content");
 		}
 	}
 
@@ -634,19 +634,17 @@ SCEP_ERROR scep_unwrap(
 	memset(local_out, 0, sizeof(SCEP_DATA));
 
 	if(!PKCS7_type_is_signed(pkiMessage))
-		OSSL_ERR("pkiMessage MUST be content type signed-data");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "pkiMessage MUST be content type signed-data");
 
 	/* Extract signer certificate from pkiMessage */
 	certs = PKCS7_get0_signers(pkiMessage, NULL, 0);
 	if(sk_X509_num(certs) < 1)
-		OSSL_ERR("Signer certificate missing");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Signer certificate missing");
 	if(sk_X509_num(certs) > 1) {
 		if(handle->configuration->flags & SCEP_ALLOW_MULTIPLE_SIGNER_CERT) {
 			scep_log(handle, WARN, "Multiple signer certs present. Ignoring as per configuration");
 		} else {
-			error = SCEPE_UNHANDLED;
-			scep_log(handle, FATAL, "More than one signer certificate. Don't know how to handle this");
-			goto finally;
+			SCEP_ERR(SCEPE_UNHANDLED, "More than one signer certificate. Don't know how to handle this");
 		}
 	}
 	signerCert = sk_X509_value(certs, 0);
@@ -664,22 +662,22 @@ SCEP_ERROR scep_unwrap(
 
 	/* Retrieve signer info that contains attributes */
 	if(!(sk_si = PKCS7_get_signer_info(pkiMessage)))
-		 OSSL_ERR("Failed to get signer info");
+		 SCEP_ERR(SCEPE_INVALID_CONTENT, "Failed to get signer info");
 	if(sk_PKCS7_SIGNER_INFO_num(sk_si) != 1)
-		OSSL_ERR("Unexpected number of signer infos");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Unexpected number of signer infos");
 	if(!(si = sk_PKCS7_SIGNER_INFO_value(sk_si, 0)))
 		 OSSL_ERR("Failed to get signer info value");
 
 	if (!ASN1_INTEGER_get(si->version) == 1)
-		OSSL_ERR("version MUST be 1");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "version MUST be 1");
 
 	if(!(messageType = PKCS7_get_signed_attribute(si, handle->oids->messageType)))
-		OSSL_ERR("messageType is missing. Not a pkiMessage?");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "messageType is missing. Not a pkiMessage?");
 
 	/* luckily, standard defines single types */
 	local_out->messageType_str = (char *) ASN1_STRING_data(messageType->value.printablestring);
 	if(!local_out->messageType_str)
-		OSSL_ERR("Failed to extract message type");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Failed to extract message type");
 
 	/* Fill in integer-based type as well (redundant convenience field)
 	 * Note: We check for each field specifically here as the number is limited.
@@ -698,18 +696,18 @@ SCEP_ERROR scep_unwrap(
 	else if(strncmp(local_out->messageType_str, SCEP_MSG_GETCRL_STR, sizeof(SCEP_MSG_GETCRL_STR)) == 0)
 		local_out->messageType = SCEP_MSG_GETCRL;
 	else
-		OSSL_ERR("Invalid messageType");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid messageType");
 
 	/* transaction ID */
 	if(!(transId = PKCS7_get_signed_attribute(si, handle->oids->transId)))
-		OSSL_ERR("transaction ID is missing");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "transaction ID is missing");
 	local_out->transactionID = (char *) ASN1_STRING_data(transId->value.printablestring);
 	if(!local_out->transactionID)
 		OSSL_ERR("Failed to extract transaction ID as string");
 
 	/* senderNonce */
 	if(!(senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce)))
-		OSSL_ERR("sender Nonce is missing");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "sender Nonce is missing");
 	ASN1_TYPE_get_octetstring(senderNonce, local_out->senderNonce, NONCE_LENGTH);
 
 	/* type-specific attributes */
@@ -731,7 +729,7 @@ SCEP_ERROR scep_unwrap(
 		} else {
 			/* Sort out any types which MUST contain encrypted data */
 			if(local_out->messageType != SCEP_MSG_CERTREP || local_out->pkiStatus == SCEP_SUCCESS)
-				OSSL_ERR("Message type requires an encrypted content");
+				SCEP_ERR(SCEPE_INVALID_CONTENT, "Message type requires an encrypted content");
 		}
 	}
 
