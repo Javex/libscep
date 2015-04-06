@@ -27,9 +27,10 @@ include_directories ("${PROJECT_BINARY_DIR}")
 add_subdirectory (src)
 
 # Unit tests
-set (TEST_TARGETS configuration util scep message)
+set (TEST_TARGETS configuration util scep)
 add_subdirectory (tests)
 enable_testing ()
 foreach (target ${TEST_TARGETS})
     add_test (NAME test_${target} COMMAND test_${target})
 endforeach (target)
+add_test (NAME test_message COMMAND test_message)
