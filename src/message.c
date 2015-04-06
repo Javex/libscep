@@ -41,6 +41,8 @@ finally:
 	if(error != SCEPE_OK) {
 		if(p7data->p7)
 			PKCS7_free(p7data->p7);
+		if(p7data->signer_info)
+			PKCS7_SIGNER_INFO_free(p7data->signer_info);
 		if(p7data->bio)
 			BIO_free(p7data->bio);
 		if(p7data->transaction_id)
@@ -58,6 +60,12 @@ SCEP_ERROR scep_p7_final(SCEP *handle, struct p7_data_t *p7data, PKCS7 **p7)
 
 	*p7 = p7data->p7;
 finally:
+	if(p7data->bio)
+		BIO_free_all(p7data->bio);
+	if(p7data->transaction_id)
+		free(p7data->transaction_id);
+	if(error && p7data->p7)
+		PKCS7_free(p7data->p7);
 	return error;
 }
 
@@ -137,6 +145,9 @@ SCEP_ERROR scep_certrep(
 {	ASN1_PRINTABLESTRING *asn1_recipient_nonce, *asn1_pkiStatus, *asn1_failInfo;
 	SCEP_ERROR error = SCEPE_OK;
 	char *failInfo_nr;
+	PKCS7 *degenP7 = NULL;
+	BIO *databio = NULL;
+	struct p7_data_t *p7data = NULL;
 
 	if(sig_cert == NULL)
 		SCEP_ERR(SCEPE_INVALID_PARAMETER, "signer Cert is required");
@@ -158,7 +169,7 @@ SCEP_ERROR scep_certrep(
 	/*TODO: way more checks e.g. whether SCEP_DATA contains transID etc*/
 
 	//PKCS7 *local_pkiMessage;
-	struct p7_data_t *p7data = malloc(sizeof(*p7data));
+	p7data = malloc(sizeof(*p7data));
 	if(!p7data)
 		SCEP_ERR(SCEPE_MEMORY, NULL);
 	memset(p7data, 0, sizeof(*p7data));
@@ -265,13 +276,12 @@ SCEP_ERROR scep_certrep(
 	}
 	else if(pkiStatus == SCEP_SUCCESS) {
 		/*create degen p7*/
-		PKCS7 *degenP7 = NULL;
 		if((error = make_degenP7(
 				handle, requestedCert, additionalCerts, crl, &degenP7)) != SCEPE_OK)
 			goto finally;
 
 		/*make it to BIO for encryption*/
-		BIO *databio = BIO_new(BIO_s_mem());
+		databio = BIO_new(BIO_s_mem());
 		if(!databio)
 			OSSL_ERR("Could not create data BIO");
 		if(i2d_PKCS7_bio(databio, degenP7) <= 0)
@@ -315,10 +325,20 @@ SCEP_ERROR scep_certrep(
 	/*searching in openssl source is like a box of chocklate...*/
 	/*yes, set content and than detach it again. That way, OID is present but not its content. Must be to be conform with PKCS7 spec*/
 	//PKCS7_set_detached(p7data->p7, 1);
-	if((error = scep_p7_final(handle, p7data, pkiMessage)) != SCEPE_OK)
-		goto finally;
 
 finally:
+	/* always finalize if we have initialized to avoid memory leak */
+	if(p7data->bio) {
+		SCEP_ERROR tmp_err = scep_p7_final(handle, p7data, pkiMessage);
+		if(error == SCEPE_OK)
+			error = tmp_err;
+	}
+	if(degenP7)
+		PKCS7_free(degenP7);
+	if(databio)
+		BIO_free(databio);
+	if(p7data)
+		free(p7data);
 	return error;
 }
 
@@ -331,7 +351,7 @@ SCEP_ERROR scep_get_cert_initial(
 	SCEP_ERROR error = SCEPE_OK;
 	struct p7_data_t p7data;
 	EVP_PKEY *req_pubkey = NULL;
-	PKCS7_ISSUER_AND_SUBJECT *ias;
+	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
 	unsigned char *ias_data = NULL;
 	int ias_data_size;
 	BIO *databio;
@@ -341,7 +361,7 @@ SCEP_ERROR scep_get_cert_initial(
 	if(!req_pubkey)
 		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need public key on CSR");
 
-	ias = PKCS7_ISSUER_AND_SUBJECT_new();
+	ias = malloc(sizeof(PKCS7_ISSUER_AND_SUBJECT));
 	if(!ias)
 		OSSL_ERR("Could not create new issuer and subject structure");
 
@@ -390,12 +410,23 @@ SCEP_ERROR scep_get_cert_initial(
 	if((error = scep_pkiMessage(
 			handle, SCEP_MSG_GETCERTINITIAL_STR, databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
-	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
-		goto finally;
 
 finally:
+	/* always finalize if we have initialized to avoid memory leak */
+	if(p7data.bio) {
+		SCEP_ERROR tmp_err = scep_p7_final(handle, &p7data, pkiMessage);
+		if(error == SCEPE_OK)
+			error = tmp_err;
+	}
 	if(databio)
 		BIO_free(databio);
+	if(req_pubkey)
+		EVP_PKEY_free(req_pubkey);
+	if(ias)
+		free(ias);
+	if(ias_data)
+		free(ias_data);
+
 	return error;
 }
 
@@ -407,13 +438,13 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 
 	SCEP_ERROR error = SCEPE_OK;
 	struct p7_data_t p7data;
-	PKCS7_ISSUER_AND_SERIAL *ias;
+	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	unsigned char *ias_data = NULL;
 	int ias_data_size;
 	BIO *databio;
 	char *issuer_str = NULL;
 
-	ias = PKCS7_ISSUER_AND_SERIAL_new();
+	ias = malloc(sizeof(PKCS7_ISSUER_AND_SERIAL));
 	if(!ias)
 		OSSL_ERR("Could not create new issuer and serial structure");
 
@@ -455,6 +486,10 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 finally:
 	if(databio)
 		BIO_free(databio);
+	if(ias)
+		free(ias);
+	if(ias_data)
+		free(ias_data);
 	return error;
 }
 
@@ -498,7 +533,7 @@ SCEP_ERROR scep_pkiMessage(
 		struct p7_data_t *p7data) {
 	PKCS7 *encdata = NULL;
 	SCEP_ERROR error = SCEPE_OK;
-	STACK_OF(X509) *enc_certs;
+	STACK_OF(X509) *enc_certs = NULL;
 	ASN1_PRINTABLESTRING *asn1_transaction_id, *asn1_message_type, *asn1_sender_nonce;
 
 	/* transaction ID */
@@ -550,6 +585,10 @@ SCEP_ERROR scep_pkiMessage(
 	}
 
 finally:
+	if(encdata)
+		PKCS7_free(encdata);
+	if(enc_certs)
+		sk_X509_free(enc_certs);
 	return error;
 }
 
@@ -560,6 +599,7 @@ SCEP_ERROR scep_unwrap_response(
 {
 	SCEP_ERROR error = SCEPE_OK;
 	SCEP_DATA *local_out = NULL;
+	PKCS7 *messageData = NULL;
 
 	error = scep_unwrap(
 		handle, pkiMessage, ca_cert, request_cert, request_key,
@@ -568,6 +608,7 @@ SCEP_ERROR scep_unwrap_response(
 		goto finally;
 
 	if(local_out->pkiStatus == SCEP_SUCCESS) {
+		messageData = local_out->messageData;
 		/* ensure type is correct */
 		if(!PKCS7_type_is_signed(local_out->messageData))
 			SCEP_ERR(SCEPE_INVALID_CONTENT, "Type of inner PKCS#7 must be signed (degenerate)");
@@ -579,7 +620,7 @@ SCEP_ERROR scep_unwrap_response(
 			case SCEPOP_GETNEXTCACERT:
 			case SCEPOP_GETCERTINITIAL: ; // Small necessary hack
 				/* ensure there are certs (at least 1) */
-				STACK_OF(X509) *certs = local_out->messageData->d.sign->cert;
+				STACK_OF(X509) *certs = sk_X509_dup(local_out->messageData->d.sign->cert);
 				if(sk_X509_num(certs) < 1)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of certificates");
 
@@ -589,12 +630,13 @@ SCEP_ERROR scep_unwrap_response(
 
 			case SCEPOP_GETCRL: ; // hack again...
 				/* ensure only one CRL */
-				STACK_OF(X509_CRL) *crls = local_out->messageData->d.sign->crl;
+				STACK_OF(X509_CRL) *crls = sk_X509_CRL_dup(local_out->messageData->d.sign->crl);
 				if(sk_X509_CRL_num(crls) != 1)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of CRLs");
 
 				/* set output param */
-				local_out->crl = sk_X509_CRL_value(crls, 0);
+				local_out->crl = sk_X509_CRL_pop(crls);
+				sk_X509_CRL_free(crls);
 				if(local_out->crl == NULL)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Unable to retrieve CRL from stack");
 				break;
@@ -606,6 +648,8 @@ SCEP_ERROR scep_unwrap_response(
 
 	*output = local_out;
 finally:
+	if(messageData)
+		PKCS7_free(messageData);
 	if(error != SCEPE_OK)
 		free(local_out);
 	return error;
@@ -621,9 +665,9 @@ SCEP_ERROR scep_unwrap(
 	PKCS7_SIGNER_INFO			*si;
 	ASN1_TYPE					*messageType, *senderNonce, *transId;
 	X509						*signerCert;
-	STACK_OF(X509)				*certs;
+	STACK_OF(X509)				*certs = NULL;
 	BIO							*encData = NULL;
-	PKCS7 						*p7env;
+	PKCS7 						*p7env = NULL;
 
 	local_out = malloc(sizeof(SCEP_DATA));
 	if(!local_out) {
@@ -740,6 +784,10 @@ finally:
 			free(local_out);
 	if(encData)
 		BIO_free(encData);
+	if(p7env)
+		PKCS7_free(p7env);
+	if(certs)
+		sk_X509_free(certs);
 	return error;
 
 }

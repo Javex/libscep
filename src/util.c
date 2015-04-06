@@ -69,7 +69,7 @@ SCEP_ERROR scep_calculate_transaction_id_pubkey(SCEP *handle, EVP_PKEY *pubkey, 
 	BIO *bio;
 	unsigned char *data, digest[SHA256_DIGEST_LENGTH];
 	int len, i;
-	EVP_MD_CTX *ctx;
+	EVP_MD_CTX *ctx = NULL;
 
 	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
 		return SCEPE_MEMORY;
@@ -111,6 +111,8 @@ finally:
 			free(*transaction_id);
 	if(bio)
 		BIO_free(bio);
+	if(ctx)
+		EVP_MD_CTX_destroy(ctx);
 	return error;
 }
 
@@ -119,7 +121,7 @@ SCEP_ERROR scep_calculate_transaction_id_ias_type(SCEP *handle, PKCS7_ISSUER_AND
 	SCEP_ERROR error = SCEPE_OK;
 	unsigned char digest[SHA256_DIGEST_LENGTH], *serial_data = NULL, *issuer_data = NULL;
 	int i, serial_len, issuer_len;
-	EVP_MD_CTX *ctx;
+	EVP_MD_CTX *ctx = NULL;
 
 	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
 		return SCEPE_MEMORY;
@@ -159,6 +161,12 @@ finally:
 	if(error != SCEPE_OK)
 		if(*transaction_id)
 			free(*transaction_id);
+	if(issuer_data)
+		free(issuer_data);
+	if(serial_data)
+		free(serial_data);
+	if(ctx)
+		EVP_MD_CTX_destroy(ctx);
 	return error;
 }
 
@@ -166,9 +174,10 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 {
 	BIO *outbio = NULL, *input_b64bio = NULL;
 	SCEP_ERROR error = SCEPE_OK;
+	char *tmp;
+	long data_size;
 
 	outbio = BIO_new(BIO_s_mem());
-	BIO_set_close(outbio, BIO_NOCLOSE);
 	input_b64bio = BIO_push(BIO_new(BIO_f_base64()), outbio);
 	if(!input_b64bio || !outbio)
 		OSSL_ERR("Could not create B64 encoding BIO chain");
@@ -177,8 +186,11 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 		OSSL_ERR("Could read data into BIO");
 	BIO_flush(input_b64bio);
 
-	if(!BIO_get_mem_data(outbio, encoded))
+	if(!(data_size = BIO_get_mem_data(outbio, &tmp)))
 		OSSL_ERR("Could not copy data from BIO to output char *");
+	*encoded = malloc(data_size + 1);
+	memcpy(*encoded, tmp, data_size);
+	(*encoded)[data_size] = '\0';
 
 finally:
 	BIO_free_all(input_b64bio);
@@ -231,9 +243,9 @@ SCEP_ERROR scep_new_selfsigned_X509(
 {
 	SCEP_ERROR error = SCEPE_OK;
 	X509 *new_cert = NULL;
-	EVP_PKEY *pub_key;
-	X509_NAME *subject;
-	ASN1_INTEGER *serial;
+	EVP_PKEY *pub_key = NULL;
+	X509_NAME *subject = NULL;
+	ASN1_INTEGER *serial = NULL;
 
 	pub_key = X509_REQ_get_pubkey(req);
 	if(!pub_key)
@@ -279,6 +291,10 @@ finally:
 	if(error != SCEPE_OK)
 		if(new_cert)
 			X509_free(new_cert);
+	if(pub_key)
+		EVP_PKEY_free(pub_key);
+	if(serial)
+		ASN1_INTEGER_free(serial);
 	return error;
 }
 

@@ -223,8 +223,10 @@ static SCEP_ERROR handle_encrypted_content(
             if(!(X509_REQ_get_subject_name(data->request)))
                 SCEP_ERR(SCEPE_INVALID_CONTENT, "The CSR MUST contain a Subject Distinguished Name");
 
-            if(!(X509_REQ_get_pubkey(data->request)))
+            EVP_PKEY *pub;
+            if(!(pub = X509_REQ_get_pubkey(data->request)))
                 SCEP_ERR(SCEPE_INVALID_CONTENT, "The CSR MUST contain a public key");
+            EVP_PKEY_free(pub);
 
             int passwd_index = X509_REQ_get_attr_by_NID(data->request, NID_pkcs9_challengePassword, -1);
             if(passwd_index == -1)

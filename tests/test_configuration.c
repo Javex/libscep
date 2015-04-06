@@ -51,6 +51,7 @@ START_TEST(test_scep_set_conf)
 	error = scep_conf_set(handle, SCEPCFG_LOG, BIO_new(BIO_s_mem()));
 	ck_assert(SCEPE_OK == error);
 	ck_assert(handle->configuration->log != NULL);
+	BIO_free(handle->configuration->log);
 
 	ck_assert(scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT) == SCEPE_OK);
 	ck_assert(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT);

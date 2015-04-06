@@ -98,21 +98,25 @@ START_TEST(test_scep_calculate_transaction_id_pubkey)
 	req = PEM_read_X509_REQ(fp, NULL, NULL, NULL);
 	EVP_PKEY *pubkey = X509_REQ_get_pubkey(req);
 	fclose(fp);
+	X509_REQ_free(req);
 
 	error = scep_calculate_transaction_id_pubkey(handle, pubkey, &tid);
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(tid, "5418898A0D8052E60EB9E9F9BEB2E402F8138122C8503213CF5FD86DBB8267CF");
 	free(tid);
+	EVP_PKEY_free(pubkey);
 
 	fp = fopen(TEST_CSR_2, "r");
 	req = PEM_read_X509_REQ(fp, NULL, NULL, NULL);
 	pubkey = X509_REQ_get_pubkey(req);
 	fclose(fp);
+	X509_REQ_free(req);
 
 	error = scep_calculate_transaction_id_pubkey(handle, pubkey, &tid);
 	ck_assert(error == SCEPE_OK);
 	ck_assert_str_eq(tid, "569673452595B161A6F8D272D9A214152F828133994D5B166EFFB2C140A88EA2");
 	free(tid);
+	EVP_PKEY_free(pubkey);
 }
 END_TEST
 
@@ -127,7 +131,7 @@ START_TEST(test_scep_calculate_transaction_id_ias_type)
 	ck_assert(issuedCert_str != NULL);
 	BIO_free(b);
 
-	PKCS7_ISSUER_AND_SERIAL *ias = PKCS7_ISSUER_AND_SERIAL_new();
+	PKCS7_ISSUER_AND_SERIAL *ias = malloc(sizeof(PKCS7_ISSUER_AND_SERIAL));
 	ias->serial = X509_get_serialNumber(cert);
 	ias->issuer = X509_get_issuer_name(cert);
 
@@ -151,7 +155,8 @@ START_TEST(test_scep_calculate_transaction_id_ias_type)
 	ASN1_INTEGER_free(ias->serial);
 	ias->serial = old_serial;
 
-	sk_X509_NAME_ENTRY_pop(ias->issuer->entries);
+	X509_NAME_ENTRY *e = sk_X509_NAME_ENTRY_pop(ias->issuer->entries);
+	X509_NAME_ENTRY_free(e);
 	ias->issuer->modified = 1;
 
 	error = scep_calculate_transaction_id_ias_type(handle, ias, "foo", &tid4);
@@ -160,6 +165,8 @@ START_TEST(test_scep_calculate_transaction_id_ias_type)
 	ck_assert_str_ne(tid2, tid4);
 	ck_assert_str_ne(tid3, tid4);
 
+	X509_free(cert);
+	free(ias);
 	free(tid1);
 	free(tid2);
 	free(tid3);
@@ -171,7 +178,7 @@ START_TEST(test_scep_PKCS7_base64_encode)
 {
 	BIO *inbio;
 	PKCS7 *p7;
-	char *out, *b64_pem;
+	char *out = NULL, *b64_pem;
 	FILE *f;
 	int f_size;
 
@@ -185,9 +192,14 @@ START_TEST(test_scep_PKCS7_base64_encode)
 	fseek(f, 0, SEEK_SET);
 	b64_pem = malloc(f_size + 1);
 	ck_assert(fread(b64_pem, 1, f_size, f) == f_size);
+	b64_pem[f_size] = '\0';
 
 	ck_assert(scep_PKCS7_base64_encode(handle, p7, &out) == SCEPE_OK);
 	ck_assert_str_eq(out, b64_pem);
+	free(b64_pem);
+	free(out);
+	PKCS7_free(p7);
+	fclose(f);
 }
 END_TEST
 
@@ -209,6 +221,9 @@ START_TEST(test_scep_log)
 	log_str = malloc(ref_len);
 	BIO_gets(bio, log_str, ref_len);
 	ck_assert_str_eq(check_str, log_str);
+	free(check_str);
+	free(log_str);
+	BIO_free(bio);
 }
 END_TEST
 
@@ -231,10 +246,19 @@ START_TEST(test_scep_new_selfsigned)
 	BIO_free(data);
 
 	ck_assert(scep_new_selfsigned_X509(handle, req, req_key, &cert) == SCEPE_OK);
-	ck_assert_str_eq(X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
-	ck_assert_str_eq(X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
-	ck_assert_str_eq(i2s_ASN1_INTEGER(NULL, X509_get_serialNumber(cert)), "1");
+	char *tmp = X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0);
+	ck_assert_str_eq(tmp, "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
+	free(tmp);
+	tmp = X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0);
+	ck_assert_str_eq(tmp, "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
+	free(tmp);
+	tmp = i2s_ASN1_INTEGER(NULL, X509_get_serialNumber(cert));
+	ck_assert_str_eq(tmp, "1");
+	free(tmp);
 	ck_assert_int_ne(X509_verify(cert, req_key), 0);
+	EVP_PKEY_free(req_key);
+	X509_free(cert);
+	X509_REQ_free(req);
 }
 END_TEST
 
@@ -254,6 +278,8 @@ START_TEST(test_X509_REQ_cmp)
 	BIO_free(data);
 
 	ck_assert_int_eq(X509_REQ_cmp(a, b), 0);
+	X509_REQ_free(a);
+	X509_REQ_free(b);
 }
 END_TEST
 
