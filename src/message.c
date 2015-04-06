@@ -75,15 +75,12 @@ SCEP_ERROR scep_pkcsreq(
 
 	subject = X509_REQ_get_subject_name(req);
 	if(!subject)
-		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a subject on CSR as required by SCEP protocol specification");
+		OSSL_ERR("Error extracting subject from request");
 	subject_str = X509_NAME_oneline(subject, NULL, 0);
-	if(!(subject_str || strlen(subject_str))) {
-		ERR_print_errors(handle->configuration->log);
-		scep_log(handle, ERROR, "Error converting subject to string");
-	} else {
+	if(!subject_str || !strlen(subject_str))
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a subject on CSR as required by SCEP protocol specification");
+	else
 		scep_log(handle, INFO, "Certificate subject: %s", subject_str);
-		free(subject_str);
-	}
 
 	req_pubkey = X509_REQ_get_pubkey(req);
 	if(!req_pubkey)
@@ -119,6 +116,8 @@ finally:
 		BIO_free(databio);
 	if(req_pubkey)  // needed?
 		EVP_PKEY_free(req_pubkey);
+	if(subject_str)
+		free(subject_str);
 	return error;
 }
 
