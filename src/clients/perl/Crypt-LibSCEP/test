@@ -118,7 +118,7 @@ my $pkcsreq = Crypt::LibSCEP::pkcsreq($sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
 print "print its transaction id", $/;
-print Crypt::LibSCEP::print_transid($pkcsreq), $/;
+print Crypt::LibSCEP::print_transid({inform=>"PEM", y=>"der"}, $pkcsreq), $/;
 
 print "print its message Type", $/;
 print Crypt::LibSCEP::print_msgtype($pkcsreq), $/;
