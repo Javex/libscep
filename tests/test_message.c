@@ -269,11 +269,13 @@ void generic_setup()
 	make_message_data();
 }
 
+void free_message_data();
 void generic_teardown()
 {
 	BIO_flush(scep_log);
 	BIO_free(scep_log);
 	scep_cleanup(handle);
+	free_message_data();
 }
 
 void make_message_data()
@@ -352,6 +354,22 @@ void make_message_data()
 	BIO_free(b);
 }
 
+void free_message_data()
+{
+	EVP_PKEY_free(sig_key);
+	X509_free(sig_cert);
+	X509_free(enc_cert);
+	EVP_PKEY_free(enc_key);
+	EVP_PKEY_free(sig_cakey);
+	X509_free(sig_cacert);
+	X509_free(enc_cacert);
+	EVP_PKEY_free(enc_cakey);
+	X509_REQ_free(req);
+	PKCS7_free(certrep_pending);
+	PKCS7_free(certrep_failure);
+	PKCS7_free(certrep_success);
+}
+
 void make_pkcsreq_message()
 {
 	SCEP_ERROR s = scep_pkcsreq(
@@ -407,10 +425,21 @@ void make_certrep_message() {
 	ck_assert(scep_certrep(handle, scep_message->transactionID, scep_message->senderNonce, SCEP_SUCCESS, 0,
 			issuedCert, sig_cacert, sig_cakey, enc_cert, cert_stack, NULL,
 			&own_certrep_success) == SCEPE_OK);
+	sk_X509_free(cert_stack);
 
 	ck_assert(scep_unwrap(
 		handle, own_certrep_success, sig_cacert, enc_cert, enc_key, &unwrap_own_certrep_success) == SCEPE_OK);
+	X509_REQ_free(scep_message->request);
+	free(scep_message);
+}
 
+void free_certrep_message()
+{
+	PKCS7_free(unwrap_own_certrep_success->messageData);
+	PKCS7_free(p7);
+	free(unwrap_own_certrep_pending);
+	free(unwrap_own_certrep_failure);
+	free(unwrap_own_certrep_success);
 }
 
 void make_unwrap_message()
@@ -437,12 +466,25 @@ void make_unwrap_message()
 		handle, certrep_success, sig_cacert, enc_cert, enc_key, SCEPOP_PKCSREQ, &pkiMessage_success) == SCEPE_OK);
 }
 
+void free_unwrap_message()
+{
+    sk_X509_free(pkiMessage_success->certs);
+    PKCS7_free(p7);
+}
+
 void make_unwrap_gci_message()
 {
 	scep_get_cert_initial(handle, req, sig_cert, sig_key, enc_cacert, enc_cacert, &p7);
 	ck_assert(p7 != NULL);
 	ck_assert(scep_unwrap(
 		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+}
+
+void free_unwrap_gci_message()
+{
+	PKCS7_ISSUER_AND_SUBJECT_free(pkiMessage->issuer_and_subject);
+	free(pkiMessage);
+	PKCS7_free(p7);
 }
 
 void make_unwrap_gc_message()
@@ -457,6 +499,13 @@ void make_unwrap_gc_message()
 		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
 }
 
+void free_unwrap_gc_message()
+{
+	PKCS7_ISSUER_AND_SERIAL_free(pkiMessage->issuer_and_serial);
+	free(pkiMessage);
+	PKCS7_free(p7);
+}
+
 void make_unwrap_gcrl_message()
 {
 	ck_assert(scep_get_crl(
@@ -465,6 +514,13 @@ void make_unwrap_gcrl_message()
 	ck_assert(p7 != NULL);
 	ck_assert(scep_unwrap(
 		handle, p7, sig_cacert, enc_cacert, enc_cakey, &pkiMessage) == SCEPE_OK);
+}
+
+void free_unwrap_gcrl_message()
+{
+	PKCS7_ISSUER_AND_SERIAL_free(pkiMessage->issuer_and_serial);
+	free(pkiMessage);
+	PKCS7_free(p7);
 }
 
 PKCS7 *make_gci_message()
@@ -513,9 +569,9 @@ SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result) {
 
 	*result = content;
 finally:
+	if(pkcs7bio)
+		BIO_free_all(pkcs7bio);
 	if(error != SCEPE_OK) {
-		if(pkcs7bio)
-			BIO_free(pkcs7bio);
 		if(content)
 			PKCS7_free(content);
 	}
@@ -531,10 +587,13 @@ BIO *get_decrypted_data(PKCS7 *p7)
 	outbio = BIO_new(BIO_s_mem());
 
 	// version == 0
-	ck_assert_str_eq("0", i2s_ASN1_INTEGER(NULL, p7enc->d.enveloped->version));
+	char *v = i2s_ASN1_INTEGER(NULL, p7enc->d.enveloped->version);
+	ck_assert_str_eq("0", v);
+	free(v);
 
 	// decrypt and check content
 	PKCS7_decrypt(p7enc, enc_cakey, enc_cacert, outbio, 0);
+	PKCS7_free(p7enc);
 	return outbio;
 }
 
@@ -546,6 +605,7 @@ void certrep_setup()
 
 void certrep_teardown()
 {
+	free_certrep_message();
 	generic_teardown();
 }
 
@@ -627,7 +687,6 @@ char *get_attribute_data(PKCS7 *message, int nid) {
 
 START_TEST(test_certrep_message)
 {
-	make_certrep_message();
 	ck_assert_int_ne(NULL, unwrap_own_certrep_pending);
 	ck_assert_str_eq(
 		"2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
@@ -660,6 +719,7 @@ START_TEST(test_certrep_message)
 	ck_assert_int_eq(SCEP_SUCCESS, unwrap_own_certrep_success->pkiStatus);
 	BIO *b = BIO_new(BIO_s_mem());
 	ck_assert_int_ne(0, PEM_write_bio_PKCS7(b, unwrap_own_certrep_success->messageData));
+	BIO_free(b);
 }
 END_TEST
 
@@ -722,6 +782,7 @@ START_TEST(test_unwrap_message)
 	ck_assert_int_ne(NULL, pkiMessage->senderNonce);
 	ck_assert_str_eq("FOOBARTESTPWD", ASN1_STRING_data(pkiMessage->challenge_password->value.printablestring));
 
+	free_unwrap_message();
 }
 END_TEST
 
@@ -730,6 +791,7 @@ START_TEST(test_unwrap_getcertinitial)
 	make_unwrap_gci_message();
 	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
 	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->subject, X509_REQ_get_subject_name(req)), 0);
+	free_unwrap_gci_message();
 }
 END_TEST
 
@@ -738,6 +800,7 @@ START_TEST(test_unwrap_getcert)
 	make_unwrap_gc_message();
 	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
 	ck_assert_int_eq(ASN1_INTEGER_cmp(pkiMessage->issuer_and_serial->serial, X509_get_serialNumber(sig_cert)), 0);
+	free_unwrap_gc_message();
 }
 END_TEST
 
@@ -746,6 +809,7 @@ START_TEST(test_unwrap_getcrl)
 	make_unwrap_gcrl_message();
 	ck_assert_int_eq(X509_NAME_cmp(pkiMessage->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
 	ck_assert_int_eq(ASN1_INTEGER_cmp(pkiMessage->issuer_and_serial->serial, X509_get_serialNumber(sig_cert)), 0);
+	free_unwrap_gcrl_message();
 }
 END_TEST
 
@@ -779,7 +843,9 @@ END_TEST
 
 START_TEST(test_scep_message_asn1_version)
 {
-	ck_assert_str_eq("1", i2s_ASN1_INTEGER(NULL, p7->d.sign->version));
+	char *val = i2s_ASN1_INTEGER(NULL, p7->d.sign->version);
+	ck_assert_str_eq("1", val);
+	free(val);
 }
 END_TEST
 
@@ -841,6 +907,7 @@ START_TEST(test_scep_message_certificate)
 	ck_assert(X509_cmp(cert, ref_cert) == 0);
 
 	ck_assert(sk_X509_num(p7_nosigcert->d.sign->cert) < 1); // -1 or 0
+	X509_free(ref_cert);
 }
 END_TEST
 
@@ -849,6 +916,7 @@ START_TEST(test_scep_pkcsreq)
 	BIO *data = get_decrypted_data(p7);
 	X509_REQ *csr = d2i_X509_REQ_bio(data, NULL);
 	ck_assert(csr != NULL);
+	BIO_free(data);
 
 	data = BIO_new(BIO_s_mem());
 	BIO_puts(data, test_new_csr);
@@ -859,6 +927,8 @@ START_TEST(test_scep_pkcsreq)
 	ck_assert_str_eq(
 		SCEP_MSG_PKCSREQ_STR,
 		get_attribute_data(p7, handle->oids->messageType));
+	X509_REQ_free(ref_csr);
+	X509_REQ_free(csr);
 }
 END_TEST
 
@@ -868,6 +938,7 @@ START_TEST(test_scep_pkcsreq_missing_dn)
 	ck_assert_int_eq(BN_set_word(bne, RSA_F4), 1);
 	RSA *r = RSA_new();
 	ck_assert_int_ne(RSA_generate_key_ex(r, 2048, bne, NULL), 0);
+	BN_free(bne);
 
 	X509_REQ *req = X509_REQ_new();
 	ck_assert_int_ne(X509_REQ_set_version(req, 1), 0);
@@ -876,11 +947,14 @@ START_TEST(test_scep_pkcsreq_missing_dn)
 	EVP_PKEY_assign_RSA(key, r);
 	ck_assert_int_ne(X509_REQ_set_pubkey(req, key), 0);
 	ck_assert_int_ne(X509_REQ_sign(req, key, EVP_sha1()), 0);
+	EVP_PKEY_free(key);
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
+	p7 = NULL;
 	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
+	X509_REQ_free(req);
 }
 END_TEST
 
@@ -890,6 +964,7 @@ START_TEST(test_scep_pkcsreq_missing_pubkey)
 	ck_assert_int_eq(BN_set_word(bne, RSA_F4), 1);
 	RSA *r = RSA_new();
 	ck_assert_int_ne(RSA_generate_key_ex(r, 2048, bne, NULL), 0);
+	BN_free(bne);
 
 	X509_REQ *req = X509_REQ_new();
 	ck_assert_int_ne(X509_REQ_set_version(req, 1), 0);
@@ -900,11 +975,13 @@ START_TEST(test_scep_pkcsreq_missing_pubkey)
 	EVP_PKEY *key = EVP_PKEY_new();
 	EVP_PKEY_assign_RSA(key, r);
 	ck_assert_int_ne(X509_REQ_sign(req, key, EVP_sha1()), 0);
+	EVP_PKEY_free(key);
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
 	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
+	X509_REQ_free(req);
 }
 END_TEST
 
@@ -914,6 +991,7 @@ START_TEST(test_scep_pkcsreq_missing_challenge_password)
 	ck_assert_int_eq(BN_set_word(bne, RSA_F4), 1);
 	RSA *r = RSA_new();
 	ck_assert_int_ne(RSA_generate_key_ex(r, 2048, bne, NULL), 0);
+	BN_free(bne);
 
 	X509_REQ *req = X509_REQ_new();
 	ck_assert_int_ne(X509_REQ_set_version(req, 1), 0);
@@ -925,11 +1003,14 @@ START_TEST(test_scep_pkcsreq_missing_challenge_password)
 	EVP_PKEY_assign_RSA(key, r);
 	ck_assert_int_ne(X509_REQ_set_pubkey(req, key), 0);
 	ck_assert_int_ne(X509_REQ_sign(req, key, EVP_sha1()), 0);
+	EVP_PKEY_free(key);
 
 	X509 *sig_cert = NULL, *enc_cert = NULL;
 	EVP_PKEY *sig_key = NULL;
+	p7 = NULL;
 	ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
 	ck_assert(p7 == NULL);
+	X509_REQ_free(req);
 }
 END_TEST
 
@@ -949,8 +1030,14 @@ START_TEST(test_scep_gci)
 	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SUBJECT(&ias, &data_buf, data_buf_len);
 	ck_assert(ias != NULL);
-	ck_assert_str_eq(X509_NAME_oneline(ias->subject, NULL, 0), "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
-	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
+	char *name = X509_NAME_oneline(ias->subject, NULL, 0);
+	ck_assert_str_eq(name, "/C=AU/ST=Some-State/O=Internet Widgits Pty Ltd/CN=foo.bar");
+	free(name);
+	name = X509_NAME_oneline(ias->issuer, NULL, 0);
+	ck_assert_str_eq(name, "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
+	free(name);
+	PKCS7_ISSUER_AND_SUBJECT_free(ias);
+	BIO_free(data);
 }
 END_TEST
 
@@ -969,9 +1056,14 @@ START_TEST(test_scep_gc)
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
 	ck_assert(ias != NULL);
-	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
-	ck_assert_str_eq("1", i2s_ASN1_INTEGER(NULL, ias->serial));
-
+	char *x = X509_NAME_oneline(ias->issuer, NULL, 0);
+	ck_assert_str_eq(x, "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
+	free(x);
+	x = i2s_ASN1_INTEGER(NULL, ias->serial);
+	ck_assert_str_eq("1", x);
+	free(x);
+	PKCS7_ISSUER_AND_SERIAL_free(ias);
+	BIO_free(data);
 }
 END_TEST
 
@@ -991,9 +1083,14 @@ START_TEST(test_scep_gcrl)
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	d2i_PKCS7_ISSUER_AND_SERIAL(&ias, &data_buf, data_buf_len);
 	ck_assert(ias != NULL);
-	ck_assert_str_eq(X509_NAME_oneline(ias->issuer, NULL, 0), "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
-	ck_assert_str_eq("1", i2s_ASN1_INTEGER(NULL, ias->serial));
-
+	char *x = X509_NAME_oneline(ias->issuer, NULL, 0);
+	ck_assert_str_eq(x, "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca");
+	free(x);
+	x = i2s_ASN1_INTEGER(NULL, ias->serial);
+	ck_assert_str_eq("1", x);
+	free(x);
+	PKCS7_ISSUER_AND_SERIAL_free(ias);
+	BIO_free(data);
 }
 END_TEST
 

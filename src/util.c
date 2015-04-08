@@ -20,29 +20,10 @@ char *scep_strerror(SCEP_ERROR err)
 			return "Overwriting BIO not allowed. Check error log for details";
 		case SCEPE_PROTOCOL:
 			return "Invalid protocol operation";
-		case SCEPE_MISSING_CSR:
-			return "You have to provide a CSR for the PKCSReq operation";
-		case SCEPE_MISSING_REQ_KEY:
-			return "You have to provide the private key for which you want a "
-					"certificate";
-		case SCEPE_MISSING_CA_CERT:
-			return "The CA certificate is missing but is needed to encrypt the "
-					"message for the server and/or extract certain values";
-		case SCEPE_MISSING_SIGKEY:
-			return "If you provide a signature certificate, you also need to "
-					"provide a signature key";
-		case SCEPE_MISSING_SIGCERT:
-			return "If you provide a signature key, you also need to provide "
-					"a signature certificate";
-		case SCEPE_MISSING_CERT_KEY:
-			return "To request an existing certificate you need to provide "
-					"the key for which it was created";
-		case SCEPE_MISSING_CRL_CERT:
-			return "To request a CRL you need to provide the certificate "
-					"which you want to validate";
 		case SCEPE_INVALID_CONTENT:
-			return "The content did not match protocol specifications. "
-					"Consult log for additional information.";
+			return "The content to be enveloped or contained in enveloped data structure does not meet the specifications";
+		case SCEPE_INVALID_PARAMETER:
+			return "A parameter was invalid, e.g. it was required but missing or its combination with other parameters is invalid";
 		case SCEPE_UNHANDLED:
 			return "The library could not handle this specific case and "
 				   "does not know how to proceed. Please contact the developers "
@@ -88,7 +69,7 @@ SCEP_ERROR scep_calculate_transaction_id_pubkey(SCEP *handle, EVP_PKEY *pubkey, 
 	BIO *bio;
 	unsigned char *data, digest[SHA256_DIGEST_LENGTH];
 	int len, i;
-	EVP_MD_CTX *ctx;
+	EVP_MD_CTX *ctx = NULL;
 
 	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
 		return SCEPE_MEMORY;
@@ -101,7 +82,7 @@ SCEP_ERROR scep_calculate_transaction_id_pubkey(SCEP *handle, EVP_PKEY *pubkey, 
 	}
 
 	if(!i2d_PUBKEY_bio(bio, pubkey))
-		OSSL_ERR("Could not convert pubkey to DER");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Error converting public key, malformed?");
 
 	len = BIO_get_mem_data(bio, &data);
 	if(len == 0)
@@ -130,6 +111,8 @@ finally:
 			free(*transaction_id);
 	if(bio)
 		BIO_free(bio);
+	if(ctx)
+		EVP_MD_CTX_destroy(ctx);
 	return error;
 }
 
@@ -138,7 +121,7 @@ SCEP_ERROR scep_calculate_transaction_id_ias_type(SCEP *handle, PKCS7_ISSUER_AND
 	SCEP_ERROR error = SCEPE_OK;
 	unsigned char digest[SHA256_DIGEST_LENGTH], *serial_data = NULL, *issuer_data = NULL;
 	int i, serial_len, issuer_len;
-	EVP_MD_CTX *ctx;
+	EVP_MD_CTX *ctx = NULL;
 
 	if(!(*transaction_id = malloc(2 * SHA256_DIGEST_LENGTH + 1)))
 		return SCEPE_MEMORY;
@@ -146,11 +129,11 @@ SCEP_ERROR scep_calculate_transaction_id_ias_type(SCEP *handle, PKCS7_ISSUER_AND
 
 	issuer_len = ASN1_item_i2d((void *) ias->issuer, &issuer_data, ASN1_ITEM_rptr(X509_NAME));
 	if(!issuer_data)
-		OSSL_ERR("Could not convert issuer to DER");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Error converting issuer, malformed?");
 
 	serial_len = ASN1_item_i2d((void *) ias->serial, &serial_data, ASN1_ITEM_rptr(ASN1_INTEGER));
 	if(!serial_data)
-		OSSL_ERR("Could not convert serial to DER");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Error converting serial, malformed?");
 
 	ctx = EVP_MD_CTX_create();
 	if(ctx == NULL)
@@ -178,6 +161,12 @@ finally:
 	if(error != SCEPE_OK)
 		if(*transaction_id)
 			free(*transaction_id);
+	if(issuer_data)
+		free(issuer_data);
+	if(serial_data)
+		free(serial_data);
+	if(ctx)
+		EVP_MD_CTX_destroy(ctx);
 	return error;
 }
 
@@ -185,9 +174,10 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 {
 	BIO *outbio = NULL, *input_b64bio = NULL;
 	SCEP_ERROR error = SCEPE_OK;
+	char *tmp;
+	long data_size;
 
 	outbio = BIO_new(BIO_s_mem());
-	BIO_set_close(outbio, BIO_NOCLOSE);
 	input_b64bio = BIO_push(BIO_new(BIO_f_base64()), outbio);
 	if(!input_b64bio || !outbio)
 		OSSL_ERR("Could not create B64 encoding BIO chain");
@@ -196,8 +186,11 @@ SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded)
 		OSSL_ERR("Could read data into BIO");
 	BIO_flush(input_b64bio);
 
-	if(!BIO_get_mem_data(outbio, encoded))
+	if(!(data_size = BIO_get_mem_data(outbio, &tmp)))
 		OSSL_ERR("Could not copy data from BIO to output char *");
+	*encoded = malloc(data_size + 1);
+	memcpy(*encoded, tmp, data_size);
+	(*encoded)[data_size] = '\0';
 
 finally:
 	BIO_free_all(input_b64bio);
@@ -250,17 +243,17 @@ SCEP_ERROR scep_new_selfsigned_X509(
 {
 	SCEP_ERROR error = SCEPE_OK;
 	X509 *new_cert = NULL;
-	EVP_PKEY *pub_key;
-	X509_NAME *subject;
-	ASN1_INTEGER *serial;
+	EVP_PKEY *pub_key = NULL;
+	X509_NAME *subject = NULL;
+	ASN1_INTEGER *serial = NULL;
 
 	pub_key = X509_REQ_get_pubkey(req);
 	if(!pub_key)
-		OSSL_ERR("Could not get public key from CSR");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Missing public key on CSR");
 
 	subject = X509_REQ_get_subject_name(req);
 	if(!subject)
-		OSSL_ERR("Could not get subject from CSR");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Missing subject on CSR");
 
 	new_cert = X509_new();
 	if(!new_cert)
@@ -298,14 +291,16 @@ finally:
 	if(error != SCEPE_OK)
 		if(new_cert)
 			X509_free(new_cert);
+	if(pub_key)
+		EVP_PKEY_free(pub_key);
+	if(serial)
+		ASN1_INTEGER_free(serial);
 	return error;
 }
 
 int X509_REQ_cmp(X509_REQ *req1, X509_REQ *req2)
 {
-	int rv = 0;
-	rv |= ASN1_STRING_cmp(req1->signature, req2->signature);
-	return rv;
+	return ASN1_STRING_cmp(req1->signature, req2->signature);
 }
 
 ASN1_SEQUENCE(PKCS7_ISSUER_AND_SUBJECT) = {

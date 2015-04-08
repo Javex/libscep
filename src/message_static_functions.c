@@ -17,7 +17,7 @@ static SCEP_ERROR make_degenP7(
 
     /*input validation*/
     if(!((cert == NULL) ^ (crl == NULL)))
-        OSSL_ERR("cert and crl are mutually exclusive");
+        SCEP_ERR(SCEPE_INVALID_PARAMETER, "cert and crl are mutually exclusive");
 
     /*quickly assemble degenerate pkcs7 signed-data structure*/
     if ((local_p7 = PKCS7_new()) == NULL)
@@ -34,7 +34,7 @@ static SCEP_ERROR make_degenP7(
 
     if(cert) {
         if ((cert_stack = sk_X509_new_null()) == NULL)
-            OSSL_ERR("could create cert stack");
+            OSSL_ERR("could not create cert stack");
 
         p7s->cert = cert_stack;
 
@@ -49,7 +49,7 @@ static SCEP_ERROR make_degenP7(
     }
     else if(crl) {
         if ((crl_stack = sk_X509_CRL_new_null()) == NULL)
-            OSSL_ERR("could create crl stack");
+            OSSL_ERR("could not create crl stack");
 
         p7s->crl = crl_stack;
         sk_X509_CRL_push(crl_stack, crl);
@@ -107,10 +107,10 @@ static SCEP_ERROR check_initial_enrollment(
     /* check for self-signed */
     issuer = X509_get_issuer_name(signerCert);
     if(!issuer)
-        OSSL_ERR("Failed to extract issuer from certificate");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "Failed to extract issuer from certificate");
     subject = X509_get_subject_name(signerCert);
     if(!subject)
-        OSSL_ERR("Failed to extract subject from certificate");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "Failed to extract subject from certificate");
 
     if(X509_NAME_cmp(subject, issuer) == 0)
         data->initialEnrollment = 1;
@@ -126,13 +126,13 @@ static SCEP_ERROR handle_certrep_attributes(
     /* recipientNonce */
     ASN1_TYPE *recipientNonce = PKCS7_get_signed_attribute(si, handle->oids->recipientNonce);
     if(!recipientNonce)
-        OSSL_ERR("recipientNonce is missing");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "recipientNonce is missing");
     ASN1_TYPE_get_octetstring(recipientNonce, data->recipientNonce, NONCE_LENGTH);
 
     /* pkiStatus */
     ASN1_TYPE *pkiStatus = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
     if(!pkiStatus)
-        OSSL_ERR("pkiStatus is missing");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "pkiStatus is missing");
     char *pki_status_str = (char *) ASN1_STRING_data(pkiStatus->value.printablestring);
     if(strncmp(pki_status_str, SCEP_PKISTATUS_SUCCESS, sizeof(SCEP_PKISTATUS_SUCCESS)) == 0)
         data->pkiStatus = SCEP_SUCCESS;
@@ -141,16 +141,14 @@ static SCEP_ERROR handle_certrep_attributes(
     else if(strncmp(pki_status_str, SCEP_PKISTATUS_PENDING, sizeof(SCEP_PKISTATUS_PENDING)) == 0)
         data->pkiStatus = SCEP_PENDING;
     else {
-        error = SCEPE_PROTOCOL;
-        scep_log(handle, FATAL, "Invalid pkiStatus '%s'", pki_status_str);
-        goto finally;
+        SCEP_ERR(SCEPE_PROTOCOL, "Invalid pkiStatus '%s'", pki_status_str);
     }
 
     /* failInfo */
     if(data->pkiStatus == SCEP_FAILURE) {
         ASN1_TYPE *failInfo = PKCS7_get_signed_attribute(si, handle->oids->failInfo);
         if(!failInfo)
-            OSSL_ERR("failInfo is missing");
+            SCEP_ERR(SCEPE_INVALID_CONTENT, "failInfo is missing");
         char *failInfo_str = (char *) ASN1_STRING_data(failInfo->value.printablestring);
         if(strncmp(failInfo_str, SCEP_BAD_ALG_NR, sizeof(SCEP_BAD_ALG_NR)) == 0)
             data->failInfo = SCEP_BAD_ALG;
@@ -163,9 +161,7 @@ static SCEP_ERROR handle_certrep_attributes(
         else if(strncmp(failInfo_str, SCEP_BAD_CERT_ID_NR, sizeof(SCEP_BAD_CERT_ID_NR)) == 0)
             data->failInfo = SCEP_BAD_CERT_ID;
         else {
-            error = SCEPE_PROTOCOL;
-            scep_log(handle, FATAL, "Invalid failInfo '%s'", failInfo_str);
-            goto finally;
+            SCEP_ERR(SCEPE_PROTOCOL, "Invalid failInfo '%s'", failInfo_str);
         }
         scep_log(handle, INFO, "failInfo: %s", scep_fail_info_str(data->failInfo));
     }
@@ -184,19 +180,19 @@ static SCEP_ERROR handle_encrypted_content(
 
     /* Sort out invalid Certrep PENDING or FAILURE requests */
     if(data->messageType == SCEP_MSG_CERTREP && data->pkiStatus != SCEP_SUCCESS)
-        OSSL_ERR("PENDING or FAILURE Certreps MUST NOT have encrypted content");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "PENDING or FAILURE Certreps MUST NOT have encrypted content");
 
     /* Outer type must be enveloped */
     if(!PKCS7_type_is_enveloped(p7env))
-        OSSL_ERR("Encrypted data is not enveoloped type");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "Encrypted data is not enveoloped type");
 
     /* Perform checks on the enveoloped content */
     if(ASN1_INTEGER_get(p7env->d.enveloped->version) != 0)
-        OSSL_ERR("Version of the enveloped part MUST be 0");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "Version of the enveloped part MUST be 0");
 
     /* Check inner content type is pkcs7-data */
     if(OBJ_obj2nid(p7env->d.enveloped->enc_data->content_type) != NID_pkcs7_data)
-        OSSL_ERR("content-type of pkcs7envelope MUST be pkcs7-data");
+        SCEP_ERR(SCEPE_INVALID_CONTENT, "content-type of pkcs7envelope MUST be pkcs7-data");
 
     decData = BIO_new(BIO_s_mem());
     if(!decData)
@@ -213,30 +209,34 @@ static SCEP_ERROR handle_encrypted_content(
              */
             data->messageData = d2i_PKCS7_bio(decData, NULL);
             if(!data->messageData)
-                OSSL_ERR("Not valid PKCS#7 after decryption for CertRep");
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "Not valid PKCS#7 after decryption for CertRep");
             break;
         case SCEP_MSG_PKCSREQ:
             data->request = NULL;
             /* Message type PKCSreq means there MUST be a CSR in it */
             d2i_X509_REQ_bio(decData, &(data->request));
+            if(!data->request)
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "Not valid CSR after decrpytion");
 
             /* Validate CSR against SCEP requirements */
 
             if(!(X509_REQ_get_subject_name(data->request)))
-                OSSL_ERR("The CSR MUST contain a Subject Distinguished Name");
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "The CSR MUST contain a Subject Distinguished Name");
 
-            if(!(X509_REQ_get_pubkey(data->request)))
-                OSSL_ERR("The CSR MUST contain a public key");
+            EVP_PKEY *pub;
+            if(!(pub = X509_REQ_get_pubkey(data->request)))
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "The CSR MUST contain a public key");
+            EVP_PKEY_free(pub);
 
             int passwd_index = X509_REQ_get_attr_by_NID(data->request, NID_pkcs9_challengePassword, -1);
             if(passwd_index == -1)
-                OSSL_ERR("The CSR MUST contain a challenge password");
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "The CSR MUST contain a challenge password");
 
             /* extract challenge password */
             X509_ATTRIBUTE *attr = X509_REQ_get_attr(data->request, passwd_index);
             if(attr->single == 0) { // set
                 if(sk_ASN1_TYPE_num(attr->value.set) != 1)
-                    OSSL_ERR("Unexpected number of elements in challenge password");
+                    SCEP_ERR(SCEPE_UNHANDLED, "Unexpected number of elements in challenge password");
                 data->challenge_password = sk_ASN1_TYPE_value(attr->value.set, 0);
             } else { // single
                 data->challenge_password = attr->value.single;
@@ -246,14 +246,14 @@ static SCEP_ERROR handle_encrypted_content(
             ias_data_size = BIO_get_mem_data(decData, &ias_data);
             data->issuer_and_subject = d2i_PKCS7_ISSUER_AND_SUBJECT(NULL, (const unsigned char **) &ias_data, ias_data_size);
             if(!data->issuer_and_subject)
-                OSSL_ERR("Unreadable Issuer and Subject data in encrypted content");
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "Unreadable Issuer and Subject data in encrypted content");
             break;
         case SCEP_MSG_GETCRL:
         case SCEP_MSG_GETCERT:
             ias_data_size = BIO_get_mem_data(decData, &ias_data);
             data->issuer_and_serial = d2i_PKCS7_ISSUER_AND_SERIAL(NULL, (const unsigned char **) &ias_data, ias_data_size);
             if(!data->issuer_and_serial)
-                OSSL_ERR("Unreadable Issuer and Serial data in encrypted content");
+                SCEP_ERR(SCEPE_INVALID_CONTENT, "Unreadable Issuer and Serial data in encrypted content");
             break;
     }
 
