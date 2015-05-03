@@ -99,12 +99,26 @@ AGZRYophSHisfLzjA0EV766X+e7hAK1J+G3IZHHn4WvxRGEGRZmEYMwbV3/gIRW8
 bIEcl2LeuPgUGWhLIowjKF0=
 -----END CERTIFICATE-----";
 
+my $sig_cakey_enc = "-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: DES-CBC,4F58E19A09903724
+
+UsnO5Kn0ZlvwdZRvZcQoP3cRLb0I3x28sxOSBlJZrR4y5x4uYmW5huvCUf2Bd6L6
+u3ylfXoKVaCdKJ2tCzas0huQeG9mSA6m2D5Wm2y37iyjqtUbI52cMFQOM5qdOrEJ
+2cLVHVjNvDxFuRSbIpTeLuABIEtEOkxkJAfe5Uns6iNcg65p95OokwCq3v4+NKGS
+6AmkcznuL2l75ITHntYBCiDtoHWRXDm4QioM8hV/T+CxtdWttHz3G6TeQ/XdDicq
+X08qHUZg7s7USpfnKfkLOdshlykSD5uldVDM8DEu+quiapbyfJDev7mpzItD0/Ru
++YUiFAfxW1V304+Ifwer4p++TDL+7Ka929j6r4TAEp7OY10tyjPCvUhaiiNH+RYt
+4Afd1Z5gdUberBpJCmg6z020fwq1gn3AlXUOxlf+Z2k=
+-----END RSA PRIVATE KEY-----";
+
+
 print "creating pkcsreq from csr:", $/;
 my $pkcsreq = Crypt::LibSCEP::pkcsreq($sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
 print "print its transaction id", $/;
-print Crypt::LibSCEP::print_transid($pkcsreq), $/;
+print Crypt::LibSCEP::print_transid({inform=>"PEM", y=>"der"}, $pkcsreq), $/;
 
 print "print its message Type", $/;
 print Crypt::LibSCEP::print_msgtype($pkcsreq), $/;
@@ -118,4 +132,4 @@ print "FAILURE (badRequest for example):", $/;
 print Crypt::LibSCEP::certrep_failure($sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
 
 print "SUCCESS (response to pkcsreq for example):", $/;
-print Crypt::LibSCEP::certrep_success($sig_cakey, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert), $/;
+print Crypt::LibSCEP::certrep_success($sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert), $/;

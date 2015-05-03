@@ -28,9 +28,14 @@ CODE:
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
 	
-	b = BIO_new(BIO_s_mem());;
+	b = BIO_new(BIO_s_mem());
 	BIO_write(b, cakey_str, strlen(cakey_str));
-	EVP_PKEY *sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	EVP_PKEY *sig_cakey;
+	char *pwd = getenv("pwd");
+	if (pwd == NULL)
+		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	else
+		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
 	if(sig_cakey == NULL)
 		printf("failure2");
 	BIO_free(b);
@@ -106,7 +111,12 @@ CODE:
 	
 	b = BIO_new(BIO_s_mem());;
 	BIO_write(b, cakey_str, strlen(cakey_str));
-	EVP_PKEY *sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	EVP_PKEY *sig_cakey;
+	char *pwd = getenv("pwd");
+	if (pwd == NULL)
+		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	else
+		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
 	if(sig_cakey == NULL)
 		printf("failure2");
 	BIO_free(b);
@@ -179,7 +189,12 @@ CODE:
 	
 	b = BIO_new(BIO_s_mem());;
 	BIO_write(b, cakey_str, strlen(cakey_str));
-	EVP_PKEY *sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	EVP_PKEY *sig_cakey;
+	char *pwd = getenv("pwd");
+	if (pwd == NULL)
+		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	else
+		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
 	if(sig_cakey == NULL)
 		printf("failure2");
 	BIO_free(b);
@@ -240,7 +255,12 @@ CODE:
 	
 	b = BIO_new(BIO_s_mem());;
 	BIO_write(b, key_str, strlen(key_str));
-	EVP_PKEY *sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	EVP_PKEY *sig_key;
+	char *pwd = getenv("pwd");
+	if (pwd == NULL)
+		sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
+	else
+		sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
 	if(sig_key == NULL)
 		printf("failure");
 	BIO_free(b);
