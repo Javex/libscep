@@ -13,6 +13,7 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#include <openssl/engine.h>
 
 #define DEFAULT_SIGALG EVP_md5()
 #define DEFAULT_ENCALG EVP_des_cbc()
@@ -80,6 +81,11 @@ typedef enum {
     SCEPCFG_ENCALG,
     SCEPCFG_LOG,
 
+    /* Engine stuff */
+    SCEPCFG_ENGINE,
+    SCEPCFG_ENGINE_OBJ,
+    SCEPCFG_ENGINE_PARAM,
+
     /* Flags to be set */
     SCEPCFG_FLAG_CLEAR, // clear all flags
     SCEPCFG_FLAG_SET,
@@ -145,12 +151,21 @@ typedef enum {
     SCEP_ALLOW_MULTIPLE_SIGNER_CERT = 0x0002,
 } SCEP_FLAGS;
 
+struct engine_params_t {
+    char *name;
+    char *value;
+    struct engine_params_t *next;
+};
+
 typedef struct {
     SCEP_VERBOSITY verbosity;
     EVP_MD *sigalg;
     EVP_CIPHER *encalg;
     BIO *log;
     SCEP_FLAGS flags;
+    ENGINE *engine;
+    int internal_engine;
+    struct engine_params_t *params;
 } SCEP_CONFIGURATION;
 
 typedef struct {
