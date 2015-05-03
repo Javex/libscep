@@ -44,9 +44,7 @@ finally:
 		if(p7data->signer_info)
 			PKCS7_SIGNER_INFO_free(p7data->signer_info);
 		if(p7data->bio)
-			BIO_free(p7data->bio);
-		if(p7data->transaction_id)
-			free(p7data->transaction_id);
+			BIO_free_all(p7data->bio);
 	}
 	return error;
 }
@@ -69,6 +67,55 @@ finally:
 	return error;
 }
 
+SCEP_ERROR SCEP_DATA_free(SCEP_DATA *data)
+{
+	if(!data)
+		return SCEPE_OK;
+	if(data->transactionID)
+		free(data->transactionID);
+	if(data->challenge_password)
+		ASN1_TYPE_free(data->challenge_password);
+	if(data->signer_certificate)
+		X509_free(data->signer_certificate);
+	switch(data->messageType) {
+		case SCEP_MSG_PKCSREQ:
+			if(data->request)
+				X509_REQ_free(data->request);
+			break;
+		case SCEP_MSG_CERTREP:
+			switch(data->request_type) {
+				case SCEPOP_GETCACERT:
+				case SCEPOP_PKCSREQ:
+				case SCEPOP_GETCERT:
+				case SCEPOP_GETNEXTCACERT:
+				case SCEPOP_GETCERTINITIAL:
+					sk_X509_pop_free(data->certs, X509_free);
+					break;
+				case SCEPOP_GETCRL:
+					sk_X509_CRL_pop_free(data->crl, X509_CRL_free);
+					break;
+				case SCEPOP_NONE:
+					PKCS7_free(data->messageData);
+					break;
+				default:
+					return SCEPE_INTERNAL;
+			}
+			break;
+		case SCEP_MSG_GETCERTINITIAL:
+			if(data->issuer_and_subject)
+				PKCS7_ISSUER_AND_SUBJECT_free(data->issuer_and_subject);
+			break;
+		case SCEP_MSG_GETCERT:
+		case SCEP_MSG_GETCRL:
+			if(data->issuer_and_serial)
+				PKCS7_ISSUER_AND_SERIAL_free(data->issuer_and_serial);
+			break;
+		default:
+			return SCEPE_INTERNAL;
+	}
+	return SCEPE_OK;
+}
+
 SCEP_ERROR scep_pkcsreq(
 	SCEP *handle, X509_REQ *req, X509 *sig_cert, EVP_PKEY *sig_key,
 		X509 *enc_cert, PKCS7 **pkiMessage)
@@ -76,7 +123,7 @@ SCEP_ERROR scep_pkcsreq(
 	BIO *databio = NULL;
 	EVP_PKEY *req_pubkey = NULL;
 	SCEP_ERROR error = SCEPE_OK;
-	struct p7_data_t p7data;
+	struct p7_data_t p7data = {0};
 	X509_NAME *subject;
 	char *subject_str = NULL;
 	int passwd_index;
@@ -116,10 +163,14 @@ SCEP_ERROR scep_pkcsreq(
 			handle, SCEP_MSG_PKCSREQ_STR,
 			databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
-	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
-		goto finally;
 
 finally:
+	/* always finalize if we have initialized to avoid memory leak */
+	if(p7data.bio) {
+		SCEP_ERROR tmp_err = scep_p7_final(handle, &p7data, pkiMessage);
+		if(error == SCEPE_OK)
+			error = tmp_err;
+	}
 	if(databio)
 		BIO_free(databio);
 	if(req_pubkey)  // needed?
@@ -349,7 +400,7 @@ SCEP_ERROR scep_get_cert_initial(
 {
 
 	SCEP_ERROR error = SCEPE_OK;
-	struct p7_data_t p7data;
+	struct p7_data_t p7data = {0};
 	EVP_PKEY *req_pubkey = NULL;
 	PKCS7_ISSUER_AND_SUBJECT *ias = NULL;
 	unsigned char *ias_data = NULL;
@@ -437,7 +488,7 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 {
 
 	SCEP_ERROR error = SCEPE_OK;
-	struct p7_data_t p7data;
+	struct p7_data_t p7data = {0};
 	PKCS7_ISSUER_AND_SERIAL *ias = NULL;
 	unsigned char *ias_data = NULL;
 	int ias_data_size;
@@ -480,10 +531,14 @@ static SCEP_ERROR _scep_get_cert_or_crl(
 	if((error = scep_pkiMessage(
 			handle, messageType, databio, enc_cert, &p7data)) != SCEPE_OK)
 		goto finally;
-	if((error = scep_p7_final(handle, &p7data, pkiMessage)) != SCEPE_OK)
-		goto finally;
 
 finally:
+	/* always finalize if we have initialized to avoid memory leak */
+	if(p7data.bio) {
+		SCEP_ERROR tmp_err = scep_p7_final(handle, &p7data, pkiMessage);
+		if(error == SCEPE_OK)
+			error = tmp_err;
+	}
 	if(databio)
 		BIO_free(databio);
 	if(ias)
@@ -619,8 +674,10 @@ SCEP_ERROR scep_unwrap_response(
 			case SCEPOP_GETCERT:
 			case SCEPOP_GETNEXTCACERT:
 			case SCEPOP_GETCERTINITIAL: ; // Small necessary hack
+				STACK_OF(X509) *certs = local_out->messageData->d.sign->cert;
+				/* Remove cert reference from PKCS#7 so it isn't freed. */
+				local_out->messageData->d.sign->cert = NULL;
 				/* ensure there are certs (at least 1) */
-				STACK_OF(X509) *certs = sk_X509_dup(local_out->messageData->d.sign->cert);
 				if(sk_X509_num(certs) < 1)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of certificates");
 
@@ -629,14 +686,13 @@ SCEP_ERROR scep_unwrap_response(
 				break;
 
 			case SCEPOP_GETCRL: ; // hack again...
+				STACK_OF(X509_CRL) *crls = local_out->messageData->d.sign->crl;
 				/* ensure only one CRL */
-				STACK_OF(X509_CRL) *crls = sk_X509_CRL_dup(local_out->messageData->d.sign->crl);
 				if(sk_X509_CRL_num(crls) != 1)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of CRLs");
 
 				/* set output param */
 				local_out->crl = sk_X509_CRL_pop(crls);
-				sk_X509_CRL_free(crls);
 				if(local_out->crl == NULL)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Unable to retrieve CRL from stack");
 				break;
@@ -644,14 +700,16 @@ SCEP_ERROR scep_unwrap_response(
 			default:
 				SCEP_ERR(SCEPE_UNKOWN_OPERATION, "Invalid operation, cannot parse content");
 		}
+		local_out->request_type = request_type;
 	}
 
 	*output = local_out;
 finally:
-	if(messageData)
+	/* if we had an error this would be freed below */
+	if(messageData && error == SCEPE_OK)
 		PKCS7_free(messageData);
 	if(error != SCEPE_OK)
-		free(local_out);
+		SCEP_DATA_free(local_out);
 	return error;
 }
 
@@ -718,7 +776,7 @@ SCEP_ERROR scep_unwrap(
 		SCEP_ERR(SCEPE_INVALID_CONTENT, "messageType is missing. Not a pkiMessage?");
 
 	/* luckily, standard defines single types */
-	local_out->messageType_str = (char *) ASN1_STRING_data(messageType->value.printablestring);
+	local_out->messageType_str = strdup((char *) ASN1_STRING_data(messageType->value.printablestring));
 	if(!local_out->messageType_str)
 		SCEP_ERR(SCEPE_INVALID_CONTENT, "Failed to extract message type");
 
@@ -744,7 +802,7 @@ SCEP_ERROR scep_unwrap(
 	/* transaction ID */
 	if(!(transId = PKCS7_get_signed_attribute(si, handle->oids->transId)))
 		SCEP_ERR(SCEPE_INVALID_CONTENT, "transaction ID is missing");
-	local_out->transactionID = (char *) ASN1_STRING_data(transId->value.printablestring);
+	local_out->transactionID = strdup((char *) ASN1_STRING_data(transId->value.printablestring));
 	if(!local_out->transactionID)
 		OSSL_ERR("Failed to extract transaction ID as string");
 

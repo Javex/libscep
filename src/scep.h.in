@@ -100,6 +100,8 @@ typedef enum {
     SCEPE_NYI,
     SCEPE_OPENSSL,
 
+    SCEPE_INTERNAL,
+
     // this always needs to be the last error for unit tests. It is used to
     // make sure we test all error messages.
     SCEPE_DUMMY_LAST_ERROR,
@@ -113,6 +115,7 @@ typedef enum {
     SCEPOP_GETCRL,
     SCEPOP_GETNEXTCACERT,
     SCEPOP_GETCERTINITIAL,
+    SCEPOP_CERTREP,
 } SCEP_OPERATION;
 
 typedef enum {
@@ -180,7 +183,7 @@ typedef struct {
     unsigned char recipientNonce[NONCE_LENGTH];
     ASN1_TYPE *challenge_password;
     X509 *signer_certificate;
-    char *messageType_str;
+    const char *messageType_str;
     SCEP_MESSAGE_TYPE messageType;
     /* Different types of message content for different operations.
      * Contains the required data for the specified operation
@@ -194,11 +197,16 @@ typedef struct {
         PKCS7_ISSUER_AND_SERIAL *issuer_and_serial; /* GetCert */
         PKCS7_ISSUER_AND_SUBJECT *issuer_and_subject; /* GetCertInitial */
 
-        /* CertRep depends on request type */
-        STACK_OF(X509) *certs;  /* all except GetCRL response */
-        X509_CRL *crl; /* for GetCRL */
+        struct {
+            SCEP_OPERATION request_type;
+            /* CertRep depends on request type */
+            union {
+                STACK_OF(X509) *certs;  /* all except GetCRL response */
+                X509_CRL *crl; /* for GetCRL */
 
-        PKCS7 *messageData; /* internal */
+                PKCS7 *messageData; /* internal */
+            };
+        };
     };
 } SCEP_DATA;
 
@@ -220,6 +228,7 @@ char *scep_fail_info_str(SCEP_FAILINFO fail_info);
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);
 SCEP_ERROR scep_new_selfsigned_X509(
     SCEP *handle, X509_REQ *req, EVP_PKEY *req_key, X509 **cert);
+SCEP_ERROR SCEP_DATA_free(SCEP_DATA *data);
 SCEP_ERROR scep_certrep(
     SCEP *handle, char *transactionID, unsigned char *senderNonce,
     SCEP_PKISTATUS pkiStatus, SCEP_FAILINFO failInfo, X509 *requestedCert,

@@ -1,7 +1,6 @@
 #include <check.h>
 #include "scep.h"
 #include "test_message_common.c"
-
 static PKCS7 *make_message()
 {
     PKCS7 *p7;
@@ -17,6 +16,7 @@ static void setup()
     p7 = make_message();
     scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
     p7_nosigcert = make_message();
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
 }
 
 static void teardown()
@@ -24,6 +24,26 @@ static void teardown()
     PKCS7_free(p7);
     PKCS7_free(p7_nosigcert);
     generic_teardown();
+}
+
+static SCEP_DATA *make_unwrap_message()
+{
+    PKCS7 *p7 = NULL;
+    SCEP_DATA *data;
+    SCEP_ERROR error = scep_get_crl(
+        handle, sig_cert, sig_key, sig_cert,
+        enc_cacert, &p7);
+    ck_assert(error == SCEPE_OK);
+    ck_assert(p7 != NULL);
+    ck_assert(scep_unwrap(
+        handle, p7, sig_cacert, enc_cacert, enc_cakey, &data) == SCEPE_OK);
+    PKCS7_free(p7);
+    return data;
+}
+
+static void free_unwrap_message(SCEP_DATA *data)
+{
+    SCEP_DATA_free(data);
 }
 
 START_TEST(test_get_crl)
@@ -52,6 +72,15 @@ START_TEST(test_get_crl)
 }
 END_TEST
 
+START_TEST(test_unwrap)
+{
+    SCEP_DATA *data = make_unwrap_message();
+    ck_assert_int_eq(X509_NAME_cmp(data->issuer_and_subject->issuer, X509_get_subject_name(sig_cacert)), 0);
+    ck_assert_int_eq(ASN1_INTEGER_cmp(data->issuer_and_serial->serial, X509_get_serialNumber(sig_cert)), 0);
+    free_unwrap_message(data);
+}
+END_TEST
+
 void add_get_crl(Suite *s)
 {
     TCase *tc_gcrl_msg = tcase_create("GetCRL Message");
@@ -61,4 +90,9 @@ void add_get_crl(Suite *s)
     tcase_add_test(tc_gcrl_msg, test_scep_message_certificate);
     tcase_add_test(tc_gcrl_msg, test_get_crl);
     suite_add_tcase(s, tc_gcrl_msg);
+
+    TCase *tc_unwrap = tcase_create("GetCRL Unwrapping");
+    tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
+    tcase_add_test(tc_unwrap, test_unwrap);
+    suite_add_tcase(s, tc_unwrap);
 }

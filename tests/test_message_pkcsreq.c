@@ -2,32 +2,37 @@
 #include "scep.h"
 #include "test_message_common.c"
 
-static void make_message()
+static PKCS7 *make_message(X509_REQ *req)
 {
+    PKCS7 *p7 = NULL;
     SCEP_ERROR err = scep_pkcsreq(
         handle, req, sig_cert, sig_key, enc_cacert, &p7);
     ck_assert(err == SCEPE_OK);
+    ck_assert(p7 != NULL);
+    return p7;
 }
 
-static void make_message_nosigcert()
+static free_message(PKCS7 *p7)
 {
-    SCEP_ERROR s = scep_pkcsreq(
-        handle, req, sig_cert, sig_key, enc_cacert, &p7_nosigcert);
-    ck_assert(s == SCEPE_OK);
+    if(p7)
+        PKCS7_free(p7);
 }
 
 static void setup()
 {
     generic_setup();
-    make_message();
+
+    p7 = make_message(req);
     scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-    make_message_nosigcert();
+    p7_nosigcert = make_message(req);
 }
 
 static void teardown()
 {
-    PKCS7_free(p7);
-    PKCS7_free(p7_nosigcert);
+    free_message(p7);
+    p7 = NULL;
+    free_message(p7_nosigcert);
+    p7_nosigcert = NULL;
     generic_teardown();
 }
 
@@ -49,6 +54,7 @@ START_TEST(test_pkcsreq)
         get_attribute_data(p7, handle->oids->messageType));
     X509_REQ_free(ref_csr);
     X509_REQ_free(csr);
+    free_message(p7);
 }
 END_TEST
 
@@ -99,6 +105,7 @@ START_TEST(test_missing_pubkey)
 
     X509 *sig_cert = NULL, *enc_cert = NULL;
     EVP_PKEY *sig_key = NULL;
+    p7 = NULL;
     ck_assert(scep_pkcsreq(handle, req, sig_cert, sig_key, enc_cert, &p7) == SCEPE_INVALID_CONTENT);
     ck_assert(p7 == NULL);
     X509_REQ_free(req);
@@ -137,8 +144,7 @@ END_TEST
 void add_pkcsreq(Suite *s)
 {
     TCase *tc_pkcsreq_msg = tcase_create("PKCSReq Message");
-    tcase_add_checked_fixture(tc_pkcsreq_msg, setup, teardown);
-
+    tcase_add_unchecked_fixture(tc_pkcsreq_msg, setup, teardown);
     tcase_add_test(tc_pkcsreq_msg, test_scep_message_asn1_version);
     tcase_add_test(tc_pkcsreq_msg, test_scep_message_transaction_id);
     tcase_add_test(tc_pkcsreq_msg, test_scep_message_sender_nonce);
@@ -149,9 +155,13 @@ void add_pkcsreq(Suite *s)
     suite_add_tcase(s, tc_pkcsreq_msg);
 
     TCase *tc_pkcsreq_errors = tcase_create("PKCSReq Invalid");
-    tcase_add_checked_fixture(tc_pkcsreq_errors, generic_setup, generic_teardown);
+    tcase_add_unchecked_fixture(tc_pkcsreq_errors, generic_setup, generic_teardown);
     tcase_add_test(tc_pkcsreq_errors, test_missing_dn);
     tcase_add_test(tc_pkcsreq_errors, test_missing_pubkey);
     tcase_add_test(tc_pkcsreq_errors, test_missing_challenge_password);
     suite_add_tcase(s, tc_pkcsreq_errors);
+
+    TCase *tc_unwrap = tcase_create("PKCSReq Unwrapping");
+    tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
+    suite_add_tcase(s, tc_unwrap);
 }

@@ -34,6 +34,8 @@ char *scep_strerror(SCEP_ERROR err)
 					"responsible for this.";
 		case SCEPE_OPENSSL:
 			return "Error in OpenSSL. See error log for details.";
+		case SCEPE_INTERNAL:
+			return "Internal error";
 		case SCEPE_DUMMY_LAST_ERROR:
 			return "Unknown error";
 	}
