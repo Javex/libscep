@@ -38,12 +38,23 @@ static SCEP_ERROR make_degenP7(
 
         p7s->cert = cert_stack;
 
-        sk_X509_push(cert_stack, cert);
+        X509 *cert_copy = X509_dup(cert);
+        if(!cert_copy)
+            OSSL_ERR("Unable to copy certificate");
+        if(!sk_X509_push(cert_stack, cert_copy))
+            OSSL_ERR("Unable to add certificate to stack");
 
         if(additionalCerts) {
-            for (i = 0; i = sk_X509_num(additionalCerts); i++) {
-                currCert = sk_X509_shift(additionalCerts);
-                sk_X509_push(cert_stack, currCert);
+            scep_log(handle, DEBUG, "Adding %d additional certificate(s)", sk_X509_num(additionalCerts));
+            for(i = 0; i < sk_X509_num(additionalCerts); i++) {
+                currCert = sk_X509_value(additionalCerts, i);
+                if(!currCert)
+                    OSSL_ERR("No cert found in stack");
+                cert_copy = X509_dup(currCert);
+                if(!cert_copy)
+                    OSSL_ERR("Unable to copy certificate");
+                if(!sk_X509_push(cert_stack, cert_copy))
+                    OSSL_ERR("Unable to extend cert stack");
             }
         }
     }

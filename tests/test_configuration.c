@@ -102,9 +102,20 @@ START_TEST(test_scep_conf_verbosity)
 }
 END_TEST
 
+START_TEST(test_scep_conf_engine)
+{
+	BIO *scep_log = BIO_new_fp(stdout, BIO_NOCLOSE);
+	scep_conf_set(handle, SCEPCFG_LOG, scep_log);
+	scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
+	BIO_free(scep_log);
+}
+END_TEST
+
 START_TEST(test_scep_conf_sanity_check)
 {
-	   ck_assert(scep_conf_sanity_check(handle) == SCEPE_OK);
+	ck_assert(scep_conf_sanity_check(handle) == SCEPE_OK);
 }
 END_TEST
 
@@ -118,6 +129,7 @@ Suite * scep_conf_suite(void)
 	tcase_add_test(tc_core, test_scep_set_conf);
 	tcase_add_test(tc_core, test_scep_conf_encalg);
 	tcase_add_test(tc_core, test_scep_conf_sigalg);
+	tcase_add_test(tc_core, test_scep_conf_engine);
 	tcase_add_test(tc_core, test_scep_conf_verbosity);
 
 	TCase *tc_sanity = tcase_create("Sanity Checks");

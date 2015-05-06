@@ -1,0 +1,11 @@
+/* Tests */
+void add_pkcsreq(Suite *s);
+void add_get_cert_initial(Suite *s);
+void add_get_cert(Suite *s);
+void add_get_crl(Suite *s);
+
+/* Helpers */
+SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result);
+BIO *get_decrypted_data(PKCS7 *p7, X509 *enc_cacert, EVP_PKEY *enc_cakey);
+ASN1_STRING *get_attribute(PKCS7 *message, int nid);
+char *get_attribute_data(PKCS7 *message, int nid);

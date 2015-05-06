@@ -1,0 +1,437 @@
+#include <check.h>
+#include "scep.h"
+#include "test_message_common.c"
+
+static X509 *issued_cert = NULL;
+static char *issued_cert_str ="-----BEGIN CERTIFICATE-----\n"
+"MIIB7TCCAZegAwIBAgIBBDANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTQyMzI1WhcNMTYwMzE0MTQyMzI1WjBXMQswCQYD\n"
+"VQQGEwJBVTETMBEGA1UECBMKU29tZS1TdGF0ZTEhMB8GA1UEChMYSW50ZXJuZXQg\n"
+"V2lkZ2l0cyBQdHkgTHRkMRAwDgYDVQQDEwdmb28uYmFyMIGfMA0GCSqGSIb3DQEB\n"
+"AQUAA4GNADCBiQKBgQCnCz5qi3kW8avPCPhmKOUwSRpCcqOi0RH3tGburtCoHl56\n"
+"nhL3X1Xuv+3e6HWS74IOWbwuZXADdSWswFMefJuh6D4tRACzvgbOuXaxxopj9PYn\n"
+"ieNunATNl1O1fy1QG3uJiy+QuQe3/xfIIwIVtvsx5ckMfRHk4g4lsOJwLofIvwID\n"
+"AQABoxowGDAJBgNVHRMEAjAAMAsGA1UdDwQEAwIF4DANBgkqhkiG9w0BAQUFAANB\n"
+"AGZRYophSHisfLzjA0EV766X+e7hAK1J+G3IZHHn4WvxRGEGRZmEYMwbV3/gIRW8\n"
+"bIEcl2LeuPgUGWhLIowjKF0=\n"
+"-----END CERTIFICATE-----\n";
+
+static PKCS7 *certrep_pending = NULL;
+static char *certrep_pending_str = "-----BEGIN PKCS7-----\n"
+"MIID1AYJKoZIhvcNAQcCoIIDxTCCA8ECAQExDjAMBggqhkiG9w0CBQUAMA8GCSqG\n"
+"SIb3DQEHAaACBACgggHbMIIB1zCCAYGgAwIBAgIJAIxnK+AvQtveMA0GCSqGSIb3\n"
+"DQEBBQUAMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARh\n"
+"c2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYTAeFw0xNTAzMTUxMjIxNTha\n"
+"Fw0xODAxMDIxMjIxNThaMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0w\n"
+"CwYDVQQHDARhc2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYTBcMA0GCSqG\n"
+"SIb3DQEBAQUAA0sAMEgCQQC2ZbZXN6Q+k4yECXUBrv3x/zF0F16G9Yx+b9qxdhkP\n"
+"/+BkA5gyRFNEWL+EovU200F/mSpYsFW+VlIGW0x0rBvJAgMBAAGjUDBOMB0GA1Ud\n"
+"DgQWBBTGyK1AVoV5v/Ou4FmWrxNg3Aqv5zAfBgNVHSMEGDAWgBTGyK1AVoV5v/Ou\n"
+"4FmWrxNg3Aqv5zAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA0EAFZJdlgEg\n"
+"GTOzRdtPsRY0ezWVow261OUUf1Z6x0e9z/Nzkoo2kfI4iDafebvQ1yMqSWKbUjLG\n"
+"Ai/YCq2m3p5tHDGCAbowggG2AgEBMFQwRzELMAkGA1UEBhMCREUxDTALBgNVBAgM\n"
+"BGFzZGYxDTALBgNVBAcMBGFzZGYxDTALBgNVBAoMBGFzZGYxCzAJBgNVBAMMAmNh\n"
+"AgkAjGcr4C9C294wDAYIKoZIhvcNAgUFAKCB+zARBgpghkgBhvhFAQkCMQMTATMw\n"
+"EQYKYIZIAYb4RQEJAzEDEwEzMBwGCSqGSIb3DQEJBTEPFw0xNTA0MDYxNjIyMjha\n"
+"MB8GCSqGSIb3DQEJBDESBBDUHYzZjwCyBOmACZjs+EJ+MCAGCmCGSAGG+EUBCQUx\n"
+"EgQQxXaAC0LFaFWMLh2hGNaTCDAgBgpghkgBhvhFAQkGMRIEEMV2gAtCxWhVjC4d\n"
+"oRjWkwgwUAYKYIZIAYb4RQEJBzFCE0AyRjNDODgxMTRDMjgzRTlBNkNENTdCQjgy\n"
+"NjZDRTMxM0RCMEJFRTBEQUY3NjlENzcwQzRFNUZGQjlDNEMxMDE2MA0GCSqGSIb3\n"
+"DQEBAQUABEBQ9WJNzOnX3klE2GrpYfkG0MB0pLgCOhrRY0me22CXaU1LFVy2z3Vi\n"
+"PTM1WRNGAryx2bzxPnjScKvpQjXv8g+6\n"
+"-----END PKCS7-----\n";
+
+static PKCS7 *certrep_success = NULL;
+static char *certrep_success_str = "-----BEGIN PKCS7-----\n"
+"MIIG6gYJKoZIhvcNAQcCoIIG2zCCBtcCAQExDjAMBggqhkiG9w0CBQUAMIIDIwYJ\n"
+"KoZIhvcNAQcBoIIDFASCAxAwggMMBgkqhkiG9w0BBwOgggL9MIIC+QIBADGBpTCB\n"
+"ogIBADBMMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARh\n"
+"c2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYQIBAzANBgkqhkiG9w0BAQEF\n"
+"AARAHNxN4Lh0/dA7U1ZDWfv6Q6JlcA6N9y5CzZvESnQJdAJlOsink8cROBayi8Ej\n"
+"0SweDCEXG+9GV8rWldFP722A7zCCAkoGCSqGSIb3DQEHATARBgUrDgMCBwQIzXfA\n"
+"Zq6FpLuAggIo2CBOTtpTCKPYe42lGUsFI/A48V+RIx8M77kg6jkO34Qc/4FD9B/C\n"
+"PMnO3MfT4m4deuiv9OP6dJVVqpKAHdKmQDHbFh97hB1tsawnbmYFbjl7d2Q2u1+B\n"
+"GtAY9yQUqVfOAimFzRIf1o243A02BYm5Df4jhX/j+GQssYVLZp2tr+8rj3MJ43R9\n"
+"WjavjdNlrJhNhgNDUL8AdcVT9KE1MaoMcbddN/bDxmhFa15Vz42XAkLdo8IRZqxU\n"
+"+2H0FAPUh20Ahu58ySgpdDYqeqArQOTpbzIxMe38pfKk5ab9WKxFxQRR89F0SFnc\n"
+"giLoEw3fep+FwHfm9Jrom8CQH0CI7ERwr7lw3RaSXoSaHXz59UaSjqChpILGgyBg\n"
+"ruKohZumhDf4U5lAcIryTlv2okX62t20XN10rWeaVNR4u0johLHyZt2CGAyCT0af\n"
+"0TwW1xMtnmKdKFFIzedYY2KafawuKMo6pm1dAOHavfAgeouqbNnYKCAgrSs9SheH\n"
+"H1ecDe7vhp7NAJOZqTxse7XfzVuDuM4vD6YZz1nwYW277UUEJgWo4Rft/Kze4p3X\n"
+"Up9oh3iwlU52ue/Djv7D9L9lXhpKeNzFE02txmD/tBT1D1h9o3adXMgAJov3ULF6\n"
+"K0fPPpNrrj3rkmPSfCCqs00UBEiMGr7xUQxhA/f7/4mAGeeEDRY7Mwt5HiQC6L5c\n"
+"MV1/mMYfKSWuiIiFFsruWGnljF2vdCQFWnkr4YzPlOxtoIIB2zCCAdcwggGBoAMC\n"
+"AQICCQCMZyvgL0Lb3jANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTENMAsG\n"
+"A1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkGA1UE\n"
+"AwwCY2EwHhcNMTUwMzE1MTIyMTU4WhcNMTgwMTAyMTIyMTU4WjBHMQswCQYDVQQG\n"
+"EwJERTENMAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNk\n"
+"ZjELMAkGA1UEAwwCY2EwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAtmW2VzekPpOM\n"
+"hAl1Aa798f8xdBdehvWMfm/asXYZD//gZAOYMkRTRFi/hKL1NtNBf5kqWLBVvlZS\n"
+"BltMdKwbyQIDAQABo1AwTjAdBgNVHQ4EFgQUxsitQFaFeb/zruBZlq8TYNwKr+cw\n"
+"HwYDVR0jBBgwFoAUxsitQFaFeb/zruBZlq8TYNwKr+cwDAYDVR0TBAUwAwEB/zAN\n"
+"BgkqhkiG9w0BAQUFAANBABWSXZYBIBkzs0XbT7EWNHs1laMNutTlFH9WesdHvc/z\n"
+"c5KKNpHyOIg2n3m70NcjKklim1IyxgIv2Aqtpt6ebRwxggG6MIIBtgIBATBUMEcx\n"
+"CzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYD\n"
+"VQQKDARhc2RmMQswCQYDVQQDDAJjYQIJAIxnK+AvQtveMAwGCCqGSIb3DQIFBQCg\n"
+"gfswEQYKYIZIAYb4RQEJAjEDEwEzMBEGCmCGSAGG+EUBCQMxAxMBMDAcBgkqhkiG\n"
+"9w0BCQUxDxcNMTUwNDA3MTYyMzQwWjAfBgkqhkiG9w0BCQQxEgQQt1umyZXVxNfB\n"
+"V6pLhW1HLjAgBgpghkgBhvhFAQkFMRIEEMV2gAtCxWhVjC4doRjWkwgwIAYKYIZI\n"
+"AYb4RQEJBjESBBDFdoALQsVoVYwuHaEY1pMIMFAGCmCGSAGG+EUBCQcxQhNAMkYz\n"
+"Qzg4MTE0QzI4M0U5QTZDRDU3QkI4MjY2Q0UzMTNEQjBCRUUwREFGNzY5RDc3MEM0\n"
+"RTVGRkI5QzRDMTAxNjANBgkqhkiG9w0BAQEFAARAQxRzQdy/bjOlUroRJbbWqfOc\n"
+"5Jyyzie0psLdAPMN1nBfTDTofhvBoOzF6hnz894TO+TuTbproW/q5M+S/ggLPw==\n"
+"-----END PKCS7-----\n";
+
+static PKCS7 *certrep_failure = NULL;
+static char *certrep_failure_str = "-----BEGIN PKCS7-----\n"
+"MIID6AYJKoZIhvcNAQcCoIID2TCCA9UCAQExDjAMBggqhkiG9w0CBQUAMA8GCSqG\n"
+"SIb3DQEHAaACBACgggHbMIIB1zCCAYGgAwIBAgIJAIxnK+AvQtveMA0GCSqGSIb3\n"
+"DQEBBQUAMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARh\n"
+"c2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYTAeFw0xNTAzMTUxMjIxNTha\n"
+"Fw0xODAxMDIxMjIxNThaMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0w\n"
+"CwYDVQQHDARhc2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJjYTBcMA0GCSqG\n"
+"SIb3DQEBAQUAA0sAMEgCQQC2ZbZXN6Q+k4yECXUBrv3x/zF0F16G9Yx+b9qxdhkP\n"
+"/+BkA5gyRFNEWL+EovU200F/mSpYsFW+VlIGW0x0rBvJAgMBAAGjUDBOMB0GA1Ud\n"
+"DgQWBBTGyK1AVoV5v/Ou4FmWrxNg3Aqv5zAfBgNVHSMEGDAWgBTGyK1AVoV5v/Ou\n"
+"4FmWrxNg3Aqv5zAMBgNVHRMEBTADAQH/MA0GCSqGSIb3DQEBBQUAA0EAFZJdlgEg\n"
+"GTOzRdtPsRY0ezWVow261OUUf1Z6x0e9z/Nzkoo2kfI4iDafebvQ1yMqSWKbUjLG\n"
+"Ai/YCq2m3p5tHDGCAc4wggHKAgEBMFQwRzELMAkGA1UEBhMCREUxDTALBgNVBAgM\n"
+"BGFzZGYxDTALBgNVBAcMBGFzZGYxDTALBgNVBAoMBGFzZGYxCzAJBgNVBAMMAmNh\n"
+"AgkAjGcr4C9C294wDAYIKoZIhvcNAgUFAKCCAQ4wEQYKYIZIAYb4RQEJAjEDEwEz\n"
+"MBEGCmCGSAGG+EUBCQMxAxMBMjARBgpghkgBhvhFAQkEMQMTATAwHAYJKoZIhvcN\n"
+"AQkFMQ8XDTE1MDQwNjE2Mzk0NFowHwYJKoZIhvcNAQkEMRIEENQdjNmPALIE6YAJ\n"
+"mOz4Qn4wIAYKYIZIAYb4RQEJBTESBBDFdoALQsVoVYwuHaEY1pMIMCAGCmCGSAGG\n"
+"+EUBCQYxEgQQxXaAC0LFaFWMLh2hGNaTCDBQBgpghkgBhvhFAQkHMUITQDJGM0M4\n"
+"ODExNEMyODNFOUE2Q0Q1N0JCODI2NkNFMzEzREIwQkVFMERBRjc2OUQ3NzBDNEU1\n"
+"RkZCOUM0QzEwMTYwDQYJKoZIhvcNAQEBBQAEQBDMKC1DUo39J/K0MOdPFb7XvJy2\n"
+"B+oiOeChkprVCXAf3ROSda1/KXTdvYyRTzqS9z1VAFXFqdpnDNJxxZAIaoY=\n"
+"-----END PKCS7-----\n";
+
+static PKCS7* make_message(
+        SCEP_PKISTATUS pkiStatus, SCEP_FAILINFO failInfo,
+        X509 *issued_cert, X509 *enc_cert, STACK_OF(X509) *add_certs) {
+    PKCS7 *p7 = NULL;
+    char *transactionID = "2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016";
+    unsigned char senderNonce[] = {0xc5, 0x76, 0x80, 0xb, 0x42, 0xc5, 0x68, 0x55, 0x8c, 0x2e, 0x1d, 0xa1, 0x18, 0xd6, 0x93, 0x8};
+    SCEP_ERROR error = scep_certrep(
+        handle, transactionID, senderNonce, pkiStatus,
+        failInfo, issued_cert, sig_cacert, sig_cakey, enc_cert, add_certs, NULL, &p7);
+    ck_assert(error == SCEPE_OK);
+    return p7;
+}
+
+static void free_message(PKCS7 *p7) {
+    if(p7)
+        PKCS7_free(p7);
+}
+
+static void setup()
+{
+    generic_setup();
+
+    BIO *b = BIO_new(BIO_s_mem());
+    BIO_puts(b, issued_cert_str);
+    issued_cert = PEM_read_bio_X509(b, NULL, 0, 0);
+    ck_assert(issued_cert != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_pending_str);
+    certrep_pending = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_pending != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_success_str);
+    certrep_success = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_success != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_failure_str);
+    certrep_failure = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_failure != NULL);
+    BIO_free(b);
+
+    p7 = NULL;
+    p7_nosigcert = NULL;
+}
+
+static void teardown()
+{
+    free_message(p7);
+    p7 = NULL;
+    free_message(p7_nosigcert);
+    p7_nosigcert = NULL;
+    X509_free(issued_cert);
+    PKCS7_free(certrep_success);
+    PKCS7_free(certrep_failure);
+    PKCS7_free(certrep_pending);
+    generic_teardown();
+}
+
+static void setup_pending()
+{
+    setup();
+    p7 = make_message(
+        SCEP_PENDING, 0,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message(
+        SCEP_PENDING, 0,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
+}
+
+static void setup_failure()
+{
+    setup();
+    p7 = make_message(
+        SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message(
+        SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
+}
+
+static void setup_pkcsreq_success()
+{
+    setup();
+
+    /* Global message */
+    STACK_OF(X509) *cert_stack = sk_X509_new_null();
+    X509 *c = X509_dup(sig_cacert);
+    sk_X509_push(cert_stack, c);
+    p7 = make_message(SCEP_SUCCESS, 0, issued_cert, enc_cert, cert_stack);
+    sk_X509_free(cert_stack);
+
+    /* Global message without sig cert */
+    cert_stack = sk_X509_new_null();
+    sk_X509_push(cert_stack, c);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message(SCEP_SUCCESS, 0, issued_cert, enc_cert, cert_stack);
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
+    sk_X509_free(cert_stack);
+}
+
+START_TEST(test_pkcsreq_pending)
+{
+    ck_assert(p7 != NULL);
+    ck_assert_str_eq(
+        SCEP_MSG_CERTREP_STR,
+        get_attribute_data(p7, handle->oids->messageType));
+    ck_assert_str_eq(get_attribute_data(p7, handle->oids->pkiStatus), SCEP_PKISTATUS_PENDING);
+
+    /* Make sure pkcsPKIEnvelope is omitted */
+    PKCS7 *datap7 = p7->d.sign->contents;
+    ck_assert(PKCS7_type_is_data(datap7));
+    ASN1_OCTET_STRING *data = datap7->d.data;
+    ck_assert_int_eq(data->length, 0);
+    ck_assert_int_eq(data->data, 0);
+    ck_assert_int_eq(data->type, V_ASN1_OCTET_STRING);
+}
+END_TEST
+
+START_TEST(test_pkcsreq_failure)
+{
+    ck_assert(p7 != NULL);
+    ck_assert_str_eq(
+        SCEP_MSG_CERTREP_STR,
+        get_attribute_data(p7, handle->oids->messageType));
+    ck_assert_str_eq(get_attribute_data(p7, handle->oids->pkiStatus), SCEP_PKISTATUS_FAILURE);
+    ck_assert_str_eq(get_attribute_data(p7, handle->oids->failInfo), SCEP_BAD_MESSAGE_CHECK_NR);
+
+    /* Make sure pkcsPKIEnvelope is omitted */
+    PKCS7 *datap7 = p7->d.sign->contents;
+    ck_assert(PKCS7_type_is_data(datap7));
+    ASN1_OCTET_STRING *data = datap7->d.data;
+    ck_assert_int_eq(data->length, 0);
+    ck_assert_int_eq(data->data, 0);
+    ck_assert_int_eq(data->type, V_ASN1_OCTET_STRING);
+}
+END_TEST
+
+START_TEST(test_pkcsreq_success)
+{
+    ck_assert(p7 != NULL);
+    ck_assert_str_eq(
+        SCEP_MSG_CERTREP_STR,
+        get_attribute_data(p7, handle->oids->messageType));
+    ck_assert_str_eq(get_attribute_data(p7, handle->oids->pkiStatus), SCEP_PKISTATUS_SUCCESS);
+
+    PKCS7 *datap7 = p7->d.sign->contents;
+    ck_assert(PKCS7_type_is_data(datap7));
+    ASN1_OCTET_STRING *encdata = datap7->d.data;
+    ck_assert_int_ne(encdata->length, 0);
+    ck_assert_int_ne(encdata->data, 0);
+    ck_assert_int_eq(encdata->type, V_ASN1_OCTET_STRING);
+    BIO *data = get_decrypted_data(p7, enc_cert, enc_key);
+    PKCS7 *reply_data = d2i_PKCS7_bio(data, NULL);
+    ck_assert_int_ne(reply_data, NULL);
+    ck_assert(PKCS7_type_is_signed(reply_data));
+    PKCS7_SIGNED *degen = reply_data->d.sign;
+    ck_assert(sk_X509_num(degen->cert) >= 1);
+    ck_assert(sk_X509_num(degen->crl) <= 0);
+    ck_assert_int_ne(degen->contents, NULL);
+    ck_assert(PKCS7_type_is_data(degen->contents));
+    ASN1_OCTET_STRING *inner_data = degen->contents->d.data;
+    ck_assert_int_eq(inner_data, 0);
+}
+END_TEST
+
+START_TEST(test_recipient_nonce)
+{
+    ASN1_STRING *recipientNonce = get_attribute(p7, handle->oids->recipientNonce);
+    ASN1_STRING *senderNonce = get_attribute(p7, handle->oids->senderNonce);
+    ck_assert_int_eq(ASN1_STRING_length(recipientNonce), 16);
+    ck_assert_int_eq(ASN1_STRING_cmp(recipientNonce, senderNonce), 0);
+}
+END_TEST
+
+START_TEST(test_sig_certificate)
+{
+    BIO *b = BIO_new(BIO_s_mem());
+    X509 *ref_cert = NULL;
+    BIO_puts(b, sig_cacert_str);
+    PEM_read_bio_X509(b, &ref_cert, 0, 0);
+    ck_assert(ref_cert != NULL);
+    BIO_free(b);
+
+    ck_assert(sk_X509_num(p7->d.sign->cert) == 1);
+    X509 *cert = sk_X509_value(p7->d.sign->cert, 0);
+    ck_assert(cert != NULL);
+    ck_assert(X509_cmp(cert, ref_cert) == 0);
+
+    ck_assert(sk_X509_num(p7_nosigcert->d.sign->cert) < 1); // -1 or 0
+    X509_free(ref_cert);
+}
+END_TEST
+
+START_TEST(test_unwrap_pkcsreq_pending)
+{
+    SCEP_DATA *data;
+    ck_assert(scep_unwrap_response(
+        handle, certrep_pending, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, &data) == SCEPE_OK);
+    ck_assert_int_ne(NULL, data);
+    ck_assert_str_eq(
+        "2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+        data->transactionID);
+    ck_assert_str_eq(SCEP_MSG_CERTREP_STR, data->messageType_str);
+    ck_assert_int_eq(SCEP_MSG_CERTREP, data->messageType);
+    ck_assert_int_ne(NULL, (char*)data->senderNonce);
+    ck_assert_int_ne(NULL, (char*)data->recipientNonce);
+    ck_assert_int_eq(SCEP_PENDING, data->pkiStatus);
+    ck_assert_int_eq(data->certs, NULL);
+    SCEP_DATA_free(data);
+}
+END_TEST
+
+START_TEST(test_unwrap_pkcsreq_success)
+{
+    SCEP_DATA *data;
+    ck_assert(scep_unwrap_response(
+        handle, certrep_success, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, &data) == SCEPE_OK);
+    ck_assert_int_ne(NULL, data);
+    ck_assert_str_eq(
+        "2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+        data->transactionID);
+    ck_assert_str_eq(SCEP_MSG_CERTREP_STR, data->messageType_str);
+    ck_assert_int_eq(SCEP_MSG_CERTREP, data->messageType);
+    ck_assert_int_ne(NULL, (char*)data->senderNonce);
+    ck_assert_int_ne(NULL, (char*)data->recipientNonce);
+    ck_assert_int_eq(SCEP_SUCCESS, data->pkiStatus);
+    ck_assert_int_eq(sk_X509_num(data->certs), 1);
+    SCEP_DATA_free(data);
+}
+END_TEST
+
+START_TEST(test_unwrap_pkcsreq_failure)
+{
+    SCEP_DATA *data;
+    ck_assert(scep_unwrap_response(
+        handle, certrep_failure, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, &data) == SCEPE_OK);
+    ck_assert_int_ne(NULL, data);
+    ck_assert_str_eq(
+        "2F3C88114C283E9A6CD57BB8266CE313DB0BEE0DAF769D770C4E5FFB9C4C1016",
+        data->transactionID);
+    ck_assert_str_eq(SCEP_MSG_CERTREP_STR, data->messageType_str);
+    ck_assert_int_eq(SCEP_MSG_CERTREP, data->messageType);
+    ck_assert_int_ne(NULL, (char*)data->senderNonce);
+    ck_assert_int_ne(NULL, (char*)data->recipientNonce);
+    ck_assert_int_eq(SCEP_FAILURE, data->pkiStatus);
+    ck_assert_int_eq(0, data->failInfo);
+    ck_assert_int_eq(data->certs, NULL);
+    SCEP_DATA_free(data);
+}
+END_TEST
+
+START_TEST(test_invalid_sig)
+{
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_pending), 0);
+    ASN1_TYPE *t = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
+    ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, SCEP_PKISTATUS_SUCCESS, -1), 0);
+    ck_assert_int_eq(scep_unwrap_response(
+        handle, certrep_pending, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, NULL), SCEPE_OPENSSL);
+
+}
+END_TEST
+
+START_TEST(test_unwrap_invalid_pkiStatus)
+{
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_pending), 0);
+    ASN1_TYPE *t = PKCS7_get_signed_attribute(si, handle->oids->pkiStatus);
+    ck_assert(t != NULL);
+    ck_assert_int_ne(ASN1_STRING_set(t->value.printablestring, "foobar", -1), 0);
+    ck_assert_int_ne(PKCS7_SIGNER_INFO_set(si, sig_cert, sig_key, handle->configuration->sigalg), 0);
+    ck_assert_int_ne(PKCS7_add_certificate(certrep_pending, sig_cert), 0);
+    int res = PKCS7_SIGNER_INFO_sign(si);
+    ck_assert_int_ne(res, 0);
+    ck_assert_int_eq(scep_unwrap_response(
+        handle, certrep_pending, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, NULL), SCEPE_PROTOCOL);
+}
+END_TEST
+
+void add_certrep(Suite *s)
+{
+    TCase *tc;
+#define add_tcase(name, setup, teardown) \
+    tc = tcase_create("Certrep " name " Message"); \
+    tcase_add_unchecked_fixture(tc, setup, teardown); \
+    tcase_add_test(tc, test_scep_message_asn1_version); \
+    tcase_add_test(tc, test_scep_message_transaction_id); \
+    tcase_add_test(tc, test_scep_message_sender_nonce); \
+    tcase_add_test(tc, test_scep_message_type); \
+    tcase_add_test(tc, test_scep_message_content_type); \
+    tcase_add_test(tc, test_recipient_nonce); \
+    tcase_add_test(tc, test_sig_certificate)
+
+    add_tcase("PKCSReq PENDING", setup_pending, teardown);
+    tcase_add_test(tc, test_pkcsreq_pending);
+    suite_add_tcase(s, tc);
+
+    add_tcase("PKCSReq FAILURE", setup_failure, teardown);
+    tcase_add_test(tc, test_pkcsreq_failure);
+    suite_add_tcase(s, tc);
+
+    add_tcase("PKCSReq SUCCESS", setup_pkcsreq_success, teardown);
+    tcase_add_test(tc, test_pkcsreq_success);
+    suite_add_tcase(s, tc);
+
+    TCase *tc_unwrap = tcase_create("Certrep Unwrapping");
+    tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
+    tcase_add_test(tc_unwrap, test_invalid_sig);
+    tcase_add_test(tc_unwrap, test_unwrap_invalid_pkiStatus);
+    tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_pending);
+    tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_success);
+    tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_failure);
+    suite_add_tcase(s, tc_unwrap);
+#undef add_tcase
+}
