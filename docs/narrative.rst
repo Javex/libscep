@@ -1,3 +1,5 @@
+.. _narrative:
+
 =======================
 Narrative Documentation
 =======================
@@ -10,3 +12,4 @@ using ``libscep``.
     :maxdepth: 2
 
     narrative/introduction
+    narrative/engine

@@ -53,6 +53,7 @@ static SCEP_ERROR scep_engine_init(SCEP *handle, char *engine_id, char *dyn_engi
 		scep_log(handle, DEBUG, "Dynamic loading of %s done", dyn_engine_id);
 	}
 
+	/* Enumerate all parameters and set the values on the engine */
 	struct engine_params_t *param;
 	for(param = handle->configuration->params; param != NULL; param = param->next) {
 		if(ENGINE_ctrl_cmd_string(e, param->name, param->value, 0) == 0)
@@ -81,6 +82,10 @@ static SCEP_ERROR engine_param_set(SCEP *handle, char *name, char *value)
 {
 	SCEP_ERROR error = SCEPE_OK;
 	struct engine_params_t *param = NULL;
+
+	if(handle->configuration->engine)
+		SCEP_ERR(SCEPE_UNKNOWN_CONFIGURATION, "An engine has already been configured");
+
 	param = calloc(1, sizeof(struct engine_params_t));
 	if(!param)
 		SCEP_ERR(SCEPE_MEMORY, "Error creating param structure");
@@ -151,6 +156,7 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 		case SCEPCFG_ENGINE_OBJ:
 			handle->configuration->engine = va_arg(arg, ENGINE *);
 			handle->configuration->internal_engine = 0;
+			_engine_count += 1;
 			break;
 		case SCEPCFG_FLAG_CLEAR:
 			handle->configuration->flags = 0;
@@ -168,17 +174,20 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 
 void scep_conf_free(SCEP_CONFIGURATION *conf)
 {
-	if(conf->engine && conf->internal_engine) {
-		struct engine_params_t *param = conf->params;
-		for(param = conf->params; param != NULL; param = param->next) {
-			free(param->name);
-			free(param->value);
-			free(param);
+	if(conf->engine) {
+		if(conf->internal_engine) {
+			struct engine_params_t *param = conf->params;
+			for(param = conf->params; param != NULL; param = param->next) {
+				free(param->name);
+				free(param->value);
+				free(param);
+			}
+			ENGINE_finish(conf->engine);
+			ENGINE_free(conf->engine);
+			if(_engine_count == 1)
+				ENGINE_cleanup();
 		}
-		ENGINE_finish(conf->engine);
-		ENGINE_free(conf->engine);
-		if(_engine_count == 1)
-			ENGINE_cleanup();
+		/* Decrement count for any engine, we also count the externals */
 		_engine_count -= 1;
 	}
 	free(conf);
@@ -186,5 +195,20 @@ void scep_conf_free(SCEP_CONFIGURATION *conf)
 
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle)
 {
+	return SCEPE_OK;
+}
+
+SCEP_ERROR scep_engine_get(SCEP *handle, ENGINE **e)
+{
+	if(!handle || !handle->configuration) {
+		scep_log(handle, ERROR, "libscep not yet initialized and/or configured");
+		return SCEPE_UNKNOWN_CONFIGURATION;
+	}
+
+	if(!handle->configuration->engine) {
+		scep_log(handle, ERROR, "No engine has been configured, yet");
+		return SCEPE_UNKNOWN_CONFIGURATION;
+	}
+	*e = handle->configuration->engine;
 	return SCEPE_OK;
 }

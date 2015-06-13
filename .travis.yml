@@ -14,6 +14,9 @@ install:
     - wget http://sourceforge.net/projects/opensc/files/engine_pkcs11/engine_pkcs11-0.1.8.tar.gz/download -O /tmp/engine_pkcs11-0.1.8.tar.gz
     - cd /tmp && tar -xzf /tmp/engine_pkcs11-0.1.8.tar.gz && cd -
     - cd /tmp/engine_pkcs11-0.1.8 &&  ./configure --prefix=/usr && make && sudo make install && cd -
+    - openssl genrsa -out some_key.pem
+    - softhsm --init-token --slot 0 --label "foo" --pin 1234 --so-pin 123456
+    - softhsm --import some_key.pem --slot 0 --pin 1234 --label foo --id 01
 before_script:
     - mkdir build
     - cd build

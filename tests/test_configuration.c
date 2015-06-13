@@ -104,12 +104,23 @@ END_TEST
 
 START_TEST(test_scep_conf_engine)
 {
-	BIO *scep_log = BIO_new_fp(stdout, BIO_NOCLOSE);
-	scep_conf_set(handle, SCEPCFG_LOG, scep_log);
-	scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
 	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
 	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
-	BIO_free(scep_log);
+
+	ENGINE *e = NULL;
+	ck_assert(scep_engine_get(handle, &e) == SCEPE_OK);
+	ck_assert(ENGINE_ctrl_cmd_string(e, "PIN", "1234", 0));
+	EVP_PKEY *key = ENGINE_load_private_key(e, "0:01", NULL, NULL);
+	ck_assert(key);
+}
+END_TEST
+
+START_TEST(test_scep_conf_engine_param_after_load)
+{
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
+
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_UNKNOWN_CONFIGURATION);
 }
 END_TEST
 
@@ -131,6 +142,7 @@ Suite * scep_conf_suite(void)
 	tcase_add_test(tc_core, test_scep_conf_sigalg);
 	tcase_add_test(tc_core, test_scep_conf_engine);
 	tcase_add_test(tc_core, test_scep_conf_verbosity);
+	tcase_add_test(tc_core, test_scep_conf_engine_param_after_load);
 
 	TCase *tc_sanity = tcase_create("Sanity Checks");
 	tcase_add_checked_fixture(tc_sanity, setup, teardown);

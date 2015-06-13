@@ -281,6 +281,7 @@ SCEP_ERROR scep_create_oids(SCEP *);
 SCEP_ERROR scep_conf_init(SCEP *handle);
 void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
+SCEP_ERROR scep_engine_get(SCEP *handle, ENGINE **e);
 
 /* util.c */
 SCEP_ERROR scep_calculate_transaction_id_pubkey(

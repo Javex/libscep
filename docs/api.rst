@@ -5,7 +5,7 @@ API Documentation
 This document describes the API of ``libscep`` in detail. If you are looking 
 for specific functions and implementation details you are correct here. If you
 are looking for just using this library, the 
-_`narrative documentation <narrative>` might be more for you.
+:ref:`narrative documentation <narrative>` might be more for you.
 
 
 Functions
