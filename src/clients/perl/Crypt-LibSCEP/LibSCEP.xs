@@ -8,8 +8,33 @@
 #include <stdlib.h>
 
 #include "helperfunctions.h"
+#include "config.h"
 
-MODULE = Crypt::LibSCEP		PACKAGE = Crypt::LibSCEP		
+
+
+IV
+init_config(SV *rv_config) {
+	Conf *config = malloc(sizeof(Conf));
+	if (SvROK(rv_config) && (SvTYPE(SvRV(rv_config)) == SVt_PVHV)) {
+
+		HV *hv_config = (HV*)SvRV(rv_config);
+
+		SV **svv = hv_fetch(hv_config, "inform", strlen("inform"),FALSE);
+		if(svv) {
+			SvPV_nolen(*svv);
+			config->inform = SvPV_nolen(*svv);
+		}
+	}
+	else {
+		printf("Config is not a perl hash structure");
+	}
+	return PTR2IV(config);
+}
+
+
+
+
+MODULE = Crypt::LibSCEP		PACKAGE = Crypt::LibSCEP	
 
 char *
 certrep_success(cakey_str, cacert_str, pkcsreq_str, issuedCert_str, enc_cert_str)
@@ -144,7 +169,7 @@ CODE:
 		printf("failure5");
 
 	SCEP_PKISTATUS pkiStatus = SCEP_FAILURE;
-	SCEP_FAILINFO failInfo;
+	SCEP_FAILINFO failInfo = 0;
 	if(strcmp("badAlg", failInfo_str) == 0)
 		failInfo = SCEP_BAD_ALG;
 	else if(strcmp("badMessageCheck", failInfo_str) == 0)
@@ -306,14 +331,23 @@ CODE:
 OUTPUT:
 	RETVAL
 
+	
+
 char *
-print_transid(pkiMessage_str)
+print_transid(rv_config, pkiMessage_str)
+SV * rv_config
 char * pkiMessage_str
+PREINIT:
+	Conf *config;
 CODE:
 	BIO *b;
 	SCEP *handle;
 	SCEP_DATA *unwrapped;
 	setup(&handle);
+	config = INT2PTR(Conf *, init_config(rv_config));
+	if(strcmp(config->inform, "PEM")) {
+		printf("unsupported input format %s", config->inform);
+	}
 
 	b = BIO_new(BIO_s_mem());
 	BIO_write(b, pkiMessage_str, strlen(pkiMessage_str));
