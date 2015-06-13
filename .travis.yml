@@ -10,6 +10,7 @@ before_install:
     - sudo apt-get update -qq
     - sudo apt-get install -y libssl-dev check liburiparser-dev libcurl4-openssl-dev gcc-4.8 softhsm libp11-dev
     - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 50
+    - sudo chmod 777 /etc/softhsm/softhsm.conf
 install:
     - wget http://sourceforge.net/projects/opensc/files/engine_pkcs11/engine_pkcs11-0.1.8.tar.gz/download -O /tmp/engine_pkcs11-0.1.8.tar.gz
     - cd /tmp && tar -xzf /tmp/engine_pkcs11-0.1.8.tar.gz && cd -
