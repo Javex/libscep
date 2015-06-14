@@ -111,7 +111,7 @@ START_TEST(test_scep_conf_engine)
 	ck_assert(scep_engine_get(handle, &e) == SCEPE_OK);
 	ck_assert(ENGINE_ctrl_cmd_string(e, "PIN", "1234", 0));
 	EVP_PKEY *key = ENGINE_load_private_key(e, "0:01", NULL, NULL);
-	ck_assert(key);
+	ck_assert(key != NULL);
 }
 END_TEST
 
