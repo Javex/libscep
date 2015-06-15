@@ -242,13 +242,13 @@ static void make_engine_message_data()
     filedes = mkstemp(name_buffer); \
     out = BIO_new_fd(filedes, BIO_NOCLOSE); \
     p8inf = EVP_PKEY2PKCS8(key_name); \
-    ck_assert(p8inf); \
+    ck_assert(p8inf != NULL); \
     PEM_write_bio_PKCS8_PRIV_KEY_INFO(out, p8inf); \
-    ck_assert(snprintf(cmd_buffer, 512, "softhsm --import %s --slot 0 --pin 1234 --label %s --id %02d", name_buffer, #key_name, id)); \
+    ck_assert(snprintf(cmd_buffer, 512, "softhsm --import %s --slot 0 --pin 1234 --label %s --id %02d", name_buffer, #key_name, id) >= 0); \
     ck_assert_int_eq(system(cmd_buffer), 0); \
     BIO_free(out); \
     close(filedes); \
-    ck_assert(snprintf(cmd_buffer, 512, "label_%s", #key_name)); \
+    ck_assert(snprintf(cmd_buffer, 512, "label_%s", #key_name) >= 0); \
     EVP_PKEY_free(key_name); \
     key_name = ENGINE_load_private_key(e, cmd_buffer, NULL, NULL); \
     ck_assert(key_name != NULL); \
