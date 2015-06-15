@@ -22,6 +22,15 @@ static void setup()
     scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
 }
 
+static void setup_engine()
+{
+    generic_engine_setup();
+    p7 = make_message();
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message();
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
+}
+
 static void teardown()
 {
     PKCS7_free(p7);
@@ -94,8 +103,21 @@ void add_get_cert(Suite *s)
     tcase_add_test(tc_gc_msg, test_get_cert);
     suite_add_tcase(s, tc_gc_msg);
 
+    TCase *tc_gc_msg_engine = tcase_create("GetCert Message with Engine");
+    tcase_add_checked_fixture(tc_gc_msg_engine, setup_engine, teardown);
+    tcase_add_test(tc_gc_msg_engine, test_scep_message_transaction_id_getcert);
+    tcase_add_test(tc_gc_msg_engine, test_scep_message_sender_nonce);
+    tcase_add_test(tc_gc_msg_engine, test_scep_message_certificate);
+    tcase_add_test(tc_gc_msg_engine, test_get_cert);
+    suite_add_tcase(s, tc_gc_msg_engine);
+
     TCase *tc_unwrap = tcase_create("GetCert Unwrapping");
     tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
     tcase_add_test(tc_unwrap, test_unwrap);
     suite_add_tcase(s, tc_unwrap);
+
+    TCase *tc_unwrap_engine = tcase_create("GetCert Unwrapping with Engine");
+    tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
+    tcase_add_test(tc_unwrap_engine, test_unwrap);
+    suite_add_tcase(s, tc_unwrap_engine);
 }

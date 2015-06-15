@@ -1,6 +1,8 @@
 #include <check.h>
 #include "scep.h"
 #include "scep_tests.h"
+#include <unistd.h>
+
 
 static SCEP *handle;
 static BIO *scep_log;
@@ -9,6 +11,7 @@ static SCEP_DATA *pkiMessage, *pkiMessage_failure, *pkiMessage_success;
 /*TODO: Do we need them*/
 static EVP_PKEY *dec_key;
 static X509 *dec_cert;
+static int engine = 0;
 
 
 static X509 *sig_cert;
@@ -144,6 +147,7 @@ static char *sig_key_str ="-----BEGIN PRIVATE KEY-----\n"
 "-----END PRIVATE KEY-----\n";
 
 static void make_message_data();
+static void make_engine_message_data();
 static void generic_setup()
 {
     scep_init(&handle);
@@ -153,13 +157,22 @@ static void generic_setup()
     make_message_data();
 }
 
+static void generic_engine_setup()
+{
+    generic_setup();
+    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
+    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
+    make_engine_message_data();
+
+}
+
 static void free_message_data();
 static void generic_teardown()
 {
     BIO_flush(scep_log);
     BIO_free(scep_log);
-    scep_cleanup(handle);
     free_message_data();
+    scep_cleanup(handle);
 }
 
 static void make_message_data()
@@ -209,6 +222,47 @@ static void make_message_data()
     BIO_puts(b, test_new_csr);
     req = PEM_read_bio_X509_REQ(b, NULL, 0, 0);
     BIO_free(b);
+}
+
+static void make_engine_message_data()
+{
+#define TMP_TEMPLATE "XXXXXX"
+    char name_buffer[20], cmd_buffer[512];
+    int filedes, id = 0;
+    BIO *out;
+    PKCS8_PRIV_KEY_INFO *p8inf;
+    ENGINE *e = NULL;
+    ck_assert_int_eq(scep_engine_get(handle, &e), SCEPE_OK);
+    ck_assert(ENGINE_ctrl_cmd_string(e, "PIN", "1234", 0));
+    ck_assert_int_eq(system("softhsm --init-token --slot 0 --label foo --pin 1234 --so-pin 123456"), 0);
+
+#define import_key(key_name) \
+    id++; \
+    strncpy(name_buffer, TMP_TEMPLATE, 20); \
+    filedes = mkstemp(name_buffer); \
+    out = BIO_new_fd(filedes, BIO_NOCLOSE); \
+    p8inf = EVP_PKEY2PKCS8(key_name); \
+    ck_assert(p8inf); \
+    PEM_write_bio_PKCS8_PRIV_KEY_INFO(out, p8inf); \
+    ck_assert(snprintf(cmd_buffer, 512, "softhsm --import %s --slot 0 --pin 1234 --label %s --id %02d", name_buffer, #key_name, id)); \
+    ck_assert_int_eq(system(cmd_buffer), 0); \
+    BIO_free(out); \
+    close(filedes); \
+    ck_assert(snprintf(cmd_buffer, 512, "label_%s", #key_name)); \
+    EVP_PKEY_free(key_name); \
+    key_name = ENGINE_load_private_key(e, cmd_buffer, NULL, NULL); \
+    ck_assert(key_name != NULL); \
+    unlink(name_buffer)
+
+    import_key(sig_key);
+    import_key(enc_key);
+    import_key(sig_cakey);
+    import_key(enc_cakey);
+    ck_assert_int_eq(system("sqlite3 softhsm-slot0.db \"UPDATE Attributes SET value='1' WHERE type=261;\""), 0);
+    // ck_assert_int_eq(system("sqlite3 softhsm-slot0.db \"UPDATE Attributes SET value='1' WHERE type=264;\""), 0);
+
+#undef import_key
+#undef TMP_TEMPLATE
 }
 
 static void free_message_data()

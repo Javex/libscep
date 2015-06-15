@@ -12,7 +12,7 @@ static PKCS7 *make_message(X509_REQ *req)
     return p7;
 }
 
-static free_message(PKCS7 *p7)
+static void free_message(PKCS7 *p7)
 {
     if(p7)
         PKCS7_free(p7);
@@ -21,6 +21,15 @@ static free_message(PKCS7 *p7)
 static void setup()
 {
     generic_setup();
+
+    p7 = make_message(req);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message(req);
+}
+
+static void setup_engine()
+{
+    generic_engine_setup();
 
     p7 = make_message(req);
     scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
@@ -54,7 +63,6 @@ START_TEST(test_pkcsreq)
         get_attribute_data(p7, handle->oids->messageType));
     X509_REQ_free(ref_csr);
     X509_REQ_free(csr);
-    free_message(p7);
 }
 END_TEST
 
@@ -154,6 +162,23 @@ void add_pkcsreq(Suite *s)
     tcase_add_test(tc_pkcsreq_msg, test_pkcsreq);
     suite_add_tcase(s, tc_pkcsreq_msg);
 
+    TCase *tc_pkcsreq_msg_engine = tcase_create("PKCSReq Message with Engine");
+    tcase_add_unchecked_fixture(tc_pkcsreq_msg_engine, setup_engine, teardown);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_asn1_version);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_transaction_id);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_sender_nonce);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_type);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_content_type);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_certificate);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_pkcsreq);
+    suite_add_tcase(s, tc_pkcsreq_msg_engine);
+
+    /* Note: We deliberately do not have tests for the invalid case
+     * with engines: They create their own keys that are not recognized
+     * by the engine. We could import them but these tests **should** fail
+     * anyway and so I guess having an engine won't make much of a difference
+     * here.
+     */
     TCase *tc_pkcsreq_errors = tcase_create("PKCSReq Invalid");
     tcase_add_unchecked_fixture(tc_pkcsreq_errors, generic_setup, generic_teardown);
     tcase_add_test(tc_pkcsreq_errors, test_missing_dn);
@@ -164,4 +189,8 @@ void add_pkcsreq(Suite *s)
     TCase *tc_unwrap = tcase_create("PKCSReq Unwrapping");
     tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
     suite_add_tcase(s, tc_unwrap);
+
+    TCase *tc_unwrap_engine = tcase_create("PKCSReq Unwrapping with Engine");
+    tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
+    suite_add_tcase(s, tc_unwrap_engine);
 }

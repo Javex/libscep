@@ -3,6 +3,7 @@ void add_pkcsreq(Suite *s);
 void add_get_cert_initial(Suite *s);
 void add_get_cert(Suite *s);
 void add_get_crl(Suite *s);
+void add_certrep(Suite *s);
 
 /* Helpers */
 SCEP_ERROR PKCS7_get_content(PKCS7 *p7, PKCS7 **result);
