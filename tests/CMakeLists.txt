@@ -2,8 +2,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/../src)
 
 find_package(Check REQUIRED)
 include_directories(${CHECK_INCLUDE_DIRS})
-
-set (CHECK_LIBRARIES curl crypto scep ${CHECK_LIBRARIES})
+set (CHECK_LIBRARIES scep ${CHECK_LIBRARIES})
 set (CFLAGS "-g -O0 -Wall -W -fprofile-arcs -ftest-coverage ${CFLAGS}")
 set (LDFLAGS "-fprofile-arcs -ftest-coverage ${LDFLAGS}")
 
