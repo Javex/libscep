@@ -109,10 +109,12 @@ void add_get_cert_initial(Suite *s)
     TCase *tc_unwrap = tcase_create("GetCertInitial Unwrapping");
     tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
     tcase_add_test(tc_unwrap, test_unwrap);
+    tcase_add_test(tc_unwrap, test_unwrap_invalid_version);
     suite_add_tcase(s, tc_unwrap);
 
     TCase *tc_unwrap_engine = tcase_create("GetCertInitial Unwrapping with Engine");
     tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
     tcase_add_test(tc_unwrap_engine, test_unwrap);
+    tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_version);
     suite_add_tcase(s, tc_unwrap_engine);
 }

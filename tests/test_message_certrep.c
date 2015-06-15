@@ -1,5 +1,6 @@
 #include <check.h>
 #include "scep.h"
+#define HAVE_MAKE_MESSAGE 1
 #include "test_message_common.c"
 
 static X509 *issued_cert = NULL;
@@ -480,6 +481,18 @@ START_TEST(test_unwrap_invalid_pkiStatus)
 }
 END_TEST
 
+START_TEST(test_unwrap_invalid_version_certrep)
+{
+    PKCS7 *certrep_dup = PKCS7_dup(certrep_pending);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep_dup), 0);
+    ck_assert_int_ne(ASN1_INTEGER_set(si->version, 15), 0);
+    ck_assert_int_eq(scep_unwrap_response(
+        handle, certrep_dup, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, NULL), SCEPE_INVALID_CONTENT);
+    PKCS7_free(certrep_dup);
+}
+END_TEST
+
 void add_certrep(Suite *s)
 {
     TCase *tc, *tc_engine;
@@ -525,6 +538,7 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_pending);
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_success);
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_failure);
+    tcase_add_test(tc_unwrap, test_unwrap_invalid_version_certrep);
     suite_add_tcase(s, tc_unwrap);
 
     TCase *tc_unwrap_engine = tcase_create("Certrep Unwrapping with Engine");
@@ -534,6 +548,7 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap_engine, test_unwrap_pkcsreq_pending);
     tcase_add_test(tc_unwrap_engine, test_unwrap_pkcsreq_success);
     tcase_add_test(tc_unwrap_engine, test_unwrap_pkcsreq_failure);
+    tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_version_certrep);
     suite_add_tcase(s, tc_unwrap_engine);
 #undef add_tcase
 }

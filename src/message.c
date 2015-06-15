@@ -769,7 +769,7 @@ SCEP_ERROR scep_unwrap(
 	if(!(si = sk_PKCS7_SIGNER_INFO_value(sk_si, 0)))
 		 OSSL_ERR("Failed to get signer info value");
 
-	if (!ASN1_INTEGER_get(si->version) == 1)
+	if (ASN1_INTEGER_get(si->version) != 1)
 		SCEP_ERR(SCEPE_INVALID_CONTENT, "version MUST be 1");
 
 	if(!(messageType = PKCS7_get_signed_attribute(si, handle->oids->messageType)))

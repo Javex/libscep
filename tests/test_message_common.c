@@ -353,3 +353,17 @@ START_TEST(test_unwrap_response)
     ck_assert_msg(0, "Test unwrap_response sets a request type");
 }
 END_TEST
+
+#ifndef HAVE_MAKE_MESSAGE
+static PKCS7 *make_message();
+START_TEST(test_unwrap_invalid_version)
+{
+    PKCS7 *msg = make_message();
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(msg), 0);
+    ck_assert_int_ne(ASN1_INTEGER_set(si->version, 15), 0);
+    ck_assert_int_eq(scep_unwrap(
+        handle, msg, sig_cacert, enc_cacert, enc_cakey, NULL), SCEPE_INVALID_CONTENT);
+    PKCS7_free(msg);
+}
+END_TEST
+#endif /* HAVE_MAKE_MESSAGE */

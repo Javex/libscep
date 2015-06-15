@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include "scep.h"
 #include "scep_tests.h"
+#define HAVE_MAKE_MESSAGE 1
 #include "test_message_common.c"
 
 void unwrap_setup()

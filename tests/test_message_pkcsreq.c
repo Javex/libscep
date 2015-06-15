@@ -1,8 +1,9 @@
 #include <check.h>
 #include "scep.h"
+#define HAVE_MAKE_MESSAGE 1
 #include "test_message_common.c"
 
-static PKCS7 *make_message(X509_REQ *req)
+static PKCS7 *make_message_pkcsreq(X509_REQ *req)
 {
     PKCS7 *p7 = NULL;
     SCEP_ERROR err = scep_pkcsreq(
@@ -22,18 +23,18 @@ static void setup()
 {
     generic_setup();
 
-    p7 = make_message(req);
+    p7 = make_message_pkcsreq(req);
     scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-    p7_nosigcert = make_message(req);
+    p7_nosigcert = make_message_pkcsreq(req);
 }
 
 static void setup_engine()
 {
     generic_engine_setup();
 
-    p7 = make_message(req);
+    p7 = make_message_pkcsreq(req);
     scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-    p7_nosigcert = make_message(req);
+    p7_nosigcert = make_message_pkcsreq(req);
 }
 
 static void teardown()
@@ -149,6 +150,17 @@ START_TEST(test_missing_challenge_password)
 }
 END_TEST
 
+START_TEST(test_unwrap_invalid_version_pkcsreq)
+{
+    PKCS7 *msg = make_message_pkcsreq(req);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(msg), 0);
+    ck_assert_int_ne(ASN1_INTEGER_set(si->version, 15), 0);
+    ck_assert_int_eq(scep_unwrap(
+        handle, msg, sig_cacert, enc_cacert, enc_cakey, NULL), SCEPE_INVALID_CONTENT);
+    PKCS7_free(msg);
+}
+END_TEST
+
 void add_pkcsreq(Suite *s)
 {
     TCase *tc_pkcsreq_msg = tcase_create("PKCSReq Message");
@@ -188,9 +200,11 @@ void add_pkcsreq(Suite *s)
 
     TCase *tc_unwrap = tcase_create("PKCSReq Unwrapping");
     tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
+    tcase_add_test(tc_unwrap, test_unwrap_invalid_version_pkcsreq);
     suite_add_tcase(s, tc_unwrap);
 
     TCase *tc_unwrap_engine = tcase_create("PKCSReq Unwrapping with Engine");
     tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
+    tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_version_pkcsreq);
     suite_add_tcase(s, tc_unwrap_engine);
 }
