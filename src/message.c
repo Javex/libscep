@@ -254,6 +254,7 @@ SCEP_ERROR scep_certrep(
 	memcpy(p7data->sender_nonce, senderNonce, NONCE_LENGTH);
 	if(!p7data->sender_nonce)
 		SCEP_ERR(SCEPE_MEMORY, NULL);
+	scep_param_set(handle, SCEP_PARAM_SENDERNONCE, (void *)senderNonce);
 
 	p7data->bio = PKCS7_dataInit(p7data->p7, NULL);
 	if(!p7data->bio)
@@ -623,6 +624,7 @@ SCEP_ERROR scep_pkiMessage(
 			p7data->signer_info, handle->oids->senderNonce, V_ASN1_OCTET_STRING,
 			asn1_sender_nonce))
 		OSSL_ERR("Could not add attribute for sender nonce");
+	scep_param_set(handle, SCEP_PARAM_SENDERNONCE, (void *)p7data->sender_nonce);
 
 	/* encrypt data, skip if no data is given */
 	if(data) {
@@ -655,12 +657,42 @@ SCEP_ERROR scep_unwrap_response(
 	SCEP_ERROR error = SCEPE_OK;
 	SCEP_DATA *local_out = NULL;
 	PKCS7 *messageData = NULL;
+	unsigned char senderNonce[NONCE_LENGTH];
 
 	error = scep_unwrap(
 		handle, pkiMessage, ca_cert, request_cert, request_key,
 		&local_out);
 	if(error != SCEPE_OK)
 		goto finally;
+
+	/* mandatory check that senderNonce in reply is same as senderNonce we
+	 * originally requested
+	 */
+	error = scep_param_get(handle, SCEP_PARAM_SENDERNONCE, (void **)&senderNonce);
+	if(error != SCEPE_OK) {
+		scep_log(handle, ERROR, "Parameter senderNonce is not set on current handle. If you did not perform this creation and unwrapping on the same handle, you need to set this explicitly with scep_param_set");
+		goto finally;
+	}
+	if(memcmp(local_out->senderNonce, senderNonce, NONCE_LENGTH) != 0) {
+		scep_log(handle, ERROR, "senderNonce parameter inside pkiMessage does not match original nonce");
+		error = SCEPE_INVALID_PARAMETER;
+		goto finally;
+	}
+
+	/* optionally check that recipientNonce in reply is same as senderNonce in
+	 * original request
+	 * Introduce new flag to strict mode: requiring senderNonce & recipientNonce
+	 * equality
+	 */
+	if(memcmp(local_out->senderNonce, local_out->recipientNonce, NONCE_LENGTH) != 0) {
+		if(handle->configuration->flags & SCEP_STRICT_SENDER_NONCE) {
+			scep_log(handle, ERROR, "recipientNonce and senderNonce don't match but required by flag");
+			error = SCEPE_INVALID_PARAMETER;
+			goto finally;
+		} else {
+			scep_log(handle, WARN, "recipientNonce and senderNonce don't match, but RFC allows that");
+		}
+	}
 
 	if(local_out->pkiStatus == SCEP_SUCCESS) {
 		messageData = local_out->messageData;

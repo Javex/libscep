@@ -103,3 +103,34 @@ SCEP_ERROR scep_create_oids(SCEP *handle)
 	handle->oids = _scep_oids;
 	return SCEPE_OK;
 }
+
+SCEP_ERROR scep_param_set(SCEP *handle, SCEP_PARAM type, void *value)
+{
+	switch(type)
+	{
+		case SCEP_PARAM_SENDERNONCE:
+			if(!memcpy(handle->senderNonce, (char *)value, NONCE_LENGTH))
+				return SCEPE_PARAM;
+			break;
+	}
+
+	handle->params_set |= type;
+	return SCEPE_OK;
+}
+
+SCEP_ERROR scep_param_get(SCEP *handle, SCEP_PARAM type, void **value)
+{
+	if(!(handle->params_set & type)) {
+		scep_log(handle, ERROR, "Parameter %d has not been set", type);
+		return SCEPE_PARAM;
+	}
+
+	switch(type)
+	{
+		case SCEP_PARAM_SENDERNONCE:
+			memcpy((char *)value, handle->senderNonce, NONCE_LENGTH);
+			break;
+	}
+
+	return SCEPE_OK;
+}

@@ -28,6 +28,8 @@ char *scep_strerror(SCEP_ERROR err)
 			return "The library could not handle this specific case and "
 				   "does not know how to proceed. Please contact the developers "
 				   "of the project.";
+		case SCEPE_PARAM:
+			return "Invalid or unset parameter";
 		case SCEPE_NYI:
 			return "Action is defined by protocol but client does not yet "
 					"support it. See log for details on which action is "

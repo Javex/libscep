@@ -103,6 +103,8 @@ typedef enum {
     SCEPE_INVALID_PARAMETER,
     SCEPE_UNHANDLED,
 
+    SCEPE_PARAM,
+
     SCEPE_NYI,
     SCEPE_OPENSSL,
 
@@ -149,7 +151,12 @@ typedef enum {
 typedef enum {
     SCEP_SKIP_SIGNER_CERT           = 0x0001,
     SCEP_ALLOW_MULTIPLE_SIGNER_CERT = 0x0002,
+    SCEP_STRICT_SENDER_NONCE        = 0x0004,
 } SCEP_FLAGS;
+
+typedef enum {
+    SCEP_PARAM_SENDERNONCE          = 0x0001,
+} SCEP_PARAM;
 
 struct engine_params_t {
     char *name;
@@ -181,6 +188,8 @@ typedef struct {
 typedef struct {
     SCEP_CONFIGURATION *configuration;
     SCEP_OIDS *oids;
+    SCEP_PARAM params_set;
+    unsigned char senderNonce[NONCE_LENGTH];
 } SCEP;
 
 typedef struct pkcs7_issuer_and_subject_st
@@ -238,6 +247,8 @@ struct p7_data_t {
 SCEP_ERROR scep_init(SCEP **handle);
 void scep_cleanup(SCEP *handle);
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
+SCEP_ERROR scep_param_set(SCEP *handle, SCEP_PARAM type, void *value);
+SCEP_ERROR scep_param_get(SCEP *handle, SCEP_PARAM type, void **value);
 char *scep_strerror(SCEP_ERROR err);
 char *scep_fail_info_str(SCEP_FAILINFO fail_info);
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);

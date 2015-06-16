@@ -392,6 +392,13 @@ END_TEST
 START_TEST(test_unwrap_pkcsreq_pending)
 {
     SCEP_DATA *data;
+    char senderNonce[NONCE_LENGTH];
+
+    STACK_OF(PKCS7_SIGNER_INFO) *sk_si = PKCS7_get_signer_info(certrep_pending);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(sk_si, 0);
+    ASN1_TYPE *asn1_senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce);
+    ASN1_TYPE_get_octetstring(asn1_senderNonce, senderNonce, NONCE_LENGTH);
+    scep_param_set(handle, SCEP_PARAM_SENDERNONCE, (void *)senderNonce);
     ck_assert(scep_unwrap_response(
         handle, certrep_pending, sig_cacert, enc_cert, enc_key,
         SCEPOP_PKCSREQ, &data) == SCEPE_OK);
@@ -412,6 +419,13 @@ END_TEST
 START_TEST(test_unwrap_pkcsreq_success)
 {
     SCEP_DATA *data;
+    char senderNonce[NONCE_LENGTH];
+
+    STACK_OF(PKCS7_SIGNER_INFO) *sk_si = PKCS7_get_signer_info(certrep_success);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(sk_si, 0);
+    ASN1_TYPE *asn1_senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce);
+    ASN1_TYPE_get_octetstring(asn1_senderNonce, senderNonce, NONCE_LENGTH);
+    scep_param_set(handle, SCEP_PARAM_SENDERNONCE, (void *)senderNonce);
     ck_assert(scep_unwrap_response(
         handle, certrep_success, sig_cacert, enc_cert, enc_key,
         SCEPOP_PKCSREQ, &data) == SCEPE_OK);
@@ -432,6 +446,13 @@ END_TEST
 START_TEST(test_unwrap_pkcsreq_failure)
 {
     SCEP_DATA *data;
+    char senderNonce[NONCE_LENGTH];
+
+    STACK_OF(PKCS7_SIGNER_INFO) *sk_si = PKCS7_get_signer_info(certrep_failure);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(sk_si, 0);
+    ASN1_TYPE *asn1_senderNonce = PKCS7_get_signed_attribute(si, handle->oids->senderNonce);
+    ASN1_TYPE_get_octetstring(asn1_senderNonce, senderNonce, NONCE_LENGTH);
+    scep_param_set(handle, SCEP_PARAM_SENDERNONCE, (void *)senderNonce);
     ck_assert(scep_unwrap_response(
         handle, certrep_failure, sig_cacert, enc_cert, enc_key,
         SCEPOP_PKCSREQ, &data) == SCEPE_OK);
@@ -493,6 +514,70 @@ START_TEST(test_unwrap_invalid_version_certrep)
 }
 END_TEST
 
+START_TEST(test_unwrap_wrong_senderNonce)
+{
+    SCEP_DATA *data;
+    char senderNonce[NONCE_LENGTH];
+    memset(senderNonce, 0, NONCE_LENGTH);
+    scep_param_set(handle, SCEP_PARAM_SENDERNONCE, senderNonce);
+    ck_assert(scep_unwrap_response(
+        handle, certrep_failure, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, &data) == SCEPE_INVALID_PARAMETER);
+}
+END_TEST
+
+START_TEST(test_unwrap_unmatching_nonces_warning)
+{
+    SCEP_DATA *data;
+    char log_str[4096];
+    char recipientNonce[NONCE_LENGTH];
+    PKCS7 *certrep = make_message(SCEP_PENDING, 0, NULL, NULL, NULL);
+    memset(recipientNonce, 0, NONCE_LENGTH);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep), 0);
+    ASN1_OCTET_STRING *asn1_recipient_nonce = ASN1_OCTET_STRING_new();
+    ASN1_OCTET_STRING_set(asn1_recipient_nonce, recipientNonce, NONCE_LENGTH);
+    PKCS7_add_signed_attribute(
+        si, handle->oids->recipientNonce, V_ASN1_OCTET_STRING,
+        asn1_recipient_nonce);
+    PKCS7_SIGNER_INFO_set(si, sig_cacert, sig_cakey, handle->configuration->sigalg);
+    PKCS7_SIGNER_INFO_sign(si);
+
+    scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
+    BIO *bio = BIO_new(BIO_s_mem());
+    handle->configuration->log = bio;
+    BIO_gets(bio, log_str, 4096);
+    ck_assert_str_eq(log_str, "");
+    ck_assert(scep_unwrap_response(
+        handle, certrep, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, &data) == SCEPE_OK);
+    BIO_gets(bio, log_str, 4096);
+    ck_assert(strstr(log_str, "recipientNonce and senderNonce don't") != NULL);
+    PKCS7_free(certrep);
+}
+END_TEST
+
+START_TEST(test_unwrap_unmatching_nonces_strict)
+{
+    SCEP_DATA *data;
+    char recipientNonce[NONCE_LENGTH];
+    PKCS7 *certrep = make_message(SCEP_PENDING, 0, NULL, NULL, NULL);
+    memset(recipientNonce, 0, NONCE_LENGTH);
+    PKCS7_SIGNER_INFO *si = sk_PKCS7_SIGNER_INFO_value(PKCS7_get_signer_info(certrep), 0);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_STRICT_SENDER_NONCE);
+    ASN1_OCTET_STRING *asn1_recipient_nonce = ASN1_OCTET_STRING_new();
+    ASN1_OCTET_STRING_set(asn1_recipient_nonce, recipientNonce, NONCE_LENGTH);
+    PKCS7_add_signed_attribute(
+        si, handle->oids->recipientNonce, V_ASN1_OCTET_STRING,
+        asn1_recipient_nonce);
+    PKCS7_SIGNER_INFO_set(si, sig_cacert, sig_cakey, handle->configuration->sigalg);
+    PKCS7_SIGNER_INFO_sign(si);
+    ck_assert(scep_unwrap_response(
+        handle, certrep, sig_cacert, enc_cert, enc_key,
+        SCEPOP_PKCSREQ, &data) == SCEPE_INVALID_PARAMETER);
+    PKCS7_free(certrep);
+}
+END_TEST
+
 void add_certrep(Suite *s)
 {
     TCase *tc, *tc_engine;
@@ -539,6 +624,9 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_success);
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_failure);
     tcase_add_test(tc_unwrap, test_unwrap_invalid_version_certrep);
+    tcase_add_test(tc_unwrap, test_unwrap_wrong_senderNonce);
+    tcase_add_test(tc_unwrap, test_unwrap_unmatching_nonces_warning);
+    tcase_add_test(tc_unwrap, test_unwrap_unmatching_nonces_strict);
     suite_add_tcase(s, tc_unwrap);
 
     TCase *tc_unwrap_engine = tcase_create("Certrep Unwrapping with Engine");
@@ -549,6 +637,9 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap_engine, test_unwrap_pkcsreq_success);
     tcase_add_test(tc_unwrap_engine, test_unwrap_pkcsreq_failure);
     tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_version_certrep);
+    tcase_add_test(tc_unwrap_engine, test_unwrap_wrong_senderNonce);
+    tcase_add_test(tc_unwrap_engine, test_unwrap_unmatching_nonces_warning);
+    tcase_add_test(tc_unwrap_engine, test_unwrap_unmatching_nonces_strict);
     suite_add_tcase(s, tc_unwrap_engine);
 #undef add_tcase
 }

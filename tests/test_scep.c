@@ -60,6 +60,32 @@ START_TEST(test_multiple_handles)
 }
 END_TEST
 
+START_TEST(test_senderNonce_accessor)
+{
+	SCEP *handle;
+	ck_assert(scep_init(&handle) == SCEPE_OK);
+    BIO *scep_log = BIO_new_fp(stdout, BIO_NOCLOSE);
+    scep_conf_set(handle, SCEPCFG_LOG, scep_log);
+    scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
+	char *senderNonce = "\xc5\x76\x80\x0b\x42\xc5\x68\x55\x8c\x2e\x1d\xa1\x18\xd6\x93\x08";
+	char senderNonce_ref[NONCE_LENGTH];
+	ck_assert_int_eq(scep_param_set(handle, SCEP_PARAM_SENDERNONCE, (void *)senderNonce), SCEPE_OK);
+	ck_assert_int_eq(scep_param_get(handle, SCEP_PARAM_SENDERNONCE, (void **) &senderNonce_ref), SCEPE_OK);
+	ck_assert_int_eq(memcmp(senderNonce, senderNonce_ref, NONCE_LENGTH), 0);
+}
+END_TEST
+
+START_TEST(test_senderNonce_unset)
+{
+	SCEP *handle;
+	ck_assert(scep_init(&handle) == SCEPE_OK);
+    BIO *scep_log = BIO_new_fp(stdout, BIO_NOCLOSE);
+    scep_conf_set(handle, SCEPCFG_LOG, scep_log);
+    scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
+	ck_assert_int_eq(scep_param_get(handle, SCEP_PARAM_SENDERNONCE, NULL), SCEPE_PARAM);
+}
+END_TEST
+
 Suite * scep_suite(void)
 {
 	Suite *s = suite_create("General");
@@ -69,6 +95,8 @@ Suite * scep_suite(void)
 	tcase_add_test(tc_core, test_scep_init_cleanup);
 	tcase_add_test(tc_core, test_create_oids);
 	tcase_add_test(tc_core, test_multiple_handles);
+	tcase_add_test(tc_core, test_senderNonce_accessor);
+	tcase_add_test(tc_core, test_senderNonce_unset);
 
 	suite_add_tcase(s, tc_core);
 
