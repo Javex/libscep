@@ -22,10 +22,12 @@ Before you can now run tests, you need a keyfile:
 
 .. code-block:: text
 
+    echo "0:softhsm-slot0.db" > softhsm.conf
     openssl genrsa -out some_key.pem
+    openssl pkcs8 -topk8 -in some_key.pem -out some_key.p8 -nocrypt
     softhsm --init-token --slot 0 --label "foo" --pin 1234 --so-pin 123456
-    softhsm --import some_key.pem --slot 0 --pin 1234 --label foo --id 01
-    rm some_key.pem
+    softhsm --import some_key.p8 --slot 0 --pin 1234 --label foo --id 01
+    rm some_key.pem some_key.p8
 
 Then we can run our tests:
 
@@ -34,4 +36,5 @@ Then we can run our tests:
     mkdir build
     cd build
     cmake ..
+    make build_test
     ctest --output-on-failure

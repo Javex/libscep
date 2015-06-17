@@ -24,7 +24,7 @@ before_script:
     - softhsm --init-token --slot 0 --label "foo" --pin 1234 --so-pin 123456
     - softhsm --import some_key.p8 --slot 0 --pin 1234 --label foo --id 01
     - cmake ..
-    - make VERBOSE=1
+    - make build_test VERBOSE=1
 script: ctest --output-on-failure
 compiler:
   - gcc
