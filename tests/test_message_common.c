@@ -160,8 +160,8 @@ static void generic_setup()
 static void generic_engine_setup()
 {
     generic_setup();
-    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
-    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
+    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_OK);
+    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", ENGINE_PATH), SCEPE_OK);
     make_engine_message_data();
 
 }
@@ -226,7 +226,7 @@ static void make_message_data()
 
 static void make_engine_message_data()
 {
-#define TMP_TEMPLATE "XXXXXX"
+#define TMP_TEMPLATE "tmp/XXXXXX"
     char name_buffer[20], cmd_buffer[512];
     int filedes, id = 0;
     BIO *out;
@@ -234,7 +234,7 @@ static void make_engine_message_data()
     ENGINE *e = NULL;
     ck_assert_int_eq(scep_engine_get(handle, &e), SCEPE_OK);
     ck_assert(ENGINE_ctrl_cmd_string(e, "PIN", "1234", 0));
-    ck_assert_int_eq(system("softhsm --init-token --slot 0 --label foo --pin 1234 --so-pin 123456"), 0);
+    ck_assert_int_eq(system(SOFTHSM_BIN " --init-token --slot 0 --label foo --pin 1234 --so-pin 123456"), 0);
 
 #define import_key(key_name) \
     id++; \
@@ -244,7 +244,7 @@ static void make_engine_message_data()
     p8inf = EVP_PKEY2PKCS8(key_name); \
     ck_assert(p8inf != NULL); \
     PEM_write_bio_PKCS8_PRIV_KEY_INFO(out, p8inf); \
-    ck_assert(snprintf(cmd_buffer, 512, "softhsm --import %s --slot 0 --pin 1234 --label %s --id %02d", name_buffer, #key_name, id) >= 0); \
+    ck_assert(snprintf(cmd_buffer, 512, SOFTHSM_BIN " --import %s --slot 0 --pin 1234 --label %s --id %02d", name_buffer, #key_name, id) >= 0); \
     ck_assert_int_eq(system(cmd_buffer), 0); \
     BIO_free(out); \
     close(filedes); \
@@ -259,7 +259,6 @@ static void make_engine_message_data()
     import_key(sig_cakey);
     import_key(enc_cakey);
     ck_assert_int_eq(system("sqlite3 softhsm-slot0.db \"UPDATE Attributes SET value='1' WHERE type=261;\""), 0);
-    // ck_assert_int_eq(system("sqlite3 softhsm-slot0.db \"UPDATE Attributes SET value='1' WHERE type=264;\""), 0);
 
 #undef import_key
 #undef TMP_TEMPLATE

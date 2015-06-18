@@ -2,27 +2,15 @@ language: c
 env:
     global:
         - CFLAGS=-Werror -Wno-error=unused-value
-        - MODULE_PATH=/usr/lib/libsofthsm.so
-        - ENGINE_PATH=/usr/lib/engines/engine_pkcs11.so
-        - SOFTHSM_CONF=softhsm.conf
 before_install:
     - sudo apt-get install python-software-properties
     - sudo add-apt-repository -y ppa:ubuntu-toolchain-r/test
     - sudo apt-get update -qq
     - sudo apt-get install -y libssl-dev check liburiparser-dev libcurl4-openssl-dev gcc-4.8 softhsm libp11-dev
     - sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-4.8 50
-install:
-    - wget http://sourceforge.net/projects/opensc/files/engine_pkcs11/engine_pkcs11-0.1.8.tar.gz/download -O /tmp/engine_pkcs11-0.1.8.tar.gz
-    - cd /tmp && tar -xzf /tmp/engine_pkcs11-0.1.8.tar.gz && cd -
-    - cd /tmp/engine_pkcs11-0.1.8 &&  ./configure --prefix=/usr && make && sudo make install && cd -
 before_script:
     - mkdir build
     - cd build
-    - echo "0:softhsm-slot0.db" > softhsm.conf
-    - openssl genrsa -out some_key.pem
-    - openssl pkcs8 -topk8 -in some_key.pem -out some_key.p8 -nocrypt
-    - softhsm --init-token --slot 0 --label "foo" --pin 1234 --so-pin 123456
-    - softhsm --import some_key.p8 --slot 0 --pin 1234 --label foo --id 01
     - cmake ..
     - make build_test VERBOSE=1
 script: ctest --output-on-failure

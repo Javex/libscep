@@ -3,6 +3,7 @@
 #include <check.h>
 #include <stdlib.h>
 #include "scep.h"
+#include "scep_tests.h"
 
 SCEP *handle;
 
@@ -104,8 +105,8 @@ END_TEST
 
 START_TEST(test_scep_conf_engine)
 {
-	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
-	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_OK);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", ENGINE_PATH), SCEPE_OK);
 
 	ENGINE *e = NULL;
 	ck_assert(scep_engine_get(handle, &e) == SCEPE_OK);
@@ -118,10 +119,10 @@ END_TEST
 
 START_TEST(test_scep_conf_engine_param_after_load)
 {
-	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_OK);
-	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", getenv("ENGINE_PATH")), SCEPE_OK);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_OK);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", ENGINE_PATH), SCEPE_OK);
 
-	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", getenv("MODULE_PATH")), SCEPE_UNKNOWN_CONFIGURATION);
+	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_UNKNOWN_CONFIGURATION);
 }
 END_TEST
 

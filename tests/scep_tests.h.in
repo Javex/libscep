@@ -1,3 +1,9 @@
+/* Configuration from cmake */
+#define MODULE_PATH "@MODULE_PATH@"
+#define ENGINE_PATH "@ENGINE_PATH@"
+#define LD_LIBRARY_PATH @BOTAN_LIB_PATH@
+#define SOFTHSM_BIN "@SOFTHSM_BIN@"
+
 /* Tests */
 void add_pkcsreq(Suite *s);
 void add_get_cert_initial(Suite *s);

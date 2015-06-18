@@ -1,0 +1,12 @@
+[submodule "tests/submodules/SoftHSMv1"]
+	path = tests/submodules/SoftHSMv1
+	url = https://github.com/opendnssec/SoftHSMv1.git
+[submodule "tests/submodules/botan"]
+	path = tests/submodules/botan
+	url = https://github.com/randombit/botan.git
+[submodule "tests/submodules/engine_pkcs11"]
+	path = tests/submodules/engine_pkcs11
+	url = https://github.com/OpenSC/engine_pkcs11.git
+[submodule "tests/submodules/libp11"]
+	path = tests/submodules/libp11
+	url = https://github.com/OpenSC/libp11.git

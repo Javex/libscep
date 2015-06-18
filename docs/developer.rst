@@ -5,31 +5,7 @@ Developer Documentation
 Running Tests
 =============
 
-To run tests, it is required to have a proper setup or the engine tests will not work. First of all, the following requirements need to be installed:
-
-* `libbotan <https://botan.randombit.net/>`_
-* `SoftHSM <https://www.opendnssec.org/softhsm/>`_
-* `libp11 <https://github.com/OpenSC/libp11>`_
-* `engine_pkcs11 <https://www.opensc-project.org/opensc/wiki/engine_pkcs11>`_
-
-If everything has been installed, you need to set the correct environment variables:
-
-* ``MODULE_PATH`` must point to ``libsofthsm.so``, e.g. in ``/usr/lib/``
-* ``ENGINE_PATH`` must point to ``engine_pkcs11.so``, e.g. in ``/usr/lib/engines``
-* *Optionally*, ``LD_LIBRARY_PATH`` must include the directory where ``libbotan`` is found, which is only required if it is installed in a non-standard location
-
-Before you can now run tests, you need a keyfile:
-
-.. code-block:: text
-
-    echo "0:softhsm-slot0.db" > softhsm.conf
-    openssl genrsa -out some_key.pem
-    openssl pkcs8 -topk8 -in some_key.pem -out some_key.p8 -nocrypt
-    softhsm --init-token --slot 0 --label "foo" --pin 1234 --so-pin 123456
-    softhsm --import some_key.p8 --slot 0 --pin 1234 --label foo --id 01
-    rm some_key.pem some_key.p8
-
-Then we can run our tests:
+Running tests is designed to be as easy as possible. However, due to our engine support and the corresponding tests, various dependencies are introduced. Now, the easiest way to get things running is not to care at all. Just go ahead and run this:
 
 .. code-block:: text
 
@@ -38,3 +14,17 @@ Then we can run our tests:
     cmake ..
     make build_test
     ctest --output-on-failure
+
+This should create everything as it is needed without no need for intervention. However, this is by far not the quickest way because a lot of libraries have to be built (and if you delete the build directory, they will be built again).
+
+Manually Installing Dependencies
+--------------------------------
+
+If you want to have quicker builds, you can manually install the dependencies, possibly from your package manager. Here is a list of all the required packages:
+
+* `libbotan <https://botan.randombit.net/>`_
+* `SoftHSM <https://www.opendnssec.org/softhsm/>`_
+* `libp11 <https://github.com/OpenSC/libp11>`_
+* `engine_pkcs11 <https://www.opensc-project.org/opensc/wiki/engine_pkcs11>`_
+
+If you installed everything and their are fairly sane locations, running the code from the previous section should find these. If not, it will probably just build them anyway. It should also find all the correct paths to modules and libraries it requires or will complain if it doesn't. If you have suggestions on how to improve this process, please let us know.
