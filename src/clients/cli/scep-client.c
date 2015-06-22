@@ -432,6 +432,9 @@ int main(int argc, char *argv[])
 			break;
 		case SCEPOP_GETCERTINITIAL:
 			break;
+		case SCEPOP_CERTREP:
+			/* Only for completion, should not be reachable */
+			break;
 		case SCEPOP_NONE:
 			scep_log(cmd_handle.handle, FATAL, "Missing Operation");
 			exit(1);

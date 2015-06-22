@@ -358,7 +358,7 @@ SCEP_CLIENT_ERROR scep_bio_PEM_fp(SCEP *handle, BIO *data, FILE *out) {
 		goto finally;
 	}
 
-	while(data_read = BIO_read(input_b64bio, buf, 4096) > 0) {
+	while((data_read = BIO_read(input_b64bio, buf, 4096)) > 0) {
 		fwrite(buf, data_read, 1, out);
 		if(ferror(out)) {
 			scep_log(handle, FATAL, "Unable to write data: %s", strerror(errno));
