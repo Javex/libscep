@@ -371,3 +371,34 @@ finally:
 	BIO_free(input_b64bio);
 	return error;
 }
+
+void scep_write_certinfo(struct cmd_handle_t cmd_handle, X509 *cert)
+{
+	struct cmd_args_t *cmd_args = &cmd_handle.cmd_args;
+	printf("found certificate with\n  subject: %s\n", X509_NAME_oneline(X509_get_subject_name(cert), NULL, 0));
+	printf("  issuer: %s\n", X509_NAME_oneline(X509_get_issuer_name(cert), NULL, 0));
+
+	int index = X509_get_ext_by_NID(cert, NID_key_usage, -1);
+	if (index < 0) {
+		scep_log(cmd_handle.handle, INFO, "cannot find key usage");
+	} else {
+		X509_EXTENSION *ext = X509_get_ext(cert, index);
+		printf("  usage: ");
+		X509V3_EXT_print_fp(stdout, ext, 0, 0);
+		printf("\n");
+	}
+
+	unsigned char digest[EVP_MAX_MD_SIZE];
+	unsigned int digest_size;
+	if (!X509_digest(cert, cmd_args->getca.fp_algorithm, digest, &digest_size)) {
+		ERR_print_errors(cmd_handle.handle->configuration->log);
+		scep_log(cmd_handle.handle, ERROR, "Unable to compute certificate digest");
+		exit(1);
+	}
+
+	printf("  %s fingerprint: ", OBJ_nid2sn(EVP_MD_type(cmd_args->getca.fp_algorithm)));
+	int c;
+	for (c = 0; c < (int)digest_size; c++) {
+		printf("%02X%c",digest[c], (c + 1 == (int)digest_size) ?'\n':':');
+	}
+}

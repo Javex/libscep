@@ -659,39 +659,52 @@ SCEP_ERROR scep_unwrap_response(
 	PKCS7 *messageData = NULL;
 	unsigned char senderNonce[NONCE_LENGTH];
 
-	error = scep_unwrap(
-		handle, pkiMessage, ca_cert, request_cert, request_key,
-		&local_out);
-	if(error != SCEPE_OK)
-		goto finally;
-
-	/* mandatory check that senderNonce in reply is same as senderNonce we
-	 * originally requested
+	/* Only if we are not handling a GetCACert response do we have
+	 * to do all those checks. Otherwise, this is a very simple case.
 	 */
-	error = scep_param_get(handle, SCEP_PARAM_SENDERNONCE, (void **)&senderNonce);
-	if(error != SCEPE_OK) {
-		scep_log(handle, ERROR, "Parameter senderNonce is not set on current handle. If you did not perform this creation and unwrapping on the same handle, you need to set this explicitly with scep_param_set");
-		goto finally;
-	}
-	if(memcmp(local_out->senderNonce, senderNonce, NONCE_LENGTH) != 0) {
-		scep_log(handle, ERROR, "senderNonce parameter inside pkiMessage does not match original nonce");
-		error = SCEPE_INVALID_PARAMETER;
-		goto finally;
-	}
+	if(request_type != SCEPOP_GETCACERT) {
+		error = scep_unwrap(
+			handle, pkiMessage, ca_cert, request_cert, request_key,
+			&local_out);
+		if(error != SCEPE_OK)
+			goto finally;
 
-	/* optionally check that recipientNonce in reply is same as senderNonce in
-	 * original request
-	 * Introduce new flag to strict mode: requiring senderNonce & recipientNonce
-	 * equality
-	 */
-	if(memcmp(local_out->senderNonce, local_out->recipientNonce, NONCE_LENGTH) != 0) {
-		if(handle->configuration->flags & SCEP_STRICT_SENDER_NONCE) {
-			scep_log(handle, ERROR, "recipientNonce and senderNonce don't match but required by flag");
+		/* mandatory check that senderNonce in reply is same as senderNonce we
+		 * originally requested
+		 */
+		error = scep_param_get(handle, SCEP_PARAM_SENDERNONCE, (void **)&senderNonce);
+		if(error != SCEPE_OK) {
+			scep_log(handle, ERROR, "Parameter senderNonce is not set on current handle. If you did not perform this creation and unwrapping on the same handle, you need to set this explicitly with scep_param_set");
+			goto finally;
+		}
+		if(memcmp(local_out->senderNonce, senderNonce, NONCE_LENGTH) != 0) {
+			scep_log(handle, ERROR, "senderNonce parameter inside pkiMessage does not match original nonce");
 			error = SCEPE_INVALID_PARAMETER;
 			goto finally;
-		} else {
-			scep_log(handle, WARN, "recipientNonce and senderNonce don't match, but RFC allows that");
 		}
+
+		/* optionally check that recipientNonce in reply is same as senderNonce in
+		 * original request
+		 * Introduce new flag to strict mode: requiring senderNonce & recipientNonce
+		 * equality
+		 */
+		if(memcmp(local_out->senderNonce, local_out->recipientNonce, NONCE_LENGTH) != 0) {
+			if(handle->configuration->flags & SCEP_STRICT_SENDER_NONCE) {
+				scep_log(handle, ERROR, "recipientNonce and senderNonce don't match but required by flag");
+				error = SCEPE_INVALID_PARAMETER;
+				goto finally;
+			} else {
+				scep_log(handle, WARN, "recipientNonce and senderNonce don't match, but RFC allows that");
+			}
+		}
+	} else {
+		local_out = calloc(1, sizeof(SCEP_DATA));
+		if(!local_out) {
+			error = SCEPE_MEMORY;
+			goto finally;
+		}
+		local_out->pkiStatus = SCEP_SUCCESS;
+		local_out->messageData = PKCS7_dup(pkiMessage);
 	}
 
 	if(local_out->pkiStatus == SCEP_SUCCESS) {

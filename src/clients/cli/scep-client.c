@@ -21,12 +21,12 @@ static struct argp_option options[] = {
 	/* GetCACert Options */
 	{"\nOPTIONS for OPERATION getca are:", 0, 0, OPTION_DOC, 0, 1},
 	{"identifier", 'i', "string", 0, "CA identifier string", 2},
-	{"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512", 2},
+	{"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512)", 2},
 
 	/* GetNextCACert */
 	{"\nOPTIONS for OPERATION getnextca are:", 0, 0, OPTION_DOC, 0, 2},
 	{"cert-chain", 'C', "file", 0, "Local certificate chain file for signature verification in PEM format", 3},
-	{"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512", 3},
+	{"fingerprint-algorithm", 'F', "name", 0, "Fingerprint algorithm (md5|sha1|sha256|sha512)", 3},
 	{"signer-cert", 'w', "file", 0, "Write signer certificate in file (optional)", 3},
 
 	/* PKCSReq Options */
@@ -157,6 +157,7 @@ parse_opt(int key, char *arg, struct argp_state *state)
 		if(state->arg_num < 1)
 			argp_failure(state, 1, 0, "Missing operation");
 		verify_arguments(state);
+		/* set defaults */
 		if(cmd_args->operation == SCEPOP_PKCSREQ || cmd_args->operation == SCEPOP_GETCERTINITIAL) {
 			if(!cmd_args->pkcsreq.enc_cert)
 				cmd_args->pkcsreq.enc_cert = cmd_args->cacert;
@@ -171,6 +172,9 @@ parse_opt(int key, char *arg, struct argp_state *state)
 					fprintf(stderr, "Error generating selfsinged certificate: %s\n", scep_strerror(lib_error));
 					exit(1);
 				}
+		} else if(cmd_args->operation == SCEPOP_GETCACERT) {
+			if(!cmd_args->getca.fp_algorithm)
+				cmd_args->getca.fp_algorithm = EVP_sha256();
 		}
 	}
 
@@ -331,6 +335,7 @@ int main(int argc, char *argv[])
 	SCEP_REPLY *reply = NULL;
 	SCEP_DATA *output = NULL;
 	FILE *cert_target = NULL;
+	BIO *reply_bio;
 	memset(&cmd_handle, 0, sizeof(cmd_handle));
 	if((error = scep_init(&cmd_handle.handle)) != SCEPE_OK) {
 		fprintf(stderr, "Failed to initialize basic SCEP structure: %s\n", scep_strerror(error));
@@ -348,6 +353,52 @@ int main(int argc, char *argv[])
 	switch(cmd_args->operation)
 	{
 		case SCEPOP_GETCACERT:
+			error = scep_send_request(&cmd_handle, "GetCACert", NULL, &reply);
+			if(error != SCEPE_OK)
+				exit(1);
+
+			/* parse response */
+			reply_bio = BIO_new(BIO_s_mem());
+			if(!reply_bio)
+				exit(1);
+			BIO_write(reply_bio, reply->payload, reply->length);
+			response = d2i_PKCS7_bio(reply_bio, NULL);
+			if(!response)
+				exit(1);
+			error = scep_unwrap_response(
+				cmd_handle.handle,
+				response,
+				NULL, /* ca_cert */
+				NULL, /* dec_cert */
+				NULL, /* dec_key */
+				SCEPOP_GETCACERT,
+				&output);
+			if(error != SCEPE_OK)
+				exit(1);
+
+			/* Write certificates to designated file, suffix it */
+			int required_size = snprintf(NULL, 0, "%s%d", cmd_args->cacert_target, sk_X509_num(output->certs) - 1) + 1;
+			char *outfname = malloc(required_size);
+			int i;
+			for(i = 0; i < sk_X509_num(output->certs); i++) {
+				X509 *cert = sk_X509_value(output->certs, i);
+				snprintf(outfname, required_size, "%s%d", cmd_args->cacert_target, i);
+				FILE *outfile = fopen(outfname, "w");
+				if(!outfile) {
+					scep_log(cmd_handle.handle, ERROR, "Error opening \"%s\": %s", outfname, strerror(errno));
+					exit(1);
+				}
+
+				scep_write_certinfo(cmd_handle, cert);
+
+				if(!PEM_write_X509(outfile, cert)) {
+					fprintf(stderr, "Error writing PEM\n");
+					exit(1);
+				}
+				fclose(outfile);
+				printf("certificate written as %s\n", outfname);
+			}
+			free(outfname);
 			break;
 		case SCEPOP_PKCSREQ:
 			if((error = scep_pkcsreq(
@@ -370,7 +421,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Payload Response: %s\n", reply->payload);
 
 			// parse response
-			BIO *reply_bio = BIO_new(BIO_s_mem());
+			reply_bio = BIO_new(BIO_s_mem());
 			if(!reply_bio)
 				exit(1);
 			BIO_write(reply_bio, reply->payload, reply->length);

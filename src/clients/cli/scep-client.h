@@ -101,4 +101,5 @@ SCEP_CLIENT_ERROR scep_read_key(SCEP *handle, EVP_PKEY** key, char* filename);
 SCEP_CLIENT_ERROR scep_read_cert(SCEP *handle, X509 **cert, char *filename);
 SCEP_CLIENT_ERROR scep_read_request(SCEP *handle, X509_REQ **req, char *filename);
 SCEP_CLIENT_ERROR scep_bio_PEM_fp(SCEP *handle, BIO *data, FILE *out);
+void scep_write_certinfo(struct cmd_handle_t cmd_handle, X509 *cert);
 #endif /* SCEP_CLIENT_H_ */
