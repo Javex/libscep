@@ -1,6 +1,13 @@
 #include "scep.h"
 #include "message_static_functions.c"
 
+SCEP_ERROR scep_getcacert_reply(SCEP *handle, STACK_OF(X509) *certs, PKCS7 **p7)
+{
+	X509 *cert1 = (X509 *) sk_X509_pop(certs);
+	error = make_degenP7(handle, cert1, certs, NULL, &p7)) != SCEPE_OK);
+	return error;
+}
+
 SCEP_ERROR scep_p7_client_init(SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key, struct p7_data_t *p7data)
 {
 	SCEP_ERROR error = SCEPE_OK;
