@@ -4,7 +4,7 @@
 SCEP_ERROR scep_getcacert_reply(SCEP *handle, STACK_OF(X509) *certs, PKCS7 **p7)
 {
 	X509 *cert1 = (X509 *) sk_X509_pop(certs);
-	SCEP_ERROR error = make_degenP7(handle, cert1, certs, NULL, &p7);
+	SCEP_ERROR error = make_degenP7(handle, cert1, certs, NULL, p7);
 	return error;
 }
 

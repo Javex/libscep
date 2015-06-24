@@ -111,55 +111,27 @@ static char *certrep_failure_str = "-----BEGIN PKCS7-----\n"
 
 static PKCS7 *certrep_getcacert = NULL;
 static char *certrep_getcacert_str = "-----BEGIN PKCS7-----\n"
-"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\n"
-"AA==\n"
+"MIID4QYJKoZIhvcNAQcCoIID0jCCA84CAQExADALBgkqhkiG9w0BBwGgggO2MIIB\n"
+"1zCCAYGgAwIBAgIJAIxnK+AvQtveMA0GCSqGSIb3DQEBBQUAMEcxCzAJBgNVBAYT\n"
+"AkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYDVQQKDARhc2Rm\n"
+"MQswCQYDVQQDDAJjYTAeFw0xNTAzMTUxMjIxNThaFw0xODAxMDIxMjIxNThaMEcx\n"
+"CzAJBgNVBAYTAkRFMQ0wCwYDVQQIDARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYD\n"
+"VQQKDARhc2RmMQswCQYDVQQDDAJjYTBcMA0GCSqGSIb3DQEBAQUAA0sAMEgCQQC2\n"
+"ZbZXN6Q+k4yECXUBrv3x/zF0F16G9Yx+b9qxdhkP/+BkA5gyRFNEWL+EovU200F/\n"
+"mSpYsFW+VlIGW0x0rBvJAgMBAAGjUDBOMB0GA1UdDgQWBBTGyK1AVoV5v/Ou4FmW\n"
+"rxNg3Aqv5zAfBgNVHSMEGDAWgBTGyK1AVoV5v/Ou4FmWrxNg3Aqv5zAMBgNVHRME\n"
+"BTADAQH/MA0GCSqGSIb3DQEBBQUAA0EAFZJdlgEgGTOzRdtPsRY0ezWVow261OUU\n"
+"f1Z6x0e9z/Nzkoo2kfI4iDafebvQ1yMqSWKbUjLGAi/YCq2m3p5tHDCCAdcwggGB\n"
+"oAMCAQICCQCMZyvgL0Lb3jANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN\n"
+"MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG\n"
+"A1UEAwwCY2EwHhcNMTUwMzE1MTIyMTU4WhcNMTgwMTAyMTIyMTU4WjBHMQswCQYD\n"
+"VQQGEwJERTENMAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwE\n"
+"YXNkZjELMAkGA1UEAwwCY2EwXDANBgkqhkiG9w0BAQEFAANLADBIAkEAtmW2Vzek\n"
+"PpOMhAl1Aa798f8xdBdehvWMfm/asXYZD//gZAOYMkRTRFi/hKL1NtNBf5kqWLBV\n"
+"vlZSBltMdKwbyQIDAQABo1AwTjAdBgNVHQ4EFgQUxsitQFaFeb/zruBZlq8TYNwK\n"
+"r+cwHwYDVR0jBBgwFoAUxsitQFaFeb/zruBZlq8TYNwKr+cwDAYDVR0TBAUwAwEB\n"
+"/zANBgkqhkiG9w0BAQUFAANBABWSXZYBIBkzs0XbT7EWNHs1laMNutTlFH9WesdH\n"
+"vc/zc5KKNpHyOIg2n3m70NcjKklim1IyxgIv2Aqtpt6ebRwxAA==\n"
 "-----END PKCS7-----\n";
 
 static PKCS7* make_message(
@@ -538,6 +510,19 @@ START_TEST(test_unwrap_pkcsreq_failure)
 }
 END_TEST
 
+START_TEST(test_scep_getcacert_reply)
+{
+    X509 *cert = X509_dup(sig_cacert);
+    STACK_OF(X509) *certs = sk_X509_new_null();
+    sk_X509_push(certs, sig_cacert);
+    sk_X509_push(certs, enc_cert);
+    PKCS7 *p7;
+    ck_assert(scep_getcacert_reply(
+       handle, certs, &p7) == SCEPE_OK);
+    PEM_write_PKCS7(stderr, p7);
+}
+END_TEST
+
 START_TEST(test_unwrap_getcacert)
 {
     SCEP_DATA *data;
@@ -555,7 +540,7 @@ START_TEST(test_unwrap_getcacert)
     ck_assert_int_eq(0, data->failInfo);
 
     /* Check stack */
-    ck_assert_int_eq(sk_X509_num(data->certs), 3);
+    ck_assert_int_eq(sk_X509_num(data->certs), 2);
 
     SCEP_DATA_free(data);
 }
@@ -702,6 +687,7 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_success);
     tcase_add_test(tc_unwrap, test_unwrap_pkcsreq_failure);
     tcase_add_test(tc_unwrap, test_unwrap_getcacert);
+    tcase_add_test(tc_unwrap, test_scep_getcacert_reply);
     tcase_add_test(tc_unwrap, test_unwrap_invalid_version_certrep);
     tcase_add_test(tc_unwrap, test_unwrap_wrong_senderNonce);
     tcase_add_test(tc_unwrap, test_unwrap_unmatching_nonces_warning);
