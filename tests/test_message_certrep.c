@@ -392,7 +392,7 @@ START_TEST(test_pkcsreq_success)
     ck_assert(PKCS7_type_is_signed(reply_data));
     PKCS7_SIGNED *degen = reply_data->d.sign;
     ck_assert(sk_X509_num(degen->cert) >= 1);
-    ck_assert(sk_X509_num(degen->crl) <= 0);
+    ck_assert(sk_X509_CRL_num(degen->crl) <= 0);
     ck_assert_int_ne(degen->contents, NULL);
     ck_assert(PKCS7_type_is_data(degen->contents));
     ASN1_OCTET_STRING *inner_data = degen->contents->d.data;
@@ -696,9 +696,12 @@ void add_certrep(Suite *s)
 
 #ifdef WITH_ENGINE_TESTS
     TCase *tc_engine;
+    /* We need a checked fixture on all engine tests, possibly because
+     * the engine process cannot deal with the forking of check
+     */
 #define add_tcase_engine(name, setup, teardown) \
     tc_engine = tcase_create("Certrep " name " Message with Engine"); \
-    tcase_add_unchecked_fixture(tc_engine, setup, teardown); \
+    tcase_add_checked_fixture(tc_engine, setup, teardown); \
     tcase_add_test(tc_engine, test_scep_message_asn1_version); \
     tcase_add_test(tc_engine, test_scep_message_transaction_id); \
     tcase_add_test(tc_engine, test_scep_message_sender_nonce); \
@@ -720,7 +723,7 @@ void add_certrep(Suite *s)
     suite_add_tcase(s, tc_engine);
 
     TCase *tc_unwrap_engine = tcase_create("Certrep Unwrapping with Engine");
-    tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
+    tcase_add_checked_fixture(tc_unwrap_engine, setup_engine, teardown);
     tcase_add_test(tc_unwrap_engine, test_invalid_sig);
     tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_pkiStatus);
     tcase_add_test(tc_unwrap_engine, test_unwrap_pkcsreq_pending);

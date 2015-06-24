@@ -16,8 +16,9 @@ case "$PYVER" in
         ;;
 esac
 
-git submodule update botan
-cd botan
+cd "$(git rev-parse --show-toplevel)"
+git submodule update --init tests/submodules/botan
+cd tests/submodules/botan
 $PYTHON configure.py --prefix "$PREFIX"
 make
 make install

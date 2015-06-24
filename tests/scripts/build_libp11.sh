@@ -2,8 +2,9 @@
 exec 2>&1
 set -x
 PREFIX="$1"
-git submodule update libp11
-cd libp11
+cd "$(git rev-parse --show-toplevel)"
+git submodule update --init tests/submodules/libp11
+cd tests/submodules/libp11
 ./bootstrap
 ./configure --prefix="$PREFIX"
 make

@@ -244,7 +244,8 @@ static void make_engine_message_data()
     ENGINE *e = NULL;
     ck_assert_int_eq(scep_engine_get(handle, &e), SCEPE_OK);
     ck_assert(ENGINE_ctrl_cmd_string(e, "PIN", "1234", 0));
-    ck_assert_int_eq(system(SOFTHSM_BIN " --init-token --slot 0 --label foo --pin 1234 --so-pin 123456"), 0);
+    int res = system(SOFTHSM_BIN " --init-token --slot 0 --label foo --pin 1234 --so-pin 123456");
+    ck_assert_int_eq(res, 0);
 
 #define import_key(key_name) \
     id++; \
@@ -255,7 +256,8 @@ static void make_engine_message_data()
     ck_assert(p8inf != NULL); \
     PEM_write_bio_PKCS8_PRIV_KEY_INFO(out, p8inf); \
     ck_assert(snprintf(cmd_buffer, 512, SOFTHSM_BIN " --import %s --slot 0 --pin 1234 --label %s --id %02d", name_buffer, #key_name, id) >= 0); \
-    ck_assert_int_eq(system(cmd_buffer), 0); \
+    res = system(cmd_buffer); \
+    ck_assert_int_eq(res, 0); \
     BIO_free(out); \
     close(filedes); \
     ck_assert(snprintf(cmd_buffer, 512, "label_%s", #key_name) >= 0); \

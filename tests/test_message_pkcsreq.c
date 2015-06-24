@@ -195,8 +195,11 @@ void add_pkcsreq(Suite *s)
     suite_add_tcase(s, tc_unwrap);
 
 #ifdef WITH_ENGINE_TESTS
+    /* We need a checked fixture on all engine tests, possibly because
+     * the engine process cannot deal with the forking of check
+     */
     TCase *tc_pkcsreq_msg_engine = tcase_create("PKCSReq Message with Engine");
-    tcase_add_unchecked_fixture(tc_pkcsreq_msg_engine, setup_engine, teardown);
+    tcase_add_checked_fixture(tc_pkcsreq_msg_engine, setup_engine, teardown);
     tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_asn1_version);
     tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_transaction_id);
     tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_sender_nonce);
@@ -207,7 +210,7 @@ void add_pkcsreq(Suite *s)
     suite_add_tcase(s, tc_pkcsreq_msg_engine);
 
     TCase *tc_unwrap_engine = tcase_create("PKCSReq Unwrapping with Engine");
-    tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
+    tcase_add_checked_fixture(tc_unwrap_engine, setup_engine, teardown);
     tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_version_pkcsreq);
     suite_add_tcase(s, tc_unwrap_engine);
 #endif /* WITH_ENGINE_TESTS */

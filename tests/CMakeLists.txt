@@ -17,7 +17,7 @@ if(WITH_ENGINE_TESTS)
     file(MAKE_DIRECTORY ${LOG_DIR})
     file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/tmp)
     include_directories(${PROJECT_BINARY_DIR}/prefix/include)
-    check_include_files("openssl/engine.h" ENGINE_ENABLED CMAKE_REQUIRED_FLAGS)
+    check_include_files("openssl/engine.h" ENGINE_ENABLED)
     if(NOT ENGINE_ENABLED)
         message( FATAL_ERROR "OpenSSL has no engine support! Cannot run engine tests. Build with -DWITH_ENGINE_TESTS=no.")
     endif()
@@ -32,7 +32,7 @@ if(WITH_ENGINE_TESTS)
         if(NOT LIBBOTAN)
             message( "Building libbotan dependency" )
             execute_process(
-                COMMAND ${SCRIPTS}/build_botan.sh "${SUBMODULE_PREFIX}"
+                COMMAND sh -e ${SCRIPTS}/build_botan.sh "${SUBMODULE_PREFIX}"
                 WORKING_DIRECTORY ${SUBMODULES}
                 OUTPUT_FILE ${LOG_DIR}/botan.log)
             find_library(LIBBOTAN botan  ${SUBMODULE_PREFIX}/lib)
@@ -53,7 +53,7 @@ if(WITH_ENGINE_TESTS)
 
         message( "Building libsofthsm dependency" )
         execute_process(
-            COMMAND ${SCRIPTS}/build_softhsm.sh "${SUBMODULE_PREFIX}" "${BOTAN_PREFIX}"
+            COMMAND sh -e ${SCRIPTS}/build_softhsm.sh "${SUBMODULE_PREFIX}" "${BOTAN_PREFIX}"
             WORKING_DIRECTORY ${SUBMODULES}
                 OUTPUT_FILE ${LOG_DIR}/softhsm.log)
         find_library(LIBSOFTHSM softhsm ${SUBMODULE_PREFIX}/lib/softhsm)
@@ -70,7 +70,7 @@ if(WITH_ENGINE_TESTS)
         if(NOT LIBP11)
             message ( "Building libp11" )
             execute_process(
-                COMMAND ${SCRIPTS}/build_libp11.sh "${SUBMODULE_PREFIX}"
+                COMMAND sh -e ${SCRIPTS}/build_libp11.sh "${SUBMODULE_PREFIX}"
                 WORKING_DIRECTORY ${SUBMODULES}
                     OUTPUT_FILE ${LOG_DIR}/libp11.log)
         endif()
@@ -92,7 +92,7 @@ if(WITH_ENGINE_TESTS)
         set (ENGINE_DIR ${SUBMODULES}/engine_pkcs11)
         message( "Building engine_pkcs11" )
         execute_process(
-            COMMAND ${SCRIPTS}/build_engine_pkcs11.sh "${SUBMODULE_PREFIX}" "${PKGCFG}"
+            COMMAND sh -e ${SCRIPTS}/build_engine_pkcs11.sh "${SUBMODULE_PREFIX}" "${PKGCFG}"
             WORKING_DIRECTORY ${SUBMODULES}
                 OUTPUT_FILE ${LOG_DIR}/engine_pkcs11.log)
         find_file(ENGINE_PKCS11 engine_pkcs11.so ${SUBMODULE_PREFIX}/lib/engines /usr/lib/engines)
