@@ -159,6 +159,7 @@ Suite * scep_conf_suite(void)
 int main(void)
 {
 	int number_failed;
+	setenv("SOFTHSM_CONF", "softhsm.conf", 0);
 	Suite *s = scep_conf_suite();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr, CK_NORMAL);
