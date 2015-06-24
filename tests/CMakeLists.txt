@@ -9,68 +9,50 @@ add_custom_target(build_test)
 set (SUBMODULES ${CMAKE_CURRENT_SOURCE_DIR}/submodules)
 set (SUBMODULE_PREFIX ${PROJECT_BINARY_DIR}/prefix)
 set (LOG_DIR ${PROJECT_BINARY_DIR}/logs)
+set (SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
 file(MAKE_DIRECTORY ${SUBMODULE_PREFIX})
 file(MAKE_DIRECTORY ${LOG_DIR})
 file(MAKE_DIRECTORY ${PROJECT_BINARY_DIR}/tmp)
 include_directories(${PROJECT_BINARY_DIR}/prefix/include)
 
-# If we don't have botan, we build it here
-find_library(LIBBOTAN botan ${SUBMODULE_PREFIX}/lib)
-if(NOT LIBBOTAN)
-    set (BOTAN_DIR ${SUBMODULES}/botan)
-    message( "Building libbotan dependency" )
-    execute_process(
-        COMMAND git submodule update ${SUBMODULES}/botan
-        OUTPUT_QUIET)
-    execute_process(
-        COMMAND python2 configure.py --prefix ${SUBMODULE_PREFIX}
-        OUTPUT_FILE ${LOG_DIR}/botan_configure_stdout.log
-        ERROR_FILE ${LOG_DIR}/botan_configure_stderr.log
-        WORKING_DIRECTORY ${BOTAN_DIR})
-    execute_process(
-        COMMAND make
-        OUTPUT_FILE ${LOG_DIR}/botan_make_stdout.log
-        ERROR_FILE ${LOG_DIR}/botan_make_stderr.log
-        WORKING_DIRECTORY ${BOTAN_DIR})
-    execute_process(
-        COMMAND make install
-        OUTPUT_FILE ${LOG_DIR}/botan_make_install_stdout.log
-        ERROR_FILE ${LOG_DIR}/botan_make_install_stderr.log
-        WORKING_DIRECTORY ${BOTAN_DIR})
-    find_library(LIBBOTAN botan  ${SUBMODULE_PREFIX}/lib)
-endif()
-
 # Same for SoftHSM
 find_library(LIBSOFTHSM softhsm ${SUBMODULE_PREFIX}/lib/softhsm)
 if(NOT LIBSOFTHSM)
-    set (SOFTHSM_DIR ${SUBMODULES}/SoftHSMv1)
+
+    # botan is required for SoftHSM, we need to build it here
+    find_library(LIBBOTAN botan ${SUBMODULE_PREFIX}/lib)
+    if(NOT LIBBOTAN)
+        message( "Building libbotan dependency" )
+        execute_process(
+            COMMAND ${SCRIPTS}/build_botan.sh "${SUBMODULE_PREFIX}"
+            WORKING_DIRECTORY ${SUBMODULES}
+            OUTPUT_FILE ${LOG_DIR}/botan.log)
+        find_library(LIBBOTAN botan  ${SUBMODULE_PREFIX}/lib)
+    endif()
+
+    if(NOT LIBBOTAN)
+        message( FATAL_ERROR "Unable to find or build libbotan")
+    endif()
+
+    # Check if we have botan in our default search path. Otherwise, we
+    # need to pass an explicit prefix for it
+    find_library(BOTAN_NATIVE p11)
+    if(BOTAN_NATIVE)
+        set (BOTAN_PREFIX "")
+    else()
+        set (BOTAN_PREFIX "${SUBMODULE_PREFIX}")
+    endif()
+
     message( "Building libsofthsm dependency" )
     execute_process(
-        COMMAND git submodule update ${SUBMODULES}/SoftHSMv1
-        OUTPUT_QUIET)
-    execute_process(
-        COMMAND sh autogen.sh
-        WORKING_DIRECTORY ${SOFTHSM_DIR}
-        OUTPUT_FILE ${LOG_DIR}/softhsm_autogen_stdout.log
-        ERROR_FILE ${LOG_DIR}/softhsm_autogen_stderr.log)
-    execute_process(
-        COMMAND ./configure --with-botan=${SUBMODULE_PREFIX} --prefix=${SUBMODULE_PREFIX}
-        WORKING_DIRECTORY ${SOFTHSM_DIR}
-        OUTPUT_FILE ${LOG_DIR}/softhsm_configure_stdout.log
-        ERROR_FILE ${LOG_DIR}/softhsm_configure_stderr.log)
-    execute_process(
-        COMMAND make
-        WORKING_DIRECTORY ${SOFTHSM_DIR}
-        OUTPUT_FILE ${LOG_DIR}/softhsm_make_stdout.log
-        ERROR_FILE ${LOG_DIR}/softhsm_make_stderr.log)
-    execute_process(
-        COMMAND make install
-        WORKING_DIRECTORY ${SOFTHSM_DIR}
-        OUTPUT_FILE ${LOG_DIR}/softhsm_make_install_stdout.log
-        ERROR_FILE ${LOG_DIR}/softhsm_make_install_stderr.log)
+        COMMAND ${SCRIPTS}/build_softhsm.sh "${SUBMODULE_PREFIX}" "${BOTAN_PREFIX}"
+        WORKING_DIRECTORY ${SUBMODULES}
+            OUTPUT_FILE ${LOG_DIR}/softhsm.log)
     find_library(LIBSOFTHSM softhsm ${SUBMODULE_PREFIX}/lib/softhsm)
 endif()
-set (CHECK_LIBRARIES ${LIBBOTAN} ${LIBSOFTHSM} ${CHECK_LIBRARIES})
+if(NOT LIBSOFTHSM)
+    message( FATAL_ERROR "Unable to find or build SoftHSMv1")
+endif()
 
 # Now we need to find the engine_pkcs11
 find_file(ENGINE_PKCS11 engine_pkcs11.so ${SUBMODULE_PREFIX}/lib/engines /usr/lib/engines)
@@ -79,30 +61,22 @@ if(NOT ENGINE_PKCS11)
     find_library(LIBP11 p11 ${SUBMODULE_PREFIX}/lib)
     if(NOT LIBP11)
         message ( "Building libp11" )
-    execute_process(
-        COMMAND git submodule update ${SUBMODULES}/libp11
-        OUTPUT_QUIET)
         execute_process(
-            COMMAND ./bootstrap
-            OUTPUT_FILE ${LOG_DIR}/libp11_bootstrap_stdout.log
-            ERROR_FILE ${LOG_DIR}/libp11_bootstrap_stderr.log
-            WORKING_DIRECTORY ${SUBMODULES}/libp11)
-        execute_process(
-            COMMAND ./configure --prefix=${SUBMODULE_PREFIX}
-            OUTPUT_FILE ${LOG_DIR}/libp11_configure_stdout.log
-            ERROR_FILE ${LOG_DIR}/libp11_configure_stderr.log
-            WORKING_DIRECTORY ${SUBMODULES}/libp11)
-        execute_process(
-            COMMAND make
-            OUTPUT_FILE ${LOG_DIR}/libp11_make_stdout.log
-            ERROR_FILE ${LOG_DIR}/libp11_make_stderr.log
-            WORKING_DIRECTORY ${SUBMODULES}/libp11)
-        execute_process(
-            COMMAND make install
-            OUTPUT_FILE ${LOG_DIR}/libp11_make_install_stdout.log
-            ERROR_FILE ${LOG_DIR}/libp11_make_install_stderr.log
-            WORKING_DIRECTORY ${SUBMODULES}/libp11)
+            COMMAND ${SCRIPTS}/build_libp11.sh "${SUBMODULE_PREFIX}"
+            WORKING_DIRECTORY ${SUBMODULES}
+                OUTPUT_FILE ${LOG_DIR}/libp11.log)
     endif()
+
+    # Check if we have the library in our default search path. Otherwise, we
+    # need to pass the PKG_CONFIG_PATH variable to find it
+    find_library(LIBP11_NATIVE p11)
+    if(LIBP11_NATIVE)
+        set (PKGCFG "")
+    else()
+        set (PKGCFG "${SUBMODULE_PREFIX}/lib/pkgconfig")
+    endif()
+
+    # Build libp11 if we don't have it
     find_library(LIBP11 p11 ${SUBMODULE_PREFIX}/lib)
     if(NOT LIBP11)
         message( FATAL_ERROR "libp11 could neither be found nor be built from source. Cannot build engine and thus tests!" )
@@ -110,28 +84,9 @@ if(NOT ENGINE_PKCS11)
     set (ENGINE_DIR ${SUBMODULES}/engine_pkcs11)
     message( "Building engine_pkcs11" )
     execute_process(
-        COMMAND git submodule update ${SUBMODULES}/engine_pkcs11
-        OUTPUT_QUIET)
-    execute_process(
-        COMMAND ./bootstrap
-        WORKING_DIRECTORY ${SUBMODULES}/engine_pkcs11
-        OUTPUT_FILE ${LOG_DIR}/engine_pkcs11_bootstrap_stdout.log
-        ERROR_FILE ${LOG_DIR}/engine_pkcs11_bootstrap_stderr.log)
-    execute_process(
-        COMMAND ./configure PKG_CONFIG_PATH=${SUBMODULE_PREFIX}/lib/pkgconfig --prefix=${SUBMODULE_PREFIX}
-        WORKING_DIRECTORY ${SUBMODULES}/engine_pkcs11
-        OUTPUT_FILE ${LOG_DIR}/engine_pkcs11_configure_stdout.log
-        ERROR_FILE ${LOG_DIR}/engine_pkcs11_configure_stderr.log)
-    execute_process(
-        COMMAND make
-        WORKING_DIRECTORY ${SUBMODULES}/engine_pkcs11
-        OUTPUT_FILE ${LOG_DIR}/engine_pkcs11_make_stdout.log
-        ERROR_FILE ${LOG_DIR}/engine_pkcs11_make_stderr.log)
-    execute_process(
-        COMMAND make install
-        WORKING_DIRECTORY ${SUBMODULES}/engine_pkcs11
-        OUTPUT_FILE ${LOG_DIR}/engine_pkcs11_make_install_stdout.log
-        ERROR_FILE ${LOG_DIR}/engine_pkcs11_make_install_stderr.log)
+        COMMAND ${SCRIPTS}/build_engine_pkcs11.sh "${SUBMODULE_PREFIX}" "${PKGCFG}"
+        WORKING_DIRECTORY ${SUBMODULES}
+            OUTPUT_FILE ${LOG_DIR}/engine_pkcs11.log)
     find_file(ENGINE_PKCS11 engine_pkcs11.so ${SUBMODULE_PREFIX}/lib/engines /usr/lib/engines)
 endif()
 
@@ -142,15 +97,6 @@ endif()
 # Set the variables to be filled in the header
 set (MODULE_PATH ${LIBSOFTHSM})
 set (ENGINE_PATH ${ENGINE_PKCS11})
-# If botan is not found by default, we need to tell the tests to include
-# the correct LD_LIBRARY_PATH
-find_library(BOTAN_DEFAULT botan)
-if(NOT BOTAN_DEFAULT)
-    set (BOTAN_LIB_PATH "\"${SUBMODULE_PREFIX}/lib\"")
-    set (ENV{LD_LIBRARY_PATH} ${BOTAN_LIB_PATH})
-else()
-    set (BOTAN_LIB_PATH NULL)
-endif()
 
 # Now prepare the files unit tests need to run
 execute_process(
