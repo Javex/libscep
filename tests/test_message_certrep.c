@@ -420,7 +420,7 @@ START_TEST(test_pkcsreq_success)
     ck_assert(PKCS7_type_is_signed(reply_data));
     PKCS7_SIGNED *degen = reply_data->d.sign;
     ck_assert(sk_X509_num(degen->cert) >= 1);
-    ck_assert(sk_X509_num(degen->crl) <= 0);
+    ck_assert(sk_X509_CRL_num(degen->crl) <= 0);
     ck_assert_int_ne(degen->contents, NULL);
     ck_assert(PKCS7_type_is_data(degen->contents));
     ASN1_OCTET_STRING *inner_data = degen->contents->d.data;
