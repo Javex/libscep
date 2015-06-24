@@ -11,7 +11,9 @@ static SCEP_DATA *pkiMessage, *pkiMessage_failure, *pkiMessage_success;
 /*TODO: Do we need them*/
 static EVP_PKEY *dec_key;
 static X509 *dec_cert;
+#ifdef WITH_ENGINE_TESTS
 static int engine = 0;
+#endif /* WITH_ENGINE_TESTS */
 
 
 static X509 *sig_cert;
@@ -147,7 +149,9 @@ static char *sig_key_str ="-----BEGIN PRIVATE KEY-----\n"
 "-----END PRIVATE KEY-----\n";
 
 static void make_message_data();
+#ifdef WITH_ENGINE_TESTS
 static void make_engine_message_data();
+#endif /* WITH_ENGINE_TESTS */
 static void generic_setup()
 {
     scep_init(&handle);
@@ -157,14 +161,19 @@ static void generic_setup()
     make_message_data();
 }
 
+#ifdef WITH_ENGINE_TESTS
 static void generic_engine_setup()
 {
     generic_setup();
-    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_OK);
-    ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", ENGINE_PATH), SCEPE_OK);
+    SCEP_ERROR error;
+    error = scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH);
+    ck_assert_int_eq(error, SCEPE_OK);
+    error = scep_conf_set(handle, SCEPCFG_ENGINE, "dynamic", "pkcs11", ENGINE_PATH);
+    ck_assert_int_eq(error, SCEPE_OK);
     make_engine_message_data();
 
 }
+#endif /* WITH_ENGINE_TESTS */
 
 static void free_message_data();
 static void generic_teardown()
@@ -224,6 +233,7 @@ static void make_message_data()
     BIO_free(b);
 }
 
+#ifdef WITH_ENGINE_TESTS
 static void make_engine_message_data()
 {
 #define TMP_TEMPLATE "tmp/XXXXXX"
@@ -258,11 +268,13 @@ static void make_engine_message_data()
     import_key(enc_key);
     import_key(sig_cakey);
     import_key(enc_cakey);
-    ck_assert_int_eq(system("sqlite3 softhsm-slot0.db \"UPDATE Attributes SET value='1' WHERE type=261;\""), 0);
+    res = system("sqlite3 softhsm-slot0.db \"UPDATE Attributes SET value='1' WHERE type=261;\"");
+    ck_assert_int_eq(res, 0);
 
 #undef import_key
 #undef TMP_TEMPLATE
 }
+#endif /* WITH_ENGINE_TESTS */
 
 static void free_message_data()
 {

@@ -6,7 +6,7 @@
 Suite * scep_message_suite(void)
 {
 	Suite *s = suite_create("Message");
-	/*test Certrep*/
+	/* Certrep tests */
 	add_certrep(s);
 
 	/* PKCSReq tests */
@@ -27,7 +27,9 @@ Suite * scep_message_suite(void)
 int main(void)
 {
 	int number_failed;
+#ifdef WITH_ENGINE_TESTS
 	setenv("SOFTHSM_CONF", "softhsm.conf", 0);
+#endif /* WITH_ENGINE_TESTS */
 	Suite *s = scep_message_suite();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr, CK_NORMAL);

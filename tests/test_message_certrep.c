@@ -218,38 +218,6 @@ static void setup()
     p7_nosigcert = NULL;
 }
 
-static void setup_engine()
-{
-    generic_engine_setup();
-
-    BIO *b = BIO_new(BIO_s_mem());
-    BIO_puts(b, issued_cert_str);
-    issued_cert = PEM_read_bio_X509(b, NULL, 0, 0);
-    ck_assert(issued_cert != NULL);
-    BIO_free(b);
-
-    b = BIO_new(BIO_s_mem());
-    BIO_puts(b, certrep_pending_str);
-    certrep_pending = PEM_read_bio_PKCS7(b, NULL, 0, 0);
-    ck_assert(certrep_pending != NULL);
-    BIO_free(b);
-
-    b = BIO_new(BIO_s_mem());
-    BIO_puts(b, certrep_success_str);
-    certrep_success = PEM_read_bio_PKCS7(b, NULL, 0, 0);
-    ck_assert(certrep_success != NULL);
-    BIO_free(b);
-
-    b = BIO_new(BIO_s_mem());
-    BIO_puts(b, certrep_failure_str);
-    certrep_failure = PEM_read_bio_PKCS7(b, NULL, 0, 0);
-    ck_assert(certrep_failure != NULL);
-    BIO_free(b);
-
-    p7 = NULL;
-    p7_nosigcert = NULL;
-}
-
 static void teardown()
 {
     free_message(p7);
@@ -276,35 +244,9 @@ static void setup_pending()
     scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
 }
 
-static void setup_pending_engine()
-{
-    setup_engine();
-    p7 = make_message(
-        SCEP_PENDING, 0,
-        NULL, NULL, NULL);
-    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-    p7_nosigcert = make_message(
-        SCEP_PENDING, 0,
-        NULL, NULL, NULL);
-    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
-}
-
 static void setup_failure()
 {
     setup();
-    p7 = make_message(
-        SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
-        NULL, NULL, NULL);
-    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
-    p7_nosigcert = make_message(
-        SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
-        NULL, NULL, NULL);
-    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
-}
-
-static void setup_failure_engine()
-{
-    setup_engine();
     p7 = make_message(
         SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
         NULL, NULL, NULL);
@@ -335,6 +277,71 @@ static void setup_pkcsreq_success()
     sk_X509_free(cert_stack);
 }
 
+#ifdef WITH_ENGINE_TESTS
+static void setup_engine()
+{
+    generic_engine_setup();
+
+    BIO *b = BIO_new(BIO_s_mem());
+    BIO_puts(b, issued_cert_str);
+    issued_cert = PEM_read_bio_X509(b, NULL, 0, 0);
+    ck_assert(issued_cert != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_pending_str);
+    certrep_pending = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_pending != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_success_str);
+    certrep_success = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_success != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_failure_str);
+    certrep_failure = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_failure != NULL);
+    BIO_free(b);
+
+    b = BIO_new(BIO_s_mem());
+    BIO_puts(b, certrep_getcacert_str);
+    certrep_getcacert = PEM_read_bio_PKCS7(b, NULL, 0, 0);
+    ck_assert(certrep_getcacert != NULL);
+    BIO_free(b);
+
+    p7 = NULL;
+    p7_nosigcert = NULL;
+}
+
+static void setup_pending_engine()
+{
+    setup_engine();
+    p7 = make_message(
+        SCEP_PENDING, 0,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message(
+        SCEP_PENDING, 0,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
+}
+
+static void setup_failure_engine()
+{
+    setup_engine();
+    p7 = make_message(
+        SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
+    p7_nosigcert = make_message(
+        SCEP_FAILURE, SCEP_BAD_MESSAGE_CHECK,
+        NULL, NULL, NULL);
+    scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
+}
+
 static void setup_pkcsreq_success_engine()
 {
     setup_engine();
@@ -354,6 +361,7 @@ static void setup_pkcsreq_success_engine()
     scep_conf_set(handle, SCEPCFG_FLAG_CLEAR, SCEP_SKIP_SIGNER_CERT);
     sk_X509_free(cert_stack);
 }
+#endif /* WITH_ENGINE_TESTS */
 
 START_TEST(test_pkcsreq_pending)
 {
@@ -662,8 +670,8 @@ END_TEST
 
 void add_certrep(Suite *s)
 {
-    TCase *tc, *tc_engine;
-#define add_tcase(name, setup, setup_engine, teardown) \
+    TCase *tc;
+#define add_tcase(name, setup, teardown) \
     tc = tcase_create("Certrep " name " Message"); \
     tcase_add_unchecked_fixture(tc, setup, teardown); \
     tcase_add_test(tc, test_scep_message_asn1_version); \
@@ -672,31 +680,19 @@ void add_certrep(Suite *s)
     tcase_add_test(tc, test_scep_message_type); \
     tcase_add_test(tc, test_scep_message_content_type); \
     tcase_add_test(tc, test_recipient_nonce); \
-    tcase_add_test(tc, test_sig_certificate); \
-    tc_engine = tcase_create("Certrep " name " Message with Engine"); \
-    tcase_add_unchecked_fixture(tc_engine, setup_engine, teardown); \
-    tcase_add_test(tc_engine, test_scep_message_asn1_version); \
-    tcase_add_test(tc_engine, test_scep_message_transaction_id); \
-    tcase_add_test(tc_engine, test_scep_message_sender_nonce); \
-    tcase_add_test(tc_engine, test_scep_message_type); \
-    tcase_add_test(tc_engine, test_scep_message_content_type); \
-    tcase_add_test(tc_engine, test_recipient_nonce); \
-    tcase_add_test(tc_engine, test_sig_certificate)
+    tcase_add_test(tc, test_sig_certificate)
 
-    add_tcase("PKCSReq PENDING", setup_pending, setup_pending_engine, teardown);
+    add_tcase("PKCSReq PENDING", setup_pending, teardown);
     tcase_add_test(tc, test_pkcsreq_pending);
     suite_add_tcase(s, tc);
-    suite_add_tcase(s, tc_engine);
 
-    add_tcase("PKCSReq FAILURE", setup_failure, setup_failure_engine, teardown);
+    add_tcase("PKCSReq FAILURE", setup_failure, teardown);
     tcase_add_test(tc, test_pkcsreq_failure);
     suite_add_tcase(s, tc);
-    suite_add_tcase(s, tc_engine);
 
-    add_tcase("PKCSReq SUCCESS", setup_pkcsreq_success, setup_pkcsreq_success_engine, teardown);
+    add_tcase("PKCSReq SUCCESS", setup_pkcsreq_success, teardown);
     tcase_add_test(tc, test_pkcsreq_success);
     suite_add_tcase(s, tc);
-    suite_add_tcase(s, tc_engine);
 
     TCase *tc_unwrap = tcase_create("Certrep Unwrapping");
     tcase_add_unchecked_fixture(tc_unwrap, setup, teardown);
@@ -712,6 +708,31 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap, test_unwrap_unmatching_nonces_strict);
     suite_add_tcase(s, tc_unwrap);
 
+#ifdef WITH_ENGINE_TESTS
+    TCase *tc_engine;
+#define add_tcase_engine(name, setup, teardown) \
+    tc_engine = tcase_create("Certrep " name " Message with Engine"); \
+    tcase_add_unchecked_fixture(tc_engine, setup, teardown); \
+    tcase_add_test(tc_engine, test_scep_message_asn1_version); \
+    tcase_add_test(tc_engine, test_scep_message_transaction_id); \
+    tcase_add_test(tc_engine, test_scep_message_sender_nonce); \
+    tcase_add_test(tc_engine, test_scep_message_type); \
+    tcase_add_test(tc_engine, test_scep_message_content_type); \
+    tcase_add_test(tc_engine, test_recipient_nonce); \
+    tcase_add_test(tc_engine, test_sig_certificate)
+
+    add_tcase_engine("PKCSReq PENDING", setup_pending_engine, teardown);
+    tcase_add_test(tc_engine, test_pkcsreq_pending);
+    suite_add_tcase(s, tc_engine);
+
+    add_tcase_engine("PKCSReq FAILURE", setup_failure_engine, teardown);
+    tcase_add_test(tc_engine, test_pkcsreq_failure);
+    suite_add_tcase(s, tc_engine);
+
+    add_tcase_engine("PKCSReq SUCCESS", setup_pkcsreq_success_engine, teardown);
+    tcase_add_test(tc_engine, test_pkcsreq_success);
+    suite_add_tcase(s, tc_engine);
+
     TCase *tc_unwrap_engine = tcase_create("Certrep Unwrapping with Engine");
     tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
     tcase_add_test(tc_unwrap_engine, test_invalid_sig);
@@ -725,5 +746,7 @@ void add_certrep(Suite *s)
     tcase_add_test(tc_unwrap_engine, test_unwrap_unmatching_nonces_warning);
     tcase_add_test(tc_unwrap_engine, test_unwrap_unmatching_nonces_strict);
     suite_add_tcase(s, tc_unwrap_engine);
+#undef add_tcase_engine
+#endif /* WITH_ENGINE_TESTS */
 #undef add_tcase
 }

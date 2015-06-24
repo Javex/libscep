@@ -26,6 +26,7 @@ SCEP_ERROR scep_conf_init(SCEP *handle)
 	return error;
 }
 
+#ifndef OPENSSL_NO_ENGINE
 static SCEP_ERROR scep_engine_init(SCEP *handle, char *engine_id, char *dyn_engine_id, char *so_path)
 {
 	ENGINE *e = NULL;
@@ -107,6 +108,7 @@ finally:
 	}
 	return error;
 }
+#endif /* OPENSSL_NO_ENGINE */
 
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 {
@@ -138,6 +140,7 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 			}
 			handle->configuration->log = va_arg(arg, BIO *);
 			break;
+#ifndef OPENSSL_NO_ENGINE
 		case SCEPCFG_ENGINE: ;
 			char *engine_id = va_arg(arg, char *);
 			char *so_path = NULL;
@@ -158,6 +161,7 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 			handle->configuration->internal_engine = 0;
 			_engine_count += 1;
 			break;
+#endif /* OPENSSL_NO_ENGINE */
 		case SCEPCFG_FLAG_CLEAR:
 			handle->configuration->flags = 0;
 			break;
@@ -174,6 +178,7 @@ SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...)
 
 void scep_conf_free(SCEP_CONFIGURATION *conf)
 {
+#ifndef OPENSSL_NO_ENGINE
 	if(conf->engine) {
 		if(conf->internal_engine) {
 			struct engine_params_t *param = conf->params;
@@ -191,6 +196,7 @@ void scep_conf_free(SCEP_CONFIGURATION *conf)
 		_engine_count -= 1;
 	}
 	free(conf);
+#endif /* OPENSSL_NO_ENGINE */
 }
 
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle)
@@ -198,6 +204,7 @@ SCEP_ERROR scep_conf_sanity_check(SCEP *handle)
 	return SCEPE_OK;
 }
 
+#ifndef OPENSSL_NO_ENGINE
 SCEP_ERROR scep_engine_get(SCEP *handle, ENGINE **e)
 {
 	if(!handle || !handle->configuration) {
@@ -212,3 +219,4 @@ SCEP_ERROR scep_engine_get(SCEP *handle, ENGINE **e)
 	*e = handle->configuration->engine;
 	return SCEPE_OK;
 }
+#endif /* OPENSSL_NO_ENGINE */

@@ -103,6 +103,7 @@ START_TEST(test_scep_conf_verbosity)
 }
 END_TEST
 
+#ifdef WITH_ENGINE_TESTS
 START_TEST(test_scep_conf_engine)
 {
 	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_OK);
@@ -125,6 +126,7 @@ START_TEST(test_scep_conf_engine_param_after_load)
 	ck_assert_int_eq(scep_conf_set(handle, SCEPCFG_ENGINE_PARAM, "MODULE_PATH", MODULE_PATH), SCEPE_UNKNOWN_CONFIGURATION);
 }
 END_TEST
+#endif /* WITH_ENGINE_TESTS */
 
 START_TEST(test_scep_conf_sanity_check)
 {
@@ -142,9 +144,12 @@ Suite * scep_conf_suite(void)
 	tcase_add_test(tc_core, test_scep_set_conf);
 	tcase_add_test(tc_core, test_scep_conf_encalg);
 	tcase_add_test(tc_core, test_scep_conf_sigalg);
-	tcase_add_test(tc_core, test_scep_conf_engine);
 	tcase_add_test(tc_core, test_scep_conf_verbosity);
+#ifdef WITH_ENGINE_TESTS
+	setenv("SOFTHSM_CONF", "softhsm.conf", 0);
+	tcase_add_test(tc_core, test_scep_conf_engine);
 	tcase_add_test(tc_core, test_scep_conf_engine_param_after_load);
+#endif /* WITH_ENGINE_TESTS */
 
 	TCase *tc_sanity = tcase_create("Sanity Checks");
 	tcase_add_checked_fixture(tc_sanity, setup, teardown);
@@ -159,7 +164,6 @@ Suite * scep_conf_suite(void)
 int main(void)
 {
 	int number_failed;
-	setenv("SOFTHSM_CONF", "softhsm.conf", 0);
 	Suite *s = scep_conf_suite();
 	SRunner *sr = srunner_create(s);
 	srunner_run_all(sr, CK_NORMAL);

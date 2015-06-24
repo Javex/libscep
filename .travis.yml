@@ -11,7 +11,7 @@ before_install:
 before_script:
     - mkdir build
     - cd build
-    - cmake ..
+    - cmake .. -DWITH_ENGINE_TESTS=yes
     - make build_test VERBOSE=1
 script: ctest --output-on-failure
 compiler:
