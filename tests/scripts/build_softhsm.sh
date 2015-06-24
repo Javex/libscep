@@ -7,8 +7,9 @@ if [ -n "$2" ]; then
     LDFLAGS="-Wl,-rpath,'$2/lib'"
 fi
 
-git submodule update SoftHSMv1
-cd SoftHSMv1
+cd "$(git rev-parse --show-toplevel)"
+git submodule update --init tests/submodules/SoftHSMv1
+cd tests/submodules/SoftHSMv1
 sh autogen.sh
 ./configure $BOTAN_PREFIX --prefix="$PREFIX"
 make LDFLAGS="$LDFLAGS"
