@@ -13,7 +13,9 @@
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+#ifndef OPENSSL_NO_ENGINE
 #include <openssl/engine.h>
+#endif /* OPENSSL_NO_ENGINE */
 
 #define DEFAULT_SIGALG EVP_md5()
 #define DEFAULT_ENCALG EVP_des_cbc()
@@ -81,10 +83,12 @@ typedef enum {
     SCEPCFG_ENCALG,
     SCEPCFG_LOG,
 
+#ifndef OPENSSL_NO_ENGINE
     /* Engine stuff */
     SCEPCFG_ENGINE,
     SCEPCFG_ENGINE_OBJ,
     SCEPCFG_ENGINE_PARAM,
+#endif /* OPENSSL_NO_ENGINE */
 
     /* Flags to be set */
     SCEPCFG_FLAG_CLEAR, // clear all flags
@@ -158,11 +162,13 @@ typedef enum {
     SCEP_PARAM_SENDERNONCE          = 0x0001,
 } SCEP_PARAM;
 
+#ifndef OPENSSL_NO_ENGINE
 struct engine_params_t {
     char *name;
     char *value;
     struct engine_params_t *next;
 };
+#endif /* OPENSSL_NO_ENGINE */
 
 typedef struct {
     SCEP_VERBOSITY verbosity;
@@ -170,9 +176,11 @@ typedef struct {
     EVP_CIPHER *encalg;
     BIO *log;
     SCEP_FLAGS flags;
+#ifndef OPENSSL_NO_ENGINE
     ENGINE *engine;
     int internal_engine;
     struct engine_params_t *params;
+#endif /* OPENSSL_NO_ENGINE */
 } SCEP_CONFIGURATION;
 
 typedef struct {
@@ -249,6 +257,9 @@ void scep_cleanup(SCEP *handle);
 SCEP_ERROR scep_conf_set(SCEP *handle, SCEPCFG_TYPE type, ...);
 SCEP_ERROR scep_param_set(SCEP *handle, SCEP_PARAM type, void *value);
 SCEP_ERROR scep_param_get(SCEP *handle, SCEP_PARAM type, void **value);
+#ifndef OPENSSL_NO_ENGINE
+SCEP_ERROR scep_engine_get(SCEP *handle, ENGINE **e);
+#endif /* OPENSSL_NO_ENGINE */
 char *scep_strerror(SCEP_ERROR err);
 char *scep_fail_info_str(SCEP_FAILINFO fail_info);
 SCEP_ERROR scep_PKCS7_base64_encode(SCEP *handle, PKCS7 *p7, char **encoded);
@@ -292,7 +303,6 @@ SCEP_ERROR scep_create_oids(SCEP *);
 SCEP_ERROR scep_conf_init(SCEP *handle);
 void scep_conf_free(SCEP_CONFIGURATION *conf);
 SCEP_ERROR scep_conf_sanity_check(SCEP *handle);
-SCEP_ERROR scep_engine_get(SCEP *handle, ENGINE **e);
 
 /* util.c */
 SCEP_ERROR scep_calculate_transaction_id_pubkey(

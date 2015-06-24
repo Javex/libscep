@@ -28,6 +28,7 @@ static void setup()
     p7_nosigcert = make_message_pkcsreq(req);
 }
 
+#ifdef WITH_ENGINE_TESTS
 static void setup_engine()
 {
     generic_engine_setup();
@@ -36,6 +37,7 @@ static void setup_engine()
     scep_conf_set(handle, SCEPCFG_FLAG_SET, SCEP_SKIP_SIGNER_CERT);
     p7_nosigcert = make_message_pkcsreq(req);
 }
+#endif /* WITH_ENGINE_TESTS */
 
 static void teardown()
 {
@@ -174,17 +176,6 @@ void add_pkcsreq(Suite *s)
     tcase_add_test(tc_pkcsreq_msg, test_pkcsreq);
     suite_add_tcase(s, tc_pkcsreq_msg);
 
-    TCase *tc_pkcsreq_msg_engine = tcase_create("PKCSReq Message with Engine");
-    tcase_add_unchecked_fixture(tc_pkcsreq_msg_engine, setup_engine, teardown);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_asn1_version);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_transaction_id);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_sender_nonce);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_type);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_content_type);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_certificate);
-    tcase_add_test(tc_pkcsreq_msg_engine, test_pkcsreq);
-    suite_add_tcase(s, tc_pkcsreq_msg_engine);
-
     /* Note: We deliberately do not have tests for the invalid case
      * with engines: They create their own keys that are not recognized
      * by the engine. We could import them but these tests **should** fail
@@ -203,8 +194,21 @@ void add_pkcsreq(Suite *s)
     tcase_add_test(tc_unwrap, test_unwrap_invalid_version_pkcsreq);
     suite_add_tcase(s, tc_unwrap);
 
+#ifdef WITH_ENGINE_TESTS
+    TCase *tc_pkcsreq_msg_engine = tcase_create("PKCSReq Message with Engine");
+    tcase_add_unchecked_fixture(tc_pkcsreq_msg_engine, setup_engine, teardown);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_asn1_version);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_transaction_id);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_sender_nonce);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_type);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_content_type);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_scep_message_certificate);
+    tcase_add_test(tc_pkcsreq_msg_engine, test_pkcsreq);
+    suite_add_tcase(s, tc_pkcsreq_msg_engine);
+
     TCase *tc_unwrap_engine = tcase_create("PKCSReq Unwrapping with Engine");
     tcase_add_unchecked_fixture(tc_unwrap_engine, setup_engine, teardown);
     tcase_add_test(tc_unwrap_engine, test_unwrap_invalid_version_pkcsreq);
     suite_add_tcase(s, tc_unwrap_engine);
+#endif /* WITH_ENGINE_TESTS */
 }
