@@ -113,12 +113,13 @@ X08qHUZg7s7USpfnKfkLOdshlykSD5uldVDM8DEu+quiapbyfJDev7mpzItD0/Ru
 -----END RSA PRIVATE KEY-----";
 
 
+
 print "creating pkcsreq from csr:", $/;
 my $pkcsreq = Crypt::LibSCEP::pkcsreq($sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
 print "print its transaction id", $/;
-print Crypt::LibSCEP::print_transid({inform=>"PEM", y=>"der"}, $pkcsreq), $/;
+print Crypt::LibSCEP::print_transid({inform=>"PEM"}, $pkcsreq), $/;
 
 print "print its message Type", $/;
 print Crypt::LibSCEP::print_msgtype($pkcsreq), $/;
@@ -132,4 +133,5 @@ print "FAILURE (badRequest for example):", $/;
 print Crypt::LibSCEP::certrep_failure($sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
 
 print "SUCCESS (response to pkcsreq for example):", $/;
-print Crypt::LibSCEP::certrep_success($sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert), $/;
+
+print Crypt::LibSCEP::certrep_success({passin=>"pass", passwd=>"foobar"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert), $/;

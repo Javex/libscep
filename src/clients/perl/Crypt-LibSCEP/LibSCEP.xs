@@ -19,11 +19,20 @@ init_config(SV *rv_config) {
 
 		HV *hv_config = (HV*)SvRV(rv_config);
 
-		SV **svv = hv_fetch(hv_config, "inform", strlen("inform"),FALSE);
+		config->passin = "plain";
+		SV **svv = hv_fetch(hv_config, "passin", strlen("passin"),FALSE);
 		if(svv) {
 			SvPV_nolen(*svv);
-			config->inform = SvPV_nolen(*svv);
+			config->passin = SvPV_nolen(*svv);
 		}
+
+		config->passwd = "";
+		svv = hv_fetch(hv_config, "passwd", strlen("passwd"),FALSE);
+		if(svv) {
+			SvPV_nolen(*svv);
+			config->passwd = SvPV_nolen(*svv);
+		}
+
 	}
 	else {
 		printf("Config is not a perl hash structure");
@@ -32,17 +41,51 @@ init_config(SV *rv_config) {
 }
 
 
-
+EVP_PKEY *load_key(char *key_str, Conf *config) {
+	BIO *b = BIO_new(BIO_s_mem());
+	BIO_write(b, key_str, strlen(key_str));
+	EVP_PKEY *key;
+	char *pwd = NULL;
+	if(!strcmp(config->passin, "env")) {
+		pwd = getenv("pwd");
+		if (pwd == NULL) {
+			printf("environment variable not set");
+			exit (1);
+		}
+	}
+	else if(!strcmp(config->passin, "pass")) {
+		pwd = config->passwd;
+		if(pwd == NULL) {
+			printf("passin = pass set but no password provided");
+			exit (1);
+		}
+	}
+	else if (!strcmp(config->passin, "plain")) {
+		pwd = "";
+	}
+	else {
+		printf("unsupperted pass format");
+		exit (1);
+	}
+	if(!(key = PEM_read_bio_PrivateKey(b, NULL, 0, pwd))) {
+		ERR_print_errors_fp(stderr);
+		exit (1);
+	}
+	return key;
+}
 
 MODULE = Crypt::LibSCEP		PACKAGE = Crypt::LibSCEP	
 
 char *
-certrep_success(cakey_str, cacert_str, pkcsreq_str, issuedCert_str, enc_cert_str)
+certrep_success(rv_config, cakey_str, cacert_str, pkcsreq_str, issuedCert_str, enc_cert_str)
+SV * rv_config
 char * cakey_str
 char * cacert_str
 char * pkcsreq_str
 char * issuedCert_str
 char * enc_cert_str
+PREINIT:
+	Conf *config;
 CODE: 
 	SCEP *handle;
 	//const EVP_CIPHER *enc_alg;
@@ -52,15 +95,13 @@ CODE:
 	BIO *b;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
-	
-	b = BIO_new(BIO_s_mem());
-	BIO_write(b, cakey_str, strlen(cakey_str));
+
+	config = INT2PTR(Conf *, init_config(rv_config));
+
 	EVP_PKEY *sig_cakey;
-	char *pwd = getenv("pwd");
-	if (pwd == NULL)
-		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
-	else
-		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
+
+	sig_cakey = load_key(cakey_str, config);
+
 	if(sig_cakey == NULL)
 		printf("failure2");
 	BIO_free(b);
@@ -345,10 +386,6 @@ CODE:
 	SCEP_DATA *unwrapped;
 	setup(&handle);
 	config = INT2PTR(Conf *, init_config(rv_config));
-	if(strcmp(config->inform, "PEM")) {
-		printf("unsupported input format %s", config->inform);
-	}
-
 	b = BIO_new(BIO_s_mem());
 	BIO_write(b, pkiMessage_str, strlen(pkiMessage_str));
 	PKCS7 *pkiMessage = PEM_read_bio_PKCS7(b, NULL, 0, 0);

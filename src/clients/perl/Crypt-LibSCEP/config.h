@@ -1,3 +1,4 @@
 typedef struct {
-char *inform ;
+char *passin;
+char *passwd;
 } Conf;
