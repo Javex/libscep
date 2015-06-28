@@ -17,6 +17,32 @@ size_t scep_recieve_data(void *buffer, size_t size, size_t nmemb, void *userp)
 	return realsize;
 }
 
+const EVP_CIPHER *load_enc_algorithm(SCEP *handle, char *cipher_name)
+{
+	if(strncmp(cipher_name, "blowfish", 8) == 0)
+		return EVP_bf_cbc();
+	else if(strncmp(cipher_name, "des", 3) == 0)
+		return EVP_des_cbc();
+	else if(strncmp(cipher_name, "3des", 4) == 0)
+		return EVP_des_ede3_cbc();
+	scep_log(handle, ERROR, "Unknown encryption algorithm %s", cipher_name);
+	return NULL;
+}
+
+const EVP_MD *load_md_algorithm(SCEP *handle, char *md_name)
+{
+	if(strncmp(md_name, "md5", 3) == 0)
+		return EVP_md5();
+	else if(strncmp(md_name, "sha1", 4) == 0)
+		return EVP_sha1();
+	else if(strncmp(md_name, "sha256", 6) == 0)
+		return EVP_sha256();
+	else if(strncmp(md_name, "sha512", 6) == 0)
+		return EVP_sha512();
+	scep_log(handle, ERROR, "Unknown message digest algorithm %s", md_name);
+	return NULL;
+}
+
 SCEP_CLIENT_ERROR scep_send_request(
 		struct cmd_handle_t *cmd_handle, char *operation, char *message,
 		SCEP_REPLY **reply)
@@ -250,7 +276,10 @@ char *scep_client_strerror(SCEP_CLIENT_ERROR err)
 			return "Given file does not exist";
 		case SCEPE_CLIENT_FILE:
 			return "Error with the file system";
-
+		case SCEPE_CLIENT_CFG_FILE:
+			return "Error parsing configuration file";
+		case SCEPE_CLIENT_NYI:
+			return "Functionality not yet implemented";
 		case SCEPE_CLIENT_DUMMY_LAST_ERROR:
 			return "Unknown error";
 	}

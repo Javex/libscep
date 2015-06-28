@@ -19,10 +19,26 @@ typedef enum {
     SCEPE_CLIENT_INVALID_RESPONSE,
     SCEPE_CLIENT_FILE_DOES_NOT_EXIST,
     SCEPE_CLIENT_FILE,
+    SCEPE_CLIENT_CFG_FILE,
+    SCEPE_CLIENT_NYI,
 
     SCEPE_CLIENT_DUMMY_LAST_ERROR,
 
 } SCEP_CLIENT_ERROR;
+
+/* Flags to describe parameters that were set by the command line.
+ * These flags are only required for those values where we have a
+ * default value in the library and need to check whether our
+ * configuration file should overwrite this or if it was already
+ * overwritten by the command line (which is preferred over the
+ * configuration file).
+ */
+typedef enum {
+    SCEP_CLIENT_ENCALG    = 0x0001,
+    SCEP_CLIENT_SIGALG    = 0x0002,
+    SCEP_CLIENT_VERBOSITY = 0x0004,
+    SCEP_CLIENT_RESUME    = 0x0008,
+} SCEP_CLIENT_PARAM_FLAGS;
 
 
 struct cmd_args_t
@@ -30,6 +46,7 @@ struct cmd_args_t
     SCEP_OPERATION operation;
     UriUriA *url;
     UriUriA *proxy;
+    CONF *configuration;
     union {
         X509 *cacert;
         char *cacert_target;
@@ -83,6 +100,7 @@ struct cmd_handle_t
 {
     SCEP *handle;
     struct cmd_args_t cmd_args;
+    SCEP_CLIENT_PARAM_FLAGS param_flags;
 };
 
 typedef struct {
@@ -102,4 +120,6 @@ SCEP_CLIENT_ERROR scep_read_cert(SCEP *handle, X509 **cert, char *filename);
 SCEP_CLIENT_ERROR scep_read_request(SCEP *handle, X509_REQ **req, char *filename);
 SCEP_CLIENT_ERROR scep_bio_PEM_fp(SCEP *handle, BIO *data, FILE *out);
 void scep_write_certinfo(struct cmd_handle_t cmd_handle, X509 *cert);
+const EVP_MD *load_md_algorithm(SCEP *handle, char *md_name);
+const EVP_CIPHER *load_enc_algorithm(SCEP *handle, char *cipher_name);
 #endif /* SCEP_CLIENT_H_ */

@@ -1,4 +1,5 @@
 #include "scep-client.h"
+#include "configuration.h"
 #include <argp.h>
 
 const char *argp_program_version = libscep_VERSION_STR(libscep_VERSION_MAJOR, libscep_VERSION_MINOR);
@@ -136,6 +137,9 @@ parse_opt(int key, char *arg, struct argp_state *state)
 	SCEP_CLIENT_ERROR error;
 	SCEP_ERROR lib_error;
 	if(key == ARGP_KEY_ARG) {
+		/* Skip if we already set an operation (we are currently
+		 * running through this again)
+		 */
 		if(cmd_args->operation != SCEPOP_NONE)
 			return 0;
 		if(strncmp(arg, "getca", 5) == 0)
@@ -151,11 +155,21 @@ parse_opt(int key, char *arg, struct argp_state *state)
 		else
 			return ARGP_ERR_UNKNOWN;
 		cmd_args->operation = op;
+		/* Now start over again, we have an operation */
 		state->next = 1;
 		return 0;
 	} else if(key == ARGP_KEY_END) {
 		if(state->arg_num < 1)
 			argp_failure(state, 1, 0, "Missing operation");
+		/* If we have a configuration file, use options from it where
+		 * no command line parameter has overwritten them
+		 */
+		if(cmd_args->configuration) {
+			error = configuration_set_args(cmd_handle);
+			if(error != SCEPE_CLIENT_OK)
+				argp_failure(state, 1, 0, "Loading configuration file data failed: %s", scep_client_strerror(error));
+		}
+
 		verify_arguments(state);
 		/* set defaults */
 		if(cmd_args->operation == SCEPOP_PKCSREQ || cmd_args->operation == SCEPOP_GETCERTINITIAL) {
@@ -178,6 +192,9 @@ parse_opt(int key, char *arg, struct argp_state *state)
 		}
 	}
 
+	/* Make sure that we define the operation before starting to parse
+	 * the command line options
+	 */
 	if(cmd_args->operation == SCEPOP_NONE)
 		return 0;
 
@@ -193,46 +210,40 @@ parse_opt(int key, char *arg, struct argp_state *state)
 				argp_failure(state, 1, 0, "Setting Proxy failed: %s", scep_client_strerror(error));
 			break;
 		case 'f':
-			argp_failure(state, 1, 0, "Configuration File not supported, yet");
+			if((error = configuration_load(cmd_handle, arg)) != SCEPE_CLIENT_OK)
+				argp_failure(state, 1, 0, "Loading configuration file failed: %s", scep_client_strerror(error));
 			break;
 		case 'c':
 			if(cmd_args->operation == SCEPOP_GETCACERT) {
-				cmd_args->cacert_target = malloc(strlen(arg) + 1);
-				strncpy(cmd_args->cacert_target, arg, strlen(arg) + 1);
+				cmd_args->cacert_target = strdup(arg);
+				if(!cmd_args->cacert_target)
+					argp_failure(state, 1, 0, "No memory");
 			} else {
 				if((error = scep_read_cert(handle, &cmd_args->cacert, arg)) != SCEPE_CLIENT_OK)
 					argp_failure(state, 1, 0, "Failed to load CA certificate: %s", scep_client_strerror(error));
 			}
 			break;
 		case 'E':
-			if(strncmp(arg, "blowfish", 8) == 0)
-				enc_alg = EVP_bf_cbc();
-			else if(strncmp(arg, "des", 3) == 0)
-				enc_alg = EVP_des_cbc();
-			else if(strncmp(arg, "3des", 4) == 0)
-				enc_alg = EVP_des_ede3_cbc();
-			else
+			enc_alg = load_enc_algorithm(handle, arg);
+			if(!enc_alg)
 				return ARGP_ERR_UNKNOWN;
 			scep_conf_set(handle, SCEPCFG_ENCALG, enc_alg);
+			cmd_handle->param_flags |= SCEP_CLIENT_ENCALG;
 			break;
 		case 'S':
-			if(strncmp(arg, "md5", 3) == 0)
-				sig_alg = EVP_md5();
-			else if(strncmp(arg, "sha1", 4) == 0)
-				sig_alg = EVP_sha1();
-			else if(strncmp(arg, "sha256", 6) == 0)
-				sig_alg = EVP_sha256();
-			else if(strncmp(arg, "sha512", 6) == 0)
-				sig_alg = EVP_sha512();
-			else
+			sig_alg = load_md_algorithm(handle, arg);
+			if(!sig_alg)
 				return ARGP_ERR_UNKNOWN;
+			cmd_handle->param_flags |= SCEP_CLIENT_SIGALG;
 			scep_conf_set(handle, SCEPCFG_SIGALG, sig_alg);
 			break;
 		case 'v':
 			scep_conf_set(handle, SCEPCFG_VERBOSITY, INFO);
+			cmd_handle->param_flags |= SCEP_CLIENT_VERBOSITY;
 			break;
 		case 'd':
 			scep_conf_set(handle, SCEPCFG_VERBOSITY, DEBUG);
+			cmd_handle->param_flags |= SCEP_CLIENT_VERBOSITY;
 			break;
 		default:
 			switch(cmd_args->operation)
@@ -242,25 +253,18 @@ parse_opt(int key, char *arg, struct argp_state *state)
 					switch(key)
 					{
 						case 'i':
-							cmd_args->getca.identifier = malloc(strlen(arg) + 1);
-							strncpy(cmd_args->getca.identifier, arg, strlen(arg) + 1);
+							cmd_args->getca.identifier = strdup(arg);
 							break;
 						case 'F':
-							if(strncmp(arg, "md5", 3) == 0)
-								sig_alg = EVP_md5();
-							else if(strncmp(arg, "sha1", 4) == 0)
-								sig_alg = EVP_sha1();
-							else if(strncmp(arg, "sha256", 6) == 0)
-								sig_alg = EVP_sha256();
-							else if(strncmp(arg, "sha512", 6) == 0)
-								sig_alg = EVP_sha512();
-							else
-								argp_failure(state, 1, 0, "Invalid fingerprint signature algorithm: %s\n", arg);
+							sig_alg = load_md_algorithm(handle, arg);
+							if(!sig_alg)
+								return ARGP_ERR_UNKNOWN;
 							cmd_args->getca.fp_algorithm = sig_alg;
 							break;
 					}
 					break;
 				case SCEPOP_GETNEXTCACERT:
+					argp_failure(state, 1, 0, scep_strerror(SCEPE_CLIENT_NYI));
 					break;
 				case SCEPOP_PKCSREQ:
 				case SCEPOP_GETCERTINITIAL:
@@ -284,16 +288,14 @@ parse_opt(int key, char *arg, struct argp_state *state)
 								argp_failure(state, 1, 0, "Failed to load signature certificate: %s", scep_client_strerror(error));
 							break;
 						case 'l':
-							cmd_args->pkcsreq.cert_target_filename = malloc(strlen(arg) + 1);
-							strncpy(cmd_args->pkcsreq.cert_target_filename, arg, strlen(arg) + 1);
+							cmd_args->pkcsreq.cert_target_filename = strdup(arg);
 							break;
 						case 'e':
 							if((error = scep_read_cert(handle, &cmd_args->pkcsreq.enc_cert, arg)) != SCEPE_CLIENT_OK)
 								argp_failure(state, 1, 0, "Failed to load encryption certificate: %s", scep_client_strerror(error));
 							break;
 						case 'L':
-							cmd_args->pkcsreq.self_signed_target = malloc(strlen(arg) + 1);
-							strncpy(cmd_args->pkcsreq.self_signed_target, arg, strlen(arg) + 1);
+							cmd_args->pkcsreq.self_signed_target = strdup(arg);
 							break;
 						case 't':
 							cmd_args->pkcsreq.poll_interval = strtoul(arg, NULL, 10);
@@ -306,12 +308,15 @@ parse_opt(int key, char *arg, struct argp_state *state)
 							break;
 						case 'R':
 							cmd_args->operation = SCEPOP_GETCERTINITIAL;
+							cmd_handle->param_flags |= SCEP_CLIENT_RESUME;
 							break;
 					}
 					break;
 				case SCEPOP_GETCERT:
+					argp_failure(state, 1, 0, scep_strerror(SCEPE_CLIENT_NYI));
 					break;
 				case SCEPOP_GETCRL:
+					argp_failure(state, 1, 0, scep_strerror(SCEPE_CLIENT_NYI));
 					break;
 				default:
 					return ARGP_ERR_UNKNOWN;
