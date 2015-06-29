@@ -801,6 +801,7 @@ SCEP_ERROR scep_unwrap(
 		}
 	}
 	signerCert = sk_X509_value(certs, 0);
+	local_out->signer_certificate = X509_dup(signerCert);
 
 	/* Verification only happens when a trusted CA cert is present */
 	if(ca_cert) {

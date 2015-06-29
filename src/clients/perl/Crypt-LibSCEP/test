@@ -85,6 +85,28 @@ KoZIhvcNAQEFBQADQQAdBpZ1QuDcnbbJj3yPH85y5cOYL/9d5c1utDeQEIqOFah3
 n+Hm9q37a9O3404+jkNZjOwQtANC72KR5QtRtkhq
 -----END CERTIFICATE-----";
 
+my $enc_key = "-----BEGIN PRIVATE KEY-----
+MIIBVQIBADANBgkqhkiG9w0BAQEFAASCAT8wggE7AgEAAkEAuGoGly8kL/Rx1QaA
+VfMYjDBTEdSkrXssO2KBB6uXr0UEYkmezw1nSgpVPnX/d+AtiVcMRn2QhvDuNwfY
+0urfQwIDAQABAkAo1/q7s0otgNNRXg5AewXdzronQdRzQ8uJH4j6XOvMenl571Sp
+Wp3y0owl+exEo+Q66QTn6orqbfOk7KYES1mRAiEA3UaGkQB5mkL9CVSK07G46+iu
+1hDeOFPtzJwanbYcDpsCIQDVWqQXMgJqE55KTK8l8aSoPiH/e7QkNMK4TBoitDto
+eQIger87uMY9rsBIY9udI2/sOBmcmy1CSJbuTFmwPhqel88CIQCXFishqe5/xAjS
+QN+/lRGveuCElcuJ4DsMXAgeD1gKsQIhAJwkG1Q5CFsYbAsFsU0Dd7ZI6aiMDi8w
+iX5k7rlRcZzQ
+-----END PRIVATE KEY-----";
+
+my $enc_cakey = "-----BEGIN PRIVATE KEY-----
+MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAlnYU4Qa0+wtX+hLT
+ij5eZ6gXf/WJE1MA7fagFATTOgB+rQxSMvORpNZOtGcGAWMiGU+5DdhKpyuMxAUc
+qNpOIwIDAQABAkBKZWabgap5OzmsECUDBSW+0VGVVr4JjRA3mau7WktrMNNYx32t
++w9fWT4G+Bvcp+E3i8Fh0hZTFQQIyHRfAikpAiEAxoU3w/HfON7oN+xwW3KgSVrZ
+rC+/vbB5EMHccxrfWx8CIQDCBpys3PDhfNOKvmdIRHy6JNRqoNfnVqfv3R6k1asw
+fQIgfuGgXcVWlYOqyit9OIWPurKtUycFltiW2EX/fzYasaMCIEqJsbzy8BMgGkCN
+3y2zKdt09Km1+tujvcZ3QyN99lMdAiEArTBuOBncwPRJsJDo3DSR5/qwyToJk47w
+K/TyUGmr7pU=
+-----END PRIVATE KEY-----";
+
 my $issuedCert = "-----BEGIN CERTIFICATE-----
 MIIB7TCCAZegAwIBAgIBBDANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN
 MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG
@@ -112,26 +134,53 @@ X08qHUZg7s7USpfnKfkLOdshlykSD5uldVDM8DEu+quiapbyfJDev7mpzItD0/Ru
 4Afd1Z5gdUberBpJCmg6z020fwq1gn3AlXUOxlf+Z2k=
 -----END RSA PRIVATE KEY-----";
 
-
-
 print "creating pkcsreq from csr:", $/;
+#this command is for the client-side
 my $pkcsreq = Crypt::LibSCEP::pkcsreq($sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
+print "creating getcert:", $/;
+#this command is for the client-side
+my $getcert = Crypt::LibSCEP::getcert($sig_key, $sig_cert, $enc_cacert);
+print $getcert;
+
+print "unwrapping getcert", $/;
+my $struct2 = Crypt::LibSCEP::unwrap($getcert, $sig_cacert, $enc_cacert, $enc_cakey);
+
+#the following part is for the server-side
+my $struct1 = Crypt::LibSCEP::parse($pkcsreq);
+
+#accessor functions
 print "print its transaction id", $/;
-print Crypt::LibSCEP::print_transid({inform=>"PEM"}, $pkcsreq), $/;
+print Crypt::LibSCEP::get_transaction_id($struct1);
 
-print "print its message Type", $/;
-print Crypt::LibSCEP::print_msgtype($pkcsreq), $/;
+print "\nprint its message Type", $/;
+print Crypt::LibSCEP::get_message_type($struct1), $/;
 
+print "print getca serial", $/;
+print Crypt::LibSCEP::get_getcert_serial($struct2), $/;
 
+#creation functions
 print "creating corresponding certreps:", $/;
 print "PENDING:", $/;
-print Crypt::LibSCEP::certrep_pending($sig_cakey, $sig_cacert, $pkcsreq), $/;
+print Crypt::LibSCEP::create_pending_reply($sig_cakey, $sig_cacert, $pkcsreq), $/;
 
 print "FAILURE (badRequest for example):", $/;
-print Crypt::LibSCEP::certrep_failure($sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+print Crypt::LibSCEP::create_error_reply($sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
 
 print "SUCCESS (response to pkcsreq for example):", $/;
+my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert);
+print $certrep_success, $/;
 
-print Crypt::LibSCEP::certrep_success({passin=>"pass", passwd=>"foobar"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert), $/;
+print "getnextca response:", $/;
+my $chain = $enc_cacert . "\n\n" . $sig_cacert . "\n";
+print Crypt::LibSCEP::create_nextca_reply($chain), $/;
+
+print "get the signer certificate:", $/;
+my $struct3 = Crypt::LibSCEP::unwrap($certrep_success, $sig_cacert, $enc_cert, $enc_key);
+print Crypt::LibSCEP::get_signer_cert($struct3), $/;
+
+print "extracting csr from certrep:", $/;
+my $struct4 = Crypt::LibSCEP::unwrap($pkcsreq, $sig_cacert, $enc_cacert, $enc_cakey);
+print Crypt::LibSCEP::get_pkcs10($struct4), $/;
+
