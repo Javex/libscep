@@ -1,0 +1,2 @@
+TYPEMAP
+Crypt::LibSCEP	T_PTROBJ
