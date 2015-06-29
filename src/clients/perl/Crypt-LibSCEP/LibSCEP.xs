@@ -11,8 +11,20 @@
 #include "config.h"
 
 IV
-init_config(SV *rv_config) {
+init_config(SV *rv_config, SCEP **handle) {
+	SCEP *local_handle;
+	BIO *scep_log;
+	scep_init(&local_handle);
+	if (scep_init(&local_handle) != SCEPE_OK)
+		printf("failure");
+	scep_log = BIO_new_fp(stdout, BIO_NOCLOSE);
+	scep_conf_set(local_handle, SCEPCFG_LOG, scep_log);
+	scep_conf_set(local_handle, SCEPCFG_VERBOSITY, DEBUG);
+
+
+
 	Conf *config = malloc(sizeof(Conf));
+
 	if (SvROK(rv_config) && (SvTYPE(SvRV(rv_config)) == SVt_PVHV)) {
 
 		HV *hv_config = (HV*)SvRV(rv_config);
@@ -20,14 +32,24 @@ init_config(SV *rv_config) {
 		config->passin = "plain";
 		SV **svv = hv_fetch(hv_config, "passin", strlen("passin"),FALSE);
 		if(svv) {
-			SvPV_nolen(*svv);
 			config->passin = SvPV_nolen(*svv);
+		}
+
+		svv = hv_fetch(hv_config, "sigalg", strlen("sigalg"),FALSE);
+		if(svv) {
+			char *md = SvPV_nolen(*svv);
+			local_handle->configuration->sigalg = EVP_get_digestbyname(md);
+		}
+
+		svv = hv_fetch(hv_config, "encalg", strlen("encalg"),FALSE);
+		if(svv) {
+			char *encalg = SvPV_nolen(*svv);
+			local_handle->configuration->encalg = EVP_get_cipherbyname(encalg);
 		}
 
 		config->passwd = "";
 		svv = hv_fetch(hv_config, "passwd", strlen("passwd"),FALSE);
 		if(svv) {
-			SvPV_nolen(*svv);
 			config->passwd = SvPV_nolen(*svv);
 		}
 
@@ -35,6 +57,8 @@ init_config(SV *rv_config) {
 	else {
 		printf("Config is not a perl hash structure");
 	}
+	*handle = local_handle;
+
 	return PTR2IV(config);
 }
 
@@ -88,23 +112,17 @@ PREINIT:
 	Conf *config;
 CODE: 
 	SCEP *handle;
-	//const EVP_CIPHER *enc_alg;
-	//enc_alg = EVP_des_ede3_cbc();
-	setup(&handle);
 	
 	BIO *b;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
 
-	config = INT2PTR(Conf *, init_config(rv_config));
-
+	config = INT2PTR(Conf *, init_config(rv_config, &handle));
 	EVP_PKEY *sig_cakey;
 
 	sig_cakey = load_key(cakey_str, config);
-
 	if(sig_cakey == NULL)
 		printf("failure2");
-	BIO_free(b);
 
 
 	b = BIO_new(BIO_s_mem());
@@ -144,6 +162,7 @@ CODE:
 		printf("failure5");
 
 	SCEP_PKISTATUS pkiStatus = SCEP_SUCCESS;
+
 	s = scep_certrep(handle, unwrapped->transactionID, unwrapped->senderNonce, pkiStatus, 0, issuedCert, sig_cacert, sig_cakey, enc_cert, NULL, NULL, &p7);
 
 	if(s != SCEPE_OK)
@@ -162,30 +181,26 @@ OUTPUT:
 
 
 char *
-create_error_reply(cakey_str, cacert_str, pkcsreq_str, failInfo_str)
+create_error_reply(rv_config, cakey_str, cacert_str, pkcsreq_str, failInfo_str)
+SV   * rv_config
 char * cakey_str
 char * cacert_str
 char * pkcsreq_str
 char * failInfo_str
+PREINIT:
+	Conf *config;
 CODE: 
 	SCEP *handle;
-	setup(&handle);
+	config = INT2PTR(Conf *, init_config(rv_config, &handle));
 	
 	BIO *b;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
 	
-	b = BIO_new(BIO_s_mem());;
-	BIO_write(b, cakey_str, strlen(cakey_str));
 	EVP_PKEY *sig_cakey;
-	char *pwd = getenv("pwd");
-	if (pwd == NULL)
-		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
-	else
-		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
+	sig_cakey = load_key(cakey_str, config);
 	if(sig_cakey == NULL)
 		printf("failure2");
-	BIO_free(b);
 
 
 	b = BIO_new(BIO_s_mem());
@@ -241,30 +256,25 @@ OUTPUT:
 	RETVAL
 
 char *
-create_pending_reply(cakey_str, cacert_str, pkcsreq_str)
+create_pending_reply(rv_config, cakey_str, cacert_str, pkcsreq_str)
+SV   * rv_config
 char * cakey_str
 char * cacert_str
 char * pkcsreq_str
+PREINIT:
+	Conf *config;
 CODE: 
 	SCEP *handle;
-	setup(&handle);
+	config = INT2PTR(Conf *, init_config(rv_config, &handle));
 	
 	BIO *b;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
 	
-	b = BIO_new(BIO_s_mem());;
-	BIO_write(b, cakey_str, strlen(cakey_str));
 	EVP_PKEY *sig_cakey;
-	char *pwd = getenv("pwd");
-	if (pwd == NULL)
-		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
-	else
-		sig_cakey = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
+	sig_cakey = load_key(cakey_str, config);
 	if(sig_cakey == NULL)
 		printf("failure2");
-	BIO_free(b);
-
 
 	b = BIO_new(BIO_s_mem());
 	BIO_write(b, cacert_str, strlen(cacert_str));
@@ -305,28 +315,25 @@ OUTPUT:
 	RETVAL
 
 char *
-pkcsreq(key_str, ca_str, enc_str, req_str)
+pkcsreq(rv_config, key_str, ca_str, enc_str, req_str)
+SV   * rv_config
 char * key_str
 char * ca_str
 char * enc_str
 char * req_str
+PREINIT:
+	Conf *config;
 CODE:
 	SCEP *handle;
-	setup(&handle);
+	config = INT2PTR(Conf *, init_config(rv_config, &handle));
 
 	BIO *b;
-	//const EVP_CIPHER *enc_alg;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
 	
-	b = BIO_new(BIO_s_mem());;
-	BIO_write(b, key_str, strlen(key_str));
+	b = BIO_new(BIO_s_mem());
 	EVP_PKEY *sig_key;
-	char *pwd = getenv("pwd");
-	if (pwd == NULL)
-		sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
-	else
-		sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
+	sig_key = load_key(key_str, config);
 	if(sig_key == NULL)
 		printf("failure");
 	BIO_free(b);
@@ -373,30 +380,25 @@ OUTPUT:
 	RETVAL
 
 char *
-getcert(key_str, ca_str, enc_str)
+getcert(rv_config, key_str, ca_str, enc_str)
+SV 	 * rv_config
 char * key_str
 char * ca_str
 char * enc_str
+PREINIT:
+	Conf *config;
 CODE:
 	SCEP *handle;
-	setup(&handle);
+	config = INT2PTR(Conf *, init_config(rv_config, &handle));
 
 	BIO *b;
-	//const EVP_CIPHER *enc_alg;
 	PKCS7 *p7 = NULL;
 	char *reply = NULL;
-	
-	b = BIO_new(BIO_s_mem());;
-	BIO_write(b, key_str, strlen(key_str));
+
 	EVP_PKEY *sig_key;
-	char *pwd = getenv("pwd");
-	if (pwd == NULL)
-		sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
-	else
-		sig_key = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
+	sig_key = load_key(key_str, config);
 	if(sig_key == NULL)
 		printf("failure");
-	BIO_free(b);
 
 	
 	b = BIO_new(BIO_s_mem());
@@ -475,21 +477,22 @@ OUTPUT:
 	RETVAL
 
 Crypt::LibSCEP
-unwrap(pkiMessage_str, sig_cacert_str, enc_cert_str, enc_key_str)
+unwrap(rv_config, pkiMessage_str, sig_cacert_str, enc_cert_str, enc_key_str)
+SV 			* rv_config
 char 		* pkiMessage_str
 char 		* sig_cacert_str
 char 		* enc_cert_str
 char 		* enc_key_str
+PREINIT:
+	Conf *config;
 CODE:
+	SCEP *handle;
+	config = INT2PTR(Conf *, init_config(rv_config, &handle));
 
-	BIO *b = BIO_new(BIO_s_mem());;
-	BIO_write(b, enc_key_str, strlen(enc_key_str));
+	BIO *b = BIO_new(BIO_s_mem());
+
 	EVP_PKEY *enc_key;
-	char *pwd = getenv("pwd");
-	if (pwd == NULL)
-		enc_key = PEM_read_bio_PrivateKey(b, NULL, 0, 0);
-	else
-		enc_key = PEM_read_bio_PrivateKey(b, NULL, 0, pwd);
+	enc_key = load_key(enc_key_str, config);
 	if(enc_key == NULL)
 		printf("failure");
 	BIO_free(b);
@@ -509,9 +512,8 @@ CODE:
 	BIO_free(b);
 
 	Newx(RETVAL, 1, SCEP_DATA);
-	SCEP *handle;
+	
 	SCEP_DATA *unwrapped = NULL;
-	setup(&handle);
 
 	b = BIO_new(BIO_s_mem());
 	BIO_write(b, pkiMessage_str, strlen(pkiMessage_str));
@@ -547,7 +549,7 @@ CODE:
 	STACK_OF(X509_INFO) *X509Infos = NULL;
 	X509_INFO *X509Info;
 	PKCS7 *p7 = NULL;
-	BIO *b1 = BIO_new(BIO_s_mem());;
+	BIO *b1 = BIO_new(BIO_s_mem());
 	BIO *b2 = BIO_new(BIO_s_mem());
 	BIO_write(b1, chain_str, strlen(chain_str));
 

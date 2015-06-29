@@ -96,16 +96,19 @@ QN+/lRGveuCElcuJ4DsMXAgeD1gKsQIhAJwkG1Q5CFsYbAsFsU0Dd7ZI6aiMDi8w
 iX5k7rlRcZzQ
 -----END PRIVATE KEY-----";
 
-my $enc_cakey = "-----BEGIN PRIVATE KEY-----
-MIIBVAIBADANBgkqhkiG9w0BAQEFAASCAT4wggE6AgEAAkEAlnYU4Qa0+wtX+hLT
-ij5eZ6gXf/WJE1MA7fagFATTOgB+rQxSMvORpNZOtGcGAWMiGU+5DdhKpyuMxAUc
-qNpOIwIDAQABAkBKZWabgap5OzmsECUDBSW+0VGVVr4JjRA3mau7WktrMNNYx32t
-+w9fWT4G+Bvcp+E3i8Fh0hZTFQQIyHRfAikpAiEAxoU3w/HfON7oN+xwW3KgSVrZ
-rC+/vbB5EMHccxrfWx8CIQDCBpys3PDhfNOKvmdIRHy6JNRqoNfnVqfv3R6k1asw
-fQIgfuGgXcVWlYOqyit9OIWPurKtUycFltiW2EX/fzYasaMCIEqJsbzy8BMgGkCN
-3y2zKdt09Km1+tujvcZ3QyN99lMdAiEArTBuOBncwPRJsJDo3DSR5/qwyToJk47w
-K/TyUGmr7pU=
------END PRIVATE KEY-----";
+my $enc_cakey = "-----BEGIN RSA PRIVATE KEY-----
+Proc-Type: 4,ENCRYPTED
+DEK-Info: DES-EDE3-CBC,DD73214CD86AA97E
+
+JoHENnOl+cfDp24t9iJz0UsJMYdMG0nEhI9FNXlOJLKNMnEv3EP7RzvC/MvKSRmD
+6HNQGCuzmgRqAzCTUn+8lx0b8W1gVEnb1/OKqhv6qVBYJEKELfSaG+U6+05GYYuP
+wtMAES9ijdY1IvvYwm9liJn/DqZdcBKr+41f74jzRO2Q7RA6JR5PpSpw1xvHCQ3M
+7hEkXPbhRFFcKH4PiCGr4o8XUcF7gKkeSD7D5OtsqntgT5h2CgPKu7EyckWa1wdG
+oiwk8/ocL0I9vewPhOH0tssUZn1GP2bnXTxmpvt25lXLdZHF7zDqLJHd7cZQT9SN
+bD6UzOs3aXgkcQeT2Qk8Fi7nFFYUitSg5ihieA777Rrd4IrLBCgU/BiUrh9/afm6
+LK4Lg/GAWeK5Tch/2LEg+YMaXQs0+JTKu/NPmgZ7x+E=
+-----END RSA PRIVATE KEY-----
+";
 
 my $issuedCert = "-----BEGIN CERTIFICATE-----
 MIIB7TCCAZegAwIBAgIBBDANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN
@@ -134,18 +137,19 @@ X08qHUZg7s7USpfnKfkLOdshlykSD5uldVDM8DEu+quiapbyfJDev7mpzItD0/Ru
 4Afd1Z5gdUberBpJCmg6z020fwq1gn3AlXUOxlf+Z2k=
 -----END RSA PRIVATE KEY-----";
 
+my $conf = {};
 print "creating pkcsreq from csr:", $/;
 #this command is for the client-side
-my $pkcsreq = Crypt::LibSCEP::pkcsreq($sig_key, $sig_cert, $enc_cacert, $req);
+my $pkcsreq = Crypt::LibSCEP::pkcsreq($conf, $sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
 print "creating getcert:", $/;
 #this command is for the client-side
-my $getcert = Crypt::LibSCEP::getcert($sig_key, $sig_cert, $enc_cacert);
+my $getcert = Crypt::LibSCEP::getcert($conf, $sig_key, $sig_cert, $enc_cacert);
 print $getcert;
 
 print "unwrapping getcert", $/;
-my $struct2 = Crypt::LibSCEP::unwrap($getcert, $sig_cacert, $enc_cacert, $enc_cakey);
+my $struct2 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $getcert, $sig_cacert, $enc_cacert, $enc_cakey);
 
 #the following part is for the server-side
 my $struct1 = Crypt::LibSCEP::parse($pkcsreq);
@@ -163,13 +167,13 @@ print Crypt::LibSCEP::get_getcert_serial($struct2), $/;
 #creation functions
 print "creating corresponding certreps:", $/;
 print "PENDING:", $/;
-print Crypt::LibSCEP::create_pending_reply($sig_cakey, $sig_cacert, $pkcsreq), $/;
+print Crypt::LibSCEP::create_pending_reply({}, $sig_cakey, $sig_cacert, $pkcsreq), $/;
 
 print "FAILURE (badRequest for example):", $/;
-print Crypt::LibSCEP::create_error_reply($sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+print Crypt::LibSCEP::create_error_reply({passin=>"pass", passwd=>"<willbeigenored>", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
 
 print "SUCCESS (response to pkcsreq for example):", $/;
-my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert);
+my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert);
 print $certrep_success, $/;
 
 print "getnextca response:", $/;
@@ -177,10 +181,13 @@ my $chain = $enc_cacert . "\n\n" . $sig_cacert . "\n";
 print Crypt::LibSCEP::create_nextca_reply($chain), $/;
 
 print "get the signer certificate:", $/;
-my $struct3 = Crypt::LibSCEP::unwrap($certrep_success, $sig_cacert, $enc_cert, $enc_key);
+my $struct3 = Crypt::LibSCEP::unwrap($conf, $certrep_success, $sig_cacert, $enc_cert, $enc_key);
 print Crypt::LibSCEP::get_signer_cert($struct3), $/;
 
 print "extracting csr from certrep:", $/;
-my $struct4 = Crypt::LibSCEP::unwrap($pkcsreq, $sig_cacert, $enc_cacert, $enc_cakey);
+my $struct4 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $pkcsreq, $sig_cacert, $enc_cacert, $enc_cakey);
 print Crypt::LibSCEP::get_pkcs10($struct4), $/;
 
+print "get the signer certificate w/o key usage:", $/;
+my $struct5 = Crypt::LibSCEP::parse($certrep_success);
+print Crypt::LibSCEP::get_signer_cert($struct5), $/;
