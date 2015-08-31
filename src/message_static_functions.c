@@ -96,7 +96,7 @@ static SCEP_ERROR verify(
         OSSL_ERR("Failed to create BIO for encrypted content");
 
     /* assuming cert is within pkiMessage */
-    if (!PKCS7_verify(pkiMessage, NULL, store, NULL, data, 0))
+    if (!PKCS7_verify(pkiMessage, NULL, store, NULL, data, PKCS7_NOVERIFY))
         OSSL_ERR("verification failed");
 
     *encData = data;

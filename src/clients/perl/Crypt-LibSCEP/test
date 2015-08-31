@@ -1,4 +1,4 @@
-#!/root/perl5/perlbrew/perls/perl-5.16.2/bin/perl
+#!/usr/bin/perl
 use ExtUtils::testlib;
 use Crypt::LibSCEP;
 
@@ -156,8 +156,9 @@ my $struct1 = Crypt::LibSCEP::parse($pkcsreq);
 
 #accessor functions
 print "print its transaction id", $/;
-print Crypt::LibSCEP::get_transaction_id($struct1);
-
+my $transid = Crypt::LibSCEP::get_transaction_id($struct1);
+print $transid, $/;
+=pod
 print "\nprint its message Type", $/;
 print Crypt::LibSCEP::get_message_type($struct1), $/;
 
@@ -178,16 +179,39 @@ print $certrep_success, $/;
 
 print "getnextca response:", $/;
 my $chain = $enc_cacert . "\n\n" . $sig_cacert . "\n";
-print Crypt::LibSCEP::create_nextca_reply($chain), $/;
+print Crypt::LibSCEP::create_nextca_reply({}, $chain, $sig_cacert, $sig_cakey), $/;
 
-print "get the signer certificate:", $/;
-my $struct3 = Crypt::LibSCEP::unwrap($conf, $certrep_success, $sig_cacert, $enc_cert, $enc_key);
-print Crypt::LibSCEP::get_signer_cert($struct3), $/;
+#print "get the signer certificate:", $/;
+#my $struct3 = Crypt::LibSCEP::unwrap($conf, $certrep_success, $sig_cacert, $enc_cert, $enc_key);
+#print Crypt::LibSCEP::get_signer_cert($struct3), $/;
 
 print "extracting csr from certrep:", $/;
 my $struct4 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $pkcsreq, $sig_cacert, $enc_cacert, $enc_cakey);
 print Crypt::LibSCEP::get_pkcs10($struct4), $/;
 
-print "get the signer certificate w/o key usage:", $/;
-my $struct5 = Crypt::LibSCEP::parse($certrep_success);
-print Crypt::LibSCEP::get_signer_cert($struct5), $/;
+#print "get the signer certificate w/o key usage:", $/;
+#my $struct5 = Crypt::LibSCEP::parse($certrep_success);
+#print Crypt::LibSCEP::get_signer_cert($struct5), $/;
+=cut
+print "print senderNonce from pkcsreq:", $/;
+my $senderNonce = Crypt::LibSCEP::get_senderNonce($struct1);
+print $senderNonce, $/;
+
+print "print pending reply without the use of pkcsreq:", $/;
+print Crypt::LibSCEP::create_pending_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce), $/;
+
+print "use pkcs11 engine", $/;
+my $label = "pkcs11";
+my $so = "/usr/lib/engines/engine_pkcs11.so";
+my $module = "/usr/lib/softhsm/libsofthsm.so";
+my $pin = "123456";
+my $id = "FFFF";
+my $engine_conf = {module => $module, label => $label, so => $so, pin => $pin};
+
+print "create engine object\n";
+my $engine = Crypt::LibSCEP::create_engine($engine_conf);
+$pkcsreq = Crypt::LibSCEP::pkcsreq({engine=>$engine}, $id, $sig_cert, $enc_cacert, $req);
+print $pkcsreq;
+print Crypt::LibSCEP::create_error_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, "badRequest"), $/;
+#print "print cert reply without the use of pkcsreq:", $/;
+#print Crypt::LibSCEP::create_certificate_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, $enc_cert, $issuedCert), $/;
