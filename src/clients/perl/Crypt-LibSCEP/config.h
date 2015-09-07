@@ -1,8 +1,8 @@
 typedef struct {
 char *passin;
 char *passwd;
-BIO *log;
-ENGINE *engine;
+SCEP *handle;
+bool cleanup;
 } Conf;
 
 typedef struct {
@@ -10,5 +10,4 @@ char *so;
 char *pin;
 char *label;
 char *module;
-ENGINE *engine;
 } Engine_conf;
