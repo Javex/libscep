@@ -1,4 +1,4 @@
-#!/root/perl5/perlbrew/perls/perl-5.16.2/bin/perl
+#!/usr/bin/perl
 use ExtUtils::testlib;
 use Crypt::LibSCEP;
 
