@@ -1,10 +1,34 @@
 #include "scep.h"
 #include "message_static_functions.c"
 
-SCEP_ERROR scep_getcacert_reply(SCEP *handle, STACK_OF(X509) *certs, PKCS7 **p7)
+SCEP_ERROR scep_getcacert_reply(SCEP *handle, STACK_OF(X509) *certs, X509 *signcert, EVP_PKEY *key, PKCS7 **p7)
 {
+	SCEP_ERROR error = SCEPE_OK;
+	PKCS7 *degenP7 = NULL;
+	PKCS7 *local_p7;
+	BIO *databio = NULL;
 	X509 *cert1 = (X509 *) sk_X509_pop(certs);
-	SCEP_ERROR error = make_degenP7(handle, cert1, certs, NULL, p7);
+	//create the message's content
+	if((error = make_degenP7(
+					handle, cert1, certs, NULL, &degenP7)) != SCEPE_OK)
+		OSSL_ERR("Could creater inner PKCS7 structure");
+	databio = BIO_new(BIO_s_mem());
+	if(!databio)
+		OSSL_ERR("Could not create data BIO");
+	if(i2d_PKCS7_bio(databio, degenP7) <= 0)
+		OSSL_ERR("Could not read degenP7 into data BIO");
+	//no scep-specific PKCS7, just a primitive PKCS7, OpenSSL can do the work for us
+	if(!(handle->configuration->flags & SCEP_SKIP_SIGNER_CERT))
+		local_p7 = PKCS7_sign(signcert, key, NULL, databio, PKCS7_BINARY|PKCS7_NOATTR);
+	else {
+		local_p7 = PKCS7_sign(signcert, key, NULL, databio, PKCS7_BINARY|PKCS7_NOCERTS|PKCS7_NOATTR);
+	}
+	*p7 = local_p7;
+finally:
+	if(error != SCEPE_OK) {
+		if(databio)
+			BIO_free_all(databio);
+	}
 	return error;
 }
 

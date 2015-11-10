@@ -518,7 +518,7 @@ START_TEST(test_scep_getcacert_reply)
     sk_X509_push(certs, enc_cert);
     PKCS7 *p7;
     ck_assert(scep_getcacert_reply(
-       handle, certs, &p7) == SCEPE_OK);
+       handle, certs, cert, sig_key, &p7) == SCEPE_OK);
     PEM_write_PKCS7(stderr, p7);
 }
 END_TEST

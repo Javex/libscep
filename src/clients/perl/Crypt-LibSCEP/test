@@ -1,7 +1,8 @@
 #!/usr/bin/perl
 use ExtUtils::testlib;
-use Crypt::LibSCEP;
 
+use Try::Tiny;
+use Crypt::LibSCEP;
 my $sig_cert = "-----BEGIN CERTIFICATE-----
 MIIBqDCCAVKgAwIBAgIBATANBgkqhkiG9w0BAQUFADBHMQswCQYDVQQGEwJERTEN
 MAsGA1UECAwEYXNkZjENMAsGA1UEBwwEYXNkZjENMAsGA1UECgwEYXNkZjELMAkG
@@ -152,17 +153,18 @@ print "unwrapping getcert", $/;
 my $struct2 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $getcert, $sig_cacert, $enc_cacert, $enc_cakey);
 
 #the following part is for the server-side
-my $struct1 = Crypt::LibSCEP::parse($pkcsreq);
+my $struct1 = Crypt::LibSCEP::parse({}, $pkcsreq);
 
 #accessor functions
 print "print its transaction id", $/;
-print Crypt::LibSCEP::get_transaction_id($struct1);
+my $transid = Crypt::LibSCEP::get_transaction_id($struct1);
+print $transid, $/;
 
 print "\nprint its message Type", $/;
 print Crypt::LibSCEP::get_message_type($struct1), $/;
 
 print "print getca serial", $/;
-print Crypt::LibSCEP::get_getcert_serial($struct2), $/;
+print Crypt::LibSCEP::get_getcert_serial($struct1), $/;
 
 #creation functions
 print "creating corresponding certreps:", $/;
@@ -173,21 +175,79 @@ print "FAILURE (badRequest for example):", $/;
 print Crypt::LibSCEP::create_error_reply({passin=>"pass", passwd=>"<willbeigenored>", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
 
 print "SUCCESS (response to pkcsreq for example):", $/;
-my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert, $enc_cert);
+my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert);
 print $certrep_success, $/;
 
 print "getnextca response:", $/;
 my $chain = $enc_cacert . "\n\n" . $sig_cacert . "\n";
-print Crypt::LibSCEP::create_nextca_reply($chain), $/;
+print Crypt::LibSCEP::create_nextca_reply({}, $chain, $sig_cacert, $sig_cakey), $/;
 
-print "get the signer certificate:", $/;
-my $struct3 = Crypt::LibSCEP::unwrap($conf, $certrep_success, $sig_cacert, $enc_cert, $enc_key);
-print Crypt::LibSCEP::get_signer_cert($struct3), $/;
+#print "get the signer certificate:", $/;
+#my $struct3 = Crypt::LibSCEP::unwrap($conf, $certrep_success, $sig_cacert, $enc_cert, $enc_key);
+#print Crypt::LibSCEP::get_signer_cert($struct3), $/;
 
 print "extracting csr from certrep:", $/;
 my $struct4 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $pkcsreq, $sig_cacert, $enc_cacert, $enc_cakey);
 print Crypt::LibSCEP::get_pkcs10($struct4), $/;
 
-print "get the signer certificate w/o key usage:", $/;
-my $struct5 = Crypt::LibSCEP::parse($certrep_success);
-print Crypt::LibSCEP::get_signer_cert($struct5), $/;
+#print "get the signer certificate w/o key usage:", $/;
+#my $struct5 = Crypt::LibSCEP::parse({}$certrep_success);
+#print Crypt::LibSCEP::get_signer_cert($struct5), $/;
+
+my $struct5 = Crypt::LibSCEP::unwrap({}, $certrep_success, $sig_cert, $sig_cert, $sig_key);
+
+
+print "print senderNonce from pkcsreq:", $/;
+my $senderNonce = Crypt::LibSCEP::get_recipientNonce($struct5);
+my $hex = unpack(  'H*', $senderNonce );
+print $hex, $/;
+print "print pending reply without the use of pkcsreq:", $/;
+print Crypt::LibSCEP::create_pending_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce), $/;
+
+
+print "create handle", $/;
+my $handle = Crypt::LibSCEP::create_handle({});
+print "use pkcs11 engine", $/;
+my $label = "pkcs11";
+my $so = "/usr/lib/engines/engine_pkcs11.so";
+my $module = "/usr/lib/softhsm/libsofthsm.so";
+my $pin = "123456";
+my $id = "FFFF";
+my $engine_conf = {module => $module, label => $label, so => $so, pin => $pin};
+print "create engine object\n";
+Crypt::LibSCEP::create_engine({handle=>$handle}, $engine_conf);
+try {
+	$pkcsreq = Crypt::LibSCEP::pkcsreq({handle=>$handle}, $id, $sig_cert, $enc_cacert, $req);
+	print $pkcsreq;
+} catch {
+	print "\nerror stack:\n----------\n$_----------\n";
+
+};
+Crypt::LibSCEP::cleanup($handle);
+$pkcsreq = Crypt::LibSCEP::pkcsreq({}, $sig_key, $sig_cert, $enc_cacert, $req);
+print $pkcsreq;
+
+
+my $handle = Crypt::LibSCEP::create_handle({});
+print "error_reply", $/;
+print Crypt::LibSCEP::create_error_reply({passin=>"pass", passwd=>"<willbeigenored>", handle=>$handle}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+
+#this would work, sigalg would be overwritten, handle is updated, even if function failes
+try {
+	print Crypt::LibSCEP::create_error_reply({sigalg=>"md5", passin=>"pass", passwd=>"<willbeigenored>", handle=>$handle}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+} catch {
+	print $_;
+};
+
+#this still uses md5
+try {
+	print Crypt::LibSCEP::create_error_reply({passin=>"pass", passwd=>"<willbeigenored>", handle=>$handle}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+} catch {
+	print $_;
+};
+
+Crypt::LibSCEP::cleanup($handle);
+print "print error reply without the use of pkcsreq:", $/;
+print Crypt::LibSCEP::create_error_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, "badRequest"), $/;
+print "print cert reply without the use of pkcsreq:", $/;
+print Crypt::LibSCEP::create_certificate_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, $enc_cert, $issuedCert), $/;

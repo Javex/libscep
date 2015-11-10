@@ -293,8 +293,9 @@ SCEP_ERROR scep_get_crl(
     SCEP *handle, X509 *sig_cert, EVP_PKEY *sig_key,
     X509 *req_cert, X509 *enc_cert,
     PKCS7 **pkiMessage);
-
-SCEP_ERROR scep_getcacert_reply(SCEP *handle, STACK_OF(X509) *certs, PKCS7 **p7);
+SCEP_ERROR scep_getcacert_reply(
+	SCEP *handle, STACK_OF(X509) *certs, X509 *signcert,
+	EVP_PKEY *key, PKCS7 **p7);
 
 /* Internal functions */
 
