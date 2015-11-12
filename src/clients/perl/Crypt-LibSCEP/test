@@ -172,10 +172,11 @@ print "PENDING:", $/;
 print Crypt::LibSCEP::create_pending_reply({}, $sig_cakey, $sig_cacert, $pkcsreq), $/;
 
 print "FAILURE (badRequest for example):", $/;
-print Crypt::LibSCEP::create_error_reply({passin=>"pass", passwd=>"<willbeigenored>", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+my $failure = Crypt::LibSCEP::create_error_reply({passin=>"pass", passwd=>"<willbeigenored>", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey, $sig_cacert, $pkcsreq, "badRequest"), $/;
+print $failure, $/;
 
 print "SUCCESS (response to pkcsreq for example):", $/;
-my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert);
+my $certrep_success = Crypt::LibSCEP::create_certificate_reply({passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"}, $sig_cakey_enc, $sig_cacert, $pkcsreq, $issuedCert . "\n\n" . $sig_cacert);
 print $certrep_success, $/;
 
 print "getnextca response:", $/;
@@ -215,7 +216,14 @@ my $pin = "123456";
 my $id = "FFFF";
 my $engine_conf = {module => $module, label => $label, so => $so, pin => $pin};
 print "create engine object\n";
-Crypt::LibSCEP::create_engine({handle=>$handle}, $engine_conf);
+
+try {
+	Crypt::LibSCEP::create_engine({handle=>$handle}, $engine_conf);
+} catch {
+	print "\nerror stack:\n----------\n$_----------\n";
+
+};
+
 try {
 	$pkcsreq = Crypt::LibSCEP::pkcsreq({handle=>$handle}, $id, $sig_cert, $enc_cacert, $req);
 	print $pkcsreq;
@@ -251,3 +259,75 @@ print "print error reply without the use of pkcsreq:", $/;
 print Crypt::LibSCEP::create_error_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, "badRequest"), $/;
 print "print cert reply without the use of pkcsreq:", $/;
 print Crypt::LibSCEP::create_certificate_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, $enc_cert, $issuedCert), $/;
+
+print "senderNonce\n";
+my $senderNonce = Crypt::LibSCEP::get_senderNonce($struct5);
+my $hex = unpack(  'H*', $senderNonce );
+print $hex, $/;
+
+print "getcertinitial\n";
+$getcertinitial1 = Crypt::LibSCEP::getcertinitial({}, $sig_key, $sig_cert, $enc_cacert, $req);
+print $getcertinitial1;
+
+print "getcertinitial with RA\n";
+$getcertinitial2 = Crypt::LibSCEP::getcertinitial_ra({}, $sig_key, $sig_cert, $enc_cacert, $enc_cacert, $req);
+print $getcertinitial2;
+
+print "getcrl\n";
+$getcrl = Crypt::LibSCEP::getcrl({}, $sig_key, $sig_cert, $enc_cacert, $enc_cacert);
+print $getcrl;
+
+print "certrep success to \n";
+$getcrl = Crypt::LibSCEP::getcrl({}, $sig_key, $sig_cert, $enc_cacert, $enc_cacert);
+print $getcrl;
+
+print "print cert reply without the use of pkcsreq and chain:", $/;
+print Crypt::LibSCEP::create_certificate_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, $enc_cert, $issuedCert . "\n" . $enc_cacert . "\n" . $sig_cacert ), $/;
+
+print "print cert reply with chain:", $/;
+print Crypt::LibSCEP::create_certificate_reply({}, $sig_cakey, $sig_cacert, $pkcsreq, $issuedCert . "\n" . $enc_cacert . "\n" . $sig_cacert ), $/;
+
+
+my $crl = "-----BEGIN X509 CRL-----
+MIHeMIGJAgEBMA0GCSqGSIb3DQEBCwUAMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQI
+DARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJj
+YRcNMTUxMTEyMTcwMDA5WhcNMTUxMjEyMTcwMDA5WqAOMAwwCgYDVR0UBAMCAQEw
+DQYJKoZIhvcNAQELBQADQQCZr+Bma6Al8otR2bMTtOXndEVSInsfiSaigzh+TEZq
+5fgZ7fdUlkoXpCUJbvudyGSzUtEas9dFQB7M8RGDGiBP
+-----END X509 CRL-----";
+
+
+
+print "create_crl_reply:", $/;
+my $create_crl_reply = Crypt::LibSCEP::create_crl_reply({}, $sig_cakey, $sig_cacert, $pkcsreq, $crl);
+print $create_crl_reply;
+
+print "create_crl_reply_wo_p7:", $/;
+my $create_crl_reply_wop7 = Crypt::LibSCEP::create_crl_reply_wop7({}, $sig_cakey, $sig_cacert, $transid, $senderNonce, $enc_cert, $crl);
+print $create_crl_reply_wop7;
+
+my $test1 = Crypt::LibSCEP::unwrap({}, $create_crl_reply_wop7, $sig_cert, $enc_cert, $enc_key);
+print "CRL: " . Crypt::LibSCEP::get_crl($test1);
+
+my $test2 = Crypt::LibSCEP::unwrap({}, $failure, $sig_cert, $enc_cert, $enc_key);
+
+print Crypt::LibSCEP::get_failInfo($test2);
+
+print Crypt::LibSCEP::get_pkiStatus($test2);
+
+print "issuer: " . Crypt::LibSCEP::get_issuer($struct2), $/;
+
+my $test3 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $getcertinitial1, $sig_cacert, $enc_cacert, $enc_cakey);
+
+
+print "issuer: " . Crypt::LibSCEP::get_issuer($test3), $/;
+
+print Crypt::LibSCEP::get_getcert_serial($struct2), $/;
+
+print Crypt::LibSCEP::get_subject($test3), $/;
+
+
+my $test3 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf", log=>"/home/gknocke/develop/libscep/src/clients/perl/Crypt-LibSCEP/logfile.txt"}, $getcertinitial1, $sig_cacert, $enc_cacert, $enc_cakey);
+
+print "get encrypted content", $/;
+print Crypt::LibSCEP::get_cert($struct5);

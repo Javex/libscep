@@ -1,5 +1,6 @@
 #include "scep.h"
 #include "message_static_functions.c"
+#include <unistd.h>	
 
 SCEP_ERROR scep_getcacert_reply(SCEP *handle, STACK_OF(X509) *certs, X509 *signcert, EVP_PKEY *key, PKCS7 **p7)
 {
@@ -460,9 +461,9 @@ SCEP_ERROR scep_get_cert_initial(
 		free(subject_str);
 	}
 
-	ias->issuer = X509_get_issuer_name(cacert);
+	ias->issuer = X509_get_subject_name(cacert);
 	if(!ias->issuer)
-		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a issuer on CA cert to produce issuer and serial");
+		SCEP_ERR(SCEPE_INVALID_CONTENT, "Need a subject of CA cert to produce issuer and serial");
 	issuer_str = X509_NAME_oneline(ias->issuer, NULL, 0);
 	if(!(issuer_str || strlen(issuer_str))) {
 		ERR_print_errors(handle->configuration->log);
@@ -685,6 +686,8 @@ SCEP_ERROR scep_unwrap_response(
 		X509 *request_cert, EVP_PKEY *request_key,
 		SCEP_OPERATION request_type, SCEP_DATA **output)
 {
+			sleep(3);
+
 	SCEP_ERROR error = SCEPE_OK;
 	SCEP_DATA *local_out = NULL;
 	PKCS7 *messageData = NULL;
@@ -763,6 +766,7 @@ SCEP_ERROR scep_unwrap_response(
 
 			case SCEPOP_GETCRL: ; // hack again...
 				STACK_OF(X509_CRL) *crls = local_out->messageData->d.sign->crl;
+				SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of CRLs");
 				/* ensure only one CRL */
 				if(sk_X509_CRL_num(crls) != 1)
 					SCEP_ERR(SCEPE_INVALID_CONTENT, "Invalid number of CRLs");
