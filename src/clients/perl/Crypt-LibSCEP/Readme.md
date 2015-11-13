@@ -154,19 +154,15 @@ Similar to PKCSReq. Instead of a CSR, this message type includes a transaction I
 
 **getcertinitial**
 
-The transaction ID and subject is derived from the CSR, the issuer is derived from the encryption certificate.
+The transaction ID and subject is derived from the CSR, the issuer is derived from the encryption certificate. Even though the transaction ID is not part of the CSR, LibSCEP assumes that the transaction ID is derived from the public key of the CSR. In case a different transaction ID is is used, LibSCEP cannot deal with it.
 
-	$getcertinitial = Crypt::LibSCEP::getcertinitial($conf, $sig_key, $sig_cert, $enc_cert, $req);
+One might ask why the $issuer_cert is required for the GetCertInitial request but not for the PKCSReq message. Indeed, the PKCSReq message does not require any information about the issuer. We can't find any reason why this is different for GetCertInitial. The client still doesn't know which certificate will be used to sign the request. We assume this is a flaw in the specification.
 
-**getcertinitial_ra**
-
-In some cases, the issuer of the certificate is a different entity than the receiver of the message. That means, the issuer cannot be derived from the encryption certificate. This is the case when not only a CA but also an RA is in use. The RA decryps the message but the CA is the one that signs the CSR. For this case, this function accepts the issuer certificate as a separate parameter.
-
-	$getcertinitial = Crypt::LibSCEP::getcertinitial_ra($conf, $sig_key, $sig_cert, $enc_cert, $issuer_cert, $req);
+	$getcertinitial = Crypt::LibSCEP::getcertinitial($conf, $sig_key, $sig_cert, $enc_cert, $req, $issuer_cert);
 
 ### GetCRL
 
-Similar to PKCSReq. Instead of a CSR, this message includes an IssuerAndSerial from the certificate to be validated.
+Similar to PKCSReq. Instead of a CSR, this message includes an IssuerAndSerial from the certificate to be validated. Instead of providing the issuer and serial separately as it is the case in the *getcert* function, this functions assumes that the certificate that should be validated is present. If not, it can be obtained from the CA by using *cetcert*. 
 
 **getcrl**
 
@@ -217,9 +213,14 @@ Like *create_certificate_reply* but instead of certificates, a CRL is included. 
 
 ### GetCert
 
+A GetCert message contains an issuer and a serial number which together uniquely identify a certificate that is requested. 
+
 **getcert**
 
-	 $getcert = Crypt::LibSCEP::getcert($config, $sig_key, $sig_cert, $enc_cert);
+The function takes the serial number as a string whereas the issuer must be directly derived from the issuer certificate. Typically this way is easier even though only the subject of the issuer certificate rather than the entire certificate must be present for this task.
+
+	$serial = "1";
+	$getcert = Crypt::LibSCEP::getcert($conf, $sig_key, $sig_cert, $enc_cert, $issuer_cert, $serial);
 
 ### Further Convenience Functions
 

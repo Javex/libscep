@@ -138,22 +138,32 @@ X08qHUZg7s7USpfnKfkLOdshlykSD5uldVDM8DEu+quiapbyfJDev7mpzItD0/Ru
 4Afd1Z5gdUberBpJCmg6z020fwq1gn3AlXUOxlf+Z2k=
 -----END RSA PRIVATE KEY-----";
 
+my $crl = "-----BEGIN X509 CRL-----
+MIHeMIGJAgEBMA0GCSqGSIb3DQEBCwUAMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQI
+DARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJj
+YRcNMTUxMTEyMTcwMDA5WhcNMTUxMjEyMTcwMDA5WqAOMAwwCgYDVR0UBAMCAQEw
+DQYJKoZIhvcNAQELBQADQQCZr+Bma6Al8otR2bMTtOXndEVSInsfiSaigzh+TEZq
+5fgZ7fdUlkoXpCUJbvudyGSzUtEas9dFQB7M8RGDGiBP
+-----END X509 CRL-----";
+
 my $conf = {};
 print "creating pkcsreq from csr:", $/;
 #this command is for the client-side
 my $pkcsreq = Crypt::LibSCEP::pkcsreq($conf, $sig_key, $sig_cert, $enc_cacert, $req);
 print $pkcsreq;
 
+#the following part is for the server-side
+my $struct1 = Crypt::LibSCEP::parse({}, $pkcsreq);
+
 print "creating getcert:", $/;
 #this command is for the client-side
-my $getcert = Crypt::LibSCEP::getcert($conf, $sig_key, $sig_cert, $enc_cacert);
+my $getcert = Crypt::LibSCEP::getcert($conf, $sig_key, $sig_cert, $enc_cacert, $sig_cacert, "1");
 print $getcert;
 
 print "unwrapping getcert", $/;
 my $struct2 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $getcert, $sig_cacert, $enc_cacert, $enc_cakey);
 
-#the following part is for the server-side
-my $struct1 = Crypt::LibSCEP::parse({}, $pkcsreq);
+
 
 #accessor functions
 print "print its transaction id", $/;
@@ -266,12 +276,8 @@ my $hex = unpack(  'H*', $senderNonce );
 print $hex, $/;
 
 print "getcertinitial\n";
-$getcertinitial1 = Crypt::LibSCEP::getcertinitial({}, $sig_key, $sig_cert, $enc_cacert, $req);
+$getcertinitial1 = Crypt::LibSCEP::getcertinitial({}, $sig_key, $sig_cert, $enc_cacert, $req, $sig_cacert);
 print $getcertinitial1;
-
-print "getcertinitial with RA\n";
-$getcertinitial2 = Crypt::LibSCEP::getcertinitial_ra({}, $sig_key, $sig_cert, $enc_cacert, $enc_cacert, $req);
-print $getcertinitial2;
 
 print "getcrl\n";
 $getcrl = Crypt::LibSCEP::getcrl({}, $sig_key, $sig_cert, $enc_cacert, $enc_cacert);
@@ -287,14 +293,6 @@ print Crypt::LibSCEP::create_certificate_reply_wop7({}, $sig_cakey, $sig_cacert,
 print "print cert reply with chain:", $/;
 print Crypt::LibSCEP::create_certificate_reply({}, $sig_cakey, $sig_cacert, $pkcsreq, $issuedCert . "\n" . $enc_cacert . "\n" . $sig_cacert ), $/;
 
-
-my $crl = "-----BEGIN X509 CRL-----
-MIHeMIGJAgEBMA0GCSqGSIb3DQEBCwUAMEcxCzAJBgNVBAYTAkRFMQ0wCwYDVQQI
-DARhc2RmMQ0wCwYDVQQHDARhc2RmMQ0wCwYDVQQKDARhc2RmMQswCQYDVQQDDAJj
-YRcNMTUxMTEyMTcwMDA5WhcNMTUxMjEyMTcwMDA5WqAOMAwwCgYDVR0UBAMCAQEw
-DQYJKoZIhvcNAQELBQADQQCZr+Bma6Al8otR2bMTtOXndEVSInsfiSaigzh+TEZq
-5fgZ7fdUlkoXpCUJbvudyGSzUtEas9dFQB7M8RGDGiBP
------END X509 CRL-----";
 
 
 
@@ -322,7 +320,7 @@ my $test3 = Crypt::LibSCEP::unwrap({passin=>"pass", passwd=>"asdf"}, $getcertini
 
 print "issuer: " . Crypt::LibSCEP::get_issuer($test3), $/;
 
-print Crypt::LibSCEP::get_getcert_serial($struct2), $/;
+print "serial: " . Crypt::LibSCEP::get_getcert_serial($struct1), $/;
 
 print Crypt::LibSCEP::get_subject($test3), $/;
 

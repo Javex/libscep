@@ -972,11 +972,13 @@ OUTPUT:
 	RETVAL
 
 char *
-getcert(rv_config, sig_key_str, sig_cert_str, enc_cert_str)
+getcert(rv_config, sig_key_str, sig_cert_str, enc_cert_str, cacert_str, serial_str)
 SV 	 * rv_config
 char * sig_key_str
 char * sig_cert_str
 char * enc_cert_str
+char * cacert_str
+char * serial_str
 PREINIT:
 	Conf *config;
 	BIO *b;
@@ -986,6 +988,7 @@ PREINIT:
 	bool success;
 	X509 *sig_cert;
 	X509 *enc_cert;
+	X509 *cacert;
 	ASN1_INTEGER *serial;
 	X509_NAME *issuer;
 	SCEP_ERROR s;
@@ -1013,6 +1016,17 @@ CODE:
 	}	
 	(void)BIO_reset(b);
 
+	if(BIO_write(b, cacert_str, strlen(cacert_str)) <= 0) {
+		scep_log(config->handle, ERROR, "Could not write cacert to BIO");
+		goto err;
+	}
+	cacert = PEM_read_bio_X509(b, NULL, 0, 0);
+	if(cacert == NULL){
+		scep_log(config->handle, ERROR, "Could not read cacert cert");
+		goto err;
+	}	
+	(void)BIO_reset(b);
+
 	if(BIO_write(b, enc_cert_str, strlen(enc_cert_str)) <= 0) {
 		scep_log(config->handle, ERROR, "Could not write encryption cert to BIO");
 		goto err;
@@ -1025,12 +1039,12 @@ CODE:
 	(void)BIO_reset(b);
 
 	//TODO are other methods than issuer and serial such as key identifier allowed?
-	serial = X509_get_serialNumber(sig_cert);
+	serial = s2i_ASN1_INTEGER(NULL, serial_str);
 	if(serial == NULL) {
-		scep_log(config->handle, ERROR, "Serial number must be present in signer cert");
+		scep_log(config->handle, ERROR, "Serial number must be provided");
 		goto err;
 	}	
-    issuer = X509_get_issuer_name(sig_cert);
+    issuer = X509_get_subject_name(cacert);
     if(issuer == NULL) {
 		scep_log(config->handle, ERROR, "Issuer must be present in signer cert");
 		goto err;
@@ -1574,102 +1588,13 @@ CODE:
     Safefree(result);
 
 char *
-getcertinitial(rv_config, sig_key_str, sig_cert_str, enc_cert_str, req_str)
+getcertinitial(rv_config, sig_key_str, sig_cert_str, enc_cert_str, req_str, issuer_cert_str)
 SV   * rv_config
 char * sig_cert_str
 char * enc_cert_str
 char * sig_key_str
 char * req_str
-PREINIT:
-	Conf *config;
-	BIO *b;
-	PKCS7 *p7;
-	EVP_PKEY *sig_key;
-	char *reply;
-	SCEP_ERROR s;
-	bool success;
-	X509 *sig_cert;
-	X509_REQ *req;
-	X509 *enc_cert;
-CODE:
-	success = FALSE;
-	reply = NULL;
-	config = INT2PTR(Conf *, init_config(rv_config));
-	p7 = NULL;
-	sig_key = load_key(sig_key_str, config);
-
-	b = BIO_new(BIO_s_mem());
-	if(b == NULL) {
-		scep_log(config->handle, ERROR, "Memory allocation error");
-		create_err_msg(config);
-	}
-
-	if(BIO_write(b, sig_cert_str, strlen(sig_cert_str)) <= 0) {
-		scep_log(config->handle, ERROR, "Could not write signature cert to BIO");
-		goto err;
-	}
-	sig_cert = PEM_read_bio_X509(b, NULL, 0, 0);
-	if(sig_cert == NULL){
-		scep_log(config->handle, ERROR, "Could not read signature cert");
-		goto err;
-	}	
-	(void)BIO_reset(b);
-
-	if(BIO_write(b, req_str, strlen(req_str)) <= 0) {
-		scep_log(config->handle, ERROR, "Could not write X509 req to BIO");
-		goto err;
-	}
-	req = PEM_read_bio_X509_REQ(b, NULL, 0, 0);
-	if(req == NULL){
-		scep_log(config->handle, ERROR, "Could not read X509 req");
-		goto err;
-	}
-	(void)BIO_reset(b);
-
-	if(BIO_write(b, enc_cert_str, strlen(enc_cert_str)) <= 0) {
-		scep_log(config->handle, ERROR, "Could not write encryption cert to BIO");
-		goto err;
-	}
-
-	enc_cert = PEM_read_bio_X509(b, NULL, 0, 0);
-	if(enc_cert == NULL) {
-		scep_log(config->handle, ERROR, "Could not read encryption cert");
-		goto err;
-	}		
-	(void)BIO_reset(b);
-
-	s = scep_get_cert_initial(
-		config->handle, req, sig_cert, sig_key, enc_cert, enc_cert, &p7);
-	if(s != SCEPE_OK || p7 == NULL) {
-		scep_log(config->handle, ERROR, "scep_pkcsreq failed");
-		goto err;
-	}
-	if(!PEM_write_bio_PKCS7(b, p7)) {
-		scep_log(config->handle, ERROR, "Could not write SCEP result to BIO");
-		goto err;
-	}
-    reply = bio2str(b);
-	(void)BIO_set_close(b, BIO_NOCLOSE);
-	
-    success = TRUE;
-
-	err:
-		BIO_free(b);
-		if(!success) {
-			create_err_msg(config);
-		}
-	RETVAL = reply;
-OUTPUT:
-	RETVAL
-
-char *
-getcertinitial_ra(rv_config, sig_key_str, sig_cert_str, enc_cert_str, issuer_cert_str, req_str)
-SV   * rv_config
-char * sig_cert_str
-char * enc_cert_str
 char * issuer_cert_str
-char * sig_key_str
-char * req_str
 PREINIT:
 	Conf *config;
 	BIO *b;
@@ -1706,6 +1631,17 @@ CODE:
 	}	
 	(void)BIO_reset(b);
 
+	if(BIO_write(b, issuer_cert_str, strlen(issuer_cert_str)) <= 0) {
+		scep_log(config->handle, ERROR, "Could not write issuer cert to BIO");
+		goto err;
+	}
+	issuer_cert = PEM_read_bio_X509(b, NULL, 0, 0);
+	if(issuer_cert == NULL){
+		scep_log(config->handle, ERROR, "Could not read issuer cert");
+		goto err;
+	}	
+	(void)BIO_reset(b);
+
 	if(BIO_write(b, req_str, strlen(req_str)) <= 0) {
 		scep_log(config->handle, ERROR, "Could not write X509 req to BIO");
 		goto err;
@@ -1725,18 +1661,6 @@ CODE:
 	enc_cert = PEM_read_bio_X509(b, NULL, 0, 0);
 	if(enc_cert == NULL) {
 		scep_log(config->handle, ERROR, "Could not read encryption cert");
-		goto err;
-	}		
-	(void)BIO_reset(b);
-
-	if(BIO_write(b, issuer_cert_str, strlen(issuer_cert_str)) <= 0) {
-		scep_log(config->handle, ERROR, "Could not write issuer cert to BIO");
-		goto err;
-	}
-
-	issuer_cert = PEM_read_bio_X509(b, NULL, 0, 0);
-	if(issuer_cert == NULL) {
-		scep_log(config->handle, ERROR, "Could not read issuer cert");
 		goto err;
 	}		
 	(void)BIO_reset(b);
