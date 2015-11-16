@@ -152,20 +152,21 @@ DQYJKoZIhvcNAQELBQADQQCZr+Bma6Al8otR2bMTtOXndEVSInsfiSaigzh+TEZq
 -----END X509 CRL-----
 ";
 
-#my $conf = {log=>"/dev/null"};
-my $conf = {};
-my $ca_conf = {passin=>"pass", passwd=>"asdf", sigalg=>"sha256", encalg=>"aes256"};
-my $ca_conf2 = {passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"};
-#my $ca_conf = {passin=>"pass", passwd=>"asdf", log=>"/dev/null", sigalg=>"sha256", encalg=>"aes256"};
-
 my $serial = "1";
 my $issuer = "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca";
 my $failinfo = "badAlg";
 #tests missing for environment var, plain, handle, other failinfos
 
 
-use Test::More tests => 74;
+use Test::More tests => 75;
 BEGIN { use_ok('Crypt::LibSCEP') };
+
+
+my $handle = Crypt::LibSCEP::create_handle({sigalg=>"sha256", encalg=>"aes256"});
+my $conf = {handle => $handle};
+ok($handle ne "", "handle creation");
+my $ca_conf = {passin=>"pass", passwd=>"asdf", sigalg=>"sha256", encalg=>"aes256"};
+my $ca_conf2 = {passin=>"pass", passwd=>"foobar", sigalg=>"sha256", encalg=>"aes256"};
 
 #Testing PKCSReq
 my $pkcsreq = Crypt::LibSCEP::pkcsreq($conf, $sig_key, $sig_cert, $enc_cacert, $req);
@@ -335,3 +336,22 @@ ok(Crypt::LibSCEP::get_crl($certrep_success_crl_unwrapped) eq $crl, "CertRep SUC
 #Testing create_nextca_reply
 ok(Crypt::LibSCEP::create_nextca_reply($conf, $issuedCert . "\n" . $sig_cacert, $sig_cacert, $sig_cakey) ne "", "create_nextca_reply");
 
+#Coment in and adjust if you want to test the engine support
+#Note that you need to add the corresponding private key into the engine etc.
+=pod 
+#Testing PKCS#11 engine
+my $label = "pkcs11";
+my $so = "/usr/lib/engines/engine_pkcs11.so";
+my $module = "/usr/lib/softhsm/libsofthsm.so";
+my $pin = "123456";
+my $id = "FFFF";
+my $engine_conf = {module => $module, label => $label, so => $so, pin => $pin};
+Crypt::LibSCEP::create_engine({handle=>$handle}, $engine_conf);
+$pkcsreq = Crypt::LibSCEP::pkcsreq({handle=>$handle}, $id, $sig_cert, $enc_cert, $req);
+ok($pkcsreq ne "", "CertRep SUCCESS unwrap");
+
+Crypt::LibSCEP::cleanup($handle);
+my $pkcsreq_unwrapped = Crypt::LibSCEP::unwrap($ca_conf, $pkcsreq, $sig_cacert, $enc_cert, $enc_key);
+ok($pkcsreq_unwrapped ne "", "pkcsreq unwrap");
+ok(Crypt::LibSCEP::get_pkcs10($pkcsreq_unwrapped) eq $req, "pkcsreq get PKCS10");
+=cut
