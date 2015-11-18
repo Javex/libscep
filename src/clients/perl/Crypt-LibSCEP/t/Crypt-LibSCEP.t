@@ -155,8 +155,6 @@ DQYJKoZIhvcNAQELBQADQQCZr+Bma6Al8otR2bMTtOXndEVSInsfiSaigzh+TEZq
 my $serial = "1";
 my $issuer = "/C=DE/ST=asdf/L=asdf/O=asdf/CN=ca";
 my $failinfo = "badAlg";
-#tests missing for environment var, plain, handle, other failinfos
-
 
 use Test::More tests => 75;
 BEGIN { use_ok('Crypt::LibSCEP') };
