@@ -215,7 +215,7 @@ typedef struct {
     unsigned char recipientNonce[NONCE_LENGTH];
     ASN1_TYPE *challenge_password;
     X509 *signer_certificate;
-    const char *messageType_str;
+    char *messageType_str;
     SCEP_MESSAGE_TYPE messageType;
     /* Different types of message content for different operations.
      * Contains the required data for the specified operation

@@ -109,6 +109,8 @@ SCEP_ERROR SCEP_DATA_free(SCEP_DATA *data)
 		ASN1_TYPE_free(data->challenge_password);
 	if(data->signer_certificate)
 		X509_free(data->signer_certificate);
+	if(data->messageType_str)
+		free(data->messageType_str);
 	switch(data->messageType) {
 		case SCEP_MSG_PKCSREQ:
 			if(data->request)
